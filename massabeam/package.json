@@ -1,0 +1,19 @@
+{
+  "name": "massabeam",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@massalabs/massa-web3": "^5.2.0",
+    "@massalabs/wallet-provider": "^3.2.0",
+    "events": "^3.3.0",
+    "lodash-es": "^4.17.21",
+    "vite": "^7.0.4",
+    "vite-plugin-node-polyfills": "^0.24.0"
+  }
+}

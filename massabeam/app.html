@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Massa DeFi Protocol - Advanced DeFi Platform</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message"></div>
+        
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Connecting to Massa Network...</div>
+        </div>
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-container">
+                <div class="header-left">
+                    <div class="brand">
+                        <div class="brand-icon">
+                            <div class="massa-logo"></div>
+                        </div>
+                        <span class="brand-text">Massa DeFi</span>
+                    </div>
+                    <div class="network-status">
+                        <div class="status-indicator" id="networkStatus"></div>
+                        <span class="status-text">Buildnet</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="gas-price">
+                        <span class="gas-label">Gas:</span>
+                        <span class="gas-value" id="gasPrice">1000</span>
+                    </div>
+                    <button class="wallet-btn" id="walletBtn">
+                        <span class="wallet-text">Connect Wallet</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <div class="nav-container">
+                <div class="nav-items">
+                    <button class="nav-item active" data-section="dashboard">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </button>
+                    <button class="nav-item" data-section="trade">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">Trade</span>
+                    </button>
+                    <button class="nav-item" data-section="orders">
+                        <span class="nav-icon">🎯</span>
+                        <span class="nav-text">Limit Orders</span>
+                    </button>
+                    <button class="nav-item" data-section="dca">
+                        <span class="nav-icon">📈</span>
+                        <span class="nav-text">DCA Strategies</span>
+                    </button>
+                    <button class="nav-item" data-section="yield">
+                        <span class="nav-icon">🌾</span>
+                        <span class="nav-text">Yield Farming</span>
+                    </button>
+                    <button class="nav-item" data-section="portfolio">
+                        <span class="nav-icon">💼</span>
+                        <span class="nav-text">Portfolio</span>
+                    </button>
+                    <button class="nav-item" data-section="analytics">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Analytics</span>
+                    </button>
+
+                    <button class="nav-item" data-section="liquidity">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">liquidity</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active">
+                <div class="section-header">
+                    <h1 class="section-title">Dashboard</h1>
+                    <div class="section-actions">
+                        <button class="refresh-btn" onclick="refreshDashboard()">
+                            <span class="refresh-icon">🔄</span>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <!-- Portfolio Overview -->
+                    <div class="dashboard-card portfolio-overview">
+                        <div class="card-header">
+                            <h3 class="card-title">Portfolio Overview</h3>
+                            <div class="card-value" id="totalPortfolioValue">$0.00</div>
+                        </div>
+                        <div class="portfolio-chart">
+                            <canvas id="portfolioChart" width="300" height="150"></canvas>
+                        </div>
+                        <div class="portfolio-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">24h Change</span>
+                                <span class="stat-value positive" id="portfolioChange">+0.00%</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total Assets</span>
+                                <span class="stat-value" id="totalAssets">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Active Positions -->
+                    <div class="dashboard-card active-positions">
+                        <div class="card-header">
+                            <h3 class="card-title">Active Positions</h3>
+                            <span class="position-count" id="activePositionsCount">0</span>
+                        </div>
+                        <div class="positions-list" id="activePositionsList">
+                            <div class="empty-state">
+                                <div class="empty-icon">📊</div>
+                                <p>No active positions</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="dashboard-card quick-actions">
+                        <div class="card-header">
+                            <h3 class="card-title">Quick Actions</h3>
+                        </div>
+                        <div class="actions-grid">
+                            <button class="action-btn" onclick="switchSection('trade')">
+                                <span class="action-icon">⚡</span>
+                                <span class="action-text">Swap Tokens</span>
+                            </button>
+                            <button class="action-btn" onclick="switchSection('orders')">
+                                <span class="action-icon">🎯</span>
+                                <span class="action-text">Create Order</span>
+                            </button>
+                            <button class="action-btn" onclick="switchSection('dca')">
+                                <span class="action-icon">📈</span>
+                                <span class="action-text">Start DCA</span>
+                            </button>
+                            <button class="action-btn" onclick="switchSection('yield')">
+                                <span class="action-icon">🌾</span>
+                                <span class="action-text">Farm Yield</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Protocol Stats -->
+                    <div class="dashboard-card protocol-stats">
+                        <div class="card-header">
+                            <h3 class="card-title">Protocol Statistics</h3>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">Total TVL</span>
+                                <span class="stat-value" id="protocolTVL">$0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">24h Volume</span>
+                                <span class="stat-value" id="protocol24hVolume">$0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Active Orders</span>
+                                <span class="stat-value" id="protocolActiveOrders">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total Users</span>
+                                <span class="stat-value" id="protocolUsers">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Transactions -->
+                    <div class="dashboard-card recent-transactions">
+                        <div class="card-header">
+                            <h3 class="card-title">Recent Transactions</h3>
+                            <button class="view-all-btn" onclick="switchSection('portfolio')">View All</button>
+                        </div>
+                        <div class="transactions-list" id="recentTransactionsList">
+                            <div class="empty-state">
+                                <div class="empty-icon">📝</div>
+                                <p>No recent transactions</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Trade Section -->
+            <section id="trade" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">Trade</h1>
+                    <div class="section-actions">
+                        <button class="settings-btn" onclick="openTradeSettings()">
+                            <span class="settings-icon">⚙️</span>
+                            Settings
+                        </button>
+                    </div>
+                </div>
+
+                <div class="trade-container">
+                    <div class="trade-panel">
+                        <div class="swap-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Swap Tokens</h3>
+                                <div class="slippage-display">
+                                    Slippage: <span id="currentSlippage">0.5%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="swap-form">
+                                <div class="token-input">
+                                    <div class="input-header">
+                                        <span class="input-label">From</span>
+                                        <span class="balance">Balance: <span id="fromTokenBalance">0</span></span>
+                                    </div>
+                                    <div class="input-container">
+                                        <input type="number" id="fromAmount" placeholder="0.0" class="amount-input">
+                                        <button class="token-select" id="fromTokenSelect">
+                                            <span class="token-symbol">Select Token</span>
+                                            <span class="dropdown-arrow">▼</span>
+                                        </button>
+                                    </div>
+                                    <div class="input-footer">
+                                        <span class="usd-value" id="fromUsdValue">$0.00</span>
+                                        <button class="max-btn" onclick="setMaxAmount()">MAX</button>
+                                    </div>
+                                </div>
+
+                                <div class="swap-arrow">
+                                    <button class="swap-direction-btn" onclick="swapTokens()">
+                                        <span class="arrow-icon">⇅</span>
+                                    </button>
+                                </div>
+
+                                <div class="token-input">
+                                    <div class="input-header">
+                                        <span class="input-label">To</span>
+                                        <span class="balance">Balance: <span id="toTokenBalance">0</span></span>
+                                    </div>
+                                    <div class="input-container">
+                                        <input type="number" id="toAmount" placeholder="0.0" class="amount-input" readonly>
+                                        <button class="token-select" id="toTokenSelect">
+                                            <span class="token-symbol">Select Token</span>
+                                            <span class="dropdown-arrow">▼</span>
+                                        </button>
+                                    </div>
+                                    <div class="input-footer">
+                                        <span class="usd-value" id="toUsdValue">$0.00</span>
+                                    </div>
+                                </div>
+
+                                <div class="swap-info">
+                                    <div class="info-row">
+                                        <span class="info-label">Rate</span>
+                                        <span class="info-value" id="swapRate">-</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">Price Impact</span>
+                                        <span class="info-value" id="priceImpact">-</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">Minimum Received</span>
+                                        <span class="info-value" id="minimumReceived">-</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">Network Fee</span>
+                                        <span class="info-value" id="networkFee">-</span>
+                                    </div>
+                                </div>
+
+                                <button class="swap-btn" id="swapBtn" onclick="executeSwap()">
+                                    <span class="btn-text">Connect Wallet</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="trade-info-panel">
+                        <div class="price-chart-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Price Chart</h3>
+                                <div class="chart-controls">
+                                    <button class="chart-timeframe active" data-timeframe="1H">1H</button>
+                                    <button class="chart-timeframe" data-timeframe="4H">4H</button>
+                                    <button class="chart-timeframe" data-timeframe="1D">1D</button>
+                                    <button class="chart-timeframe" data-timeframe="1W">1W</button>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="priceChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="pool-info-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Pool Information</h3>
+                            </div>
+                            <div class="pool-stats" id="poolStats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Liquidity</span>
+                                    <span class="stat-value">$0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">24h Volume</span>
+                                    <span class="stat-value">$0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">24h Fees</span>
+                                    <span class="stat-value">$0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">APR</span>
+                                    <span class="stat-value">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Limit Orders Section -->
+            <section id="orders" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">Limit Orders</h1>
+                    <div class="section-actions">
+                        <button class="primary-btn" onclick="openCreateOrderModal()">
+                            <span>Create Order</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="orders-container">
+                    <div class="orders-panel">
+                        <div class="create-order-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Create Limit Order</h3>
+                                <div class="order-type-selector">
+                                    <button class="order-type-btn active" data-type="limit">Limit</button>
+                                    <button class="order-type-btn" data-type="stop-loss">Stop Loss</button>
+                                    <button class="order-type-btn" data-type="take-profit">Take Profit</button>
+                                </div>
+                            </div>
+
+                            <form class="order-form" id="orderForm">
+                                <div class="form-group">
+                                    <label class="form-label">Token Pair</label>
+                                    <div class="token-pair-selector">
+                                        <select class="token-select-dropdown" id="orderTokenIn">
+                                            <option value="">Select Token In</option>
+                                        </select>
+                                        <span class="pair-arrow">→</span>
+                                        <select class="token-select-dropdown" id="orderTokenOut">
+                                            <option value="">Select Token Out</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Amount In</label>
+                                    <div class="input-with-max">
+                                        <input type="number" id="orderAmountIn" placeholder="0.0" class="form-input">
+                                        <button type="button" class="max-btn" onclick="setOrderMaxAmount()">MAX</button>
+                                    </div>
+                                    <div class="input-hint">
+                                        Balance: <span id="orderTokenInBalance">0</span>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Limit Price</label>
+                                    <input type="number" id="orderLimitPrice" placeholder="0.0" class="form-input">
+                                    <div class="input-hint">
+                                        Current Price: <span id="currentMarketPrice">-</span>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Expiry</label>
+                                    <select class="form-select" id="orderExpiry">
+                                        <option value="3600">1 Hour</option>
+                                        <option value="86400">1 Day</option>
+                                        <option value="604800">1 Week</option>
+                                        <option value="2592000">1 Month</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="partialFill">
+                                            <span class="checkmark"></span>
+                                            Allow Partial Fill
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Slippage Tolerance</label>
+                                    <div class="slippage-selector">
+                                        <button type="button" class="slippage-btn active" data-slippage="0.1">0.1%</button>
+                                        <button type="button" class="slippage-btn" data-slippage="0.5">0.5%</button>
+                                        <button type="button" class="slippage-btn" data-slippage="1.0">1.0%</button>
+                                        <input type="number" class="slippage-input" placeholder="Custom" step="0.1" min="0.1" max="50">
+                                    </div>
+                                </div>
+
+                                <div class="order-summary">
+                                    <div class="summary-row">
+                                        <span class="summary-label">You Pay</span>
+                                        <span class="summary-value" id="orderSummaryPay">0 TOKEN</span>
+                                    </div>
+                                    <div class="summary-row">
+                                        <span class="summary-label">You Receive (Min)</span>
+                                        <span class="summary-value" id="orderSummaryReceive">0 TOKEN</span>
+                                    </div>
+                                    <div class="summary-row">
+                                        <span class="summary-label">Network Fee</span>
+                                        <span class="summary-value" id="orderSummaryFee">~0.001 MAS</span>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="primary-btn full-width" id="createOrderBtn">
+                                    <span>Create Limit Order</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="orders-list-panel">
+                        <div class="orders-tabs">
+                            <button class="tab-btn active" data-tab="active">Active Orders</button>
+                            <button class="tab-btn" data-tab="history">Order History</button>
+                        </div>
+
+                        <div class="orders-list" id="activeOrdersList">
+                            <div class="empty-state">
+                                <div class="empty-icon">🎯</div>
+                                <p>No active orders</p>
+                                <button class="secondary-btn" onclick="openCreateOrderModal()">Create Your First Order</button>
+                            </div>
+                        </div>
+
+                        <div class="orders-list hidden" id="orderHistoryList">
+                            <div class="empty-state">
+                                <div class="empty-icon">📝</div>
+                                <p>No order history</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- DCA Strategies Section -->
+            <section id="dca" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">DCA Strategies</h1>
+                    <div class="section-actions">
+                        <button class="primary-btn" onclick="openCreateDCAModal()">
+                            <span>Create Strategy</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dca-container">
+                    <div class="dca-create-panel">
+                        <div class="create-dca-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Create DCA Strategy</h3>
+                                <div class="card-subtitle">Dollar-Cost Average with Smart Automation</div>
+                            </div>
+
+                            <form class="dca-form" id="dcaForm">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">From Token</label>
+                                        <select class="form-select" id="dcaTokenIn">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">To Token</label>
+                                        <select class="form-select" id="dcaTokenOut">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Amount Per Purchase</label>
+                                        <input type="number" id="dcaAmountPerPeriod" placeholder="100" class="form-input">
+                                        <div class="input-hint">Amount to invest each period</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Frequency</label>
+                                        <select class="form-select" id="dcaFrequency">
+                                            <option value="3600">Every Hour</option>
+                                            <option value="86400">Daily</option>
+                                            <option value="604800">Weekly</option>
+                                            <option value="2592000">Monthly</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Total Periods</label>
+                                    <input type="number" id="dcaTotalPeriods" placeholder="12" min="1" max="365" class="form-input">
+                                    <div class="input-hint">Number of purchases to make</div>
+                                </div>
+
+                                <div class="advanced-settings">
+                                    <div class="settings-header">
+                                        <h4 class="settings-title">Advanced Settings</h4>
+                                        <button type="button" class="toggle-btn" onclick="toggleAdvancedSettings()">
+                                            <span class="toggle-text">Show</span>
+                                            <span class="toggle-arrow">▼</span>
+                                        </button>
+                                    </div>
+                                    <div class="settings-content hidden" id="dcaAdvancedSettings">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label class="form-label">Stop Loss (%)</label>
+                                                <input type="number" id="dcaStopLoss" placeholder="0" min="0" max="100" step="0.1" class="form-input">
+                                                <div class="input-hint">Trigger stop loss at % below average price</div>
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Take Profit (%)</label>
+                                                <input type="number" id="dcaTakeProfit" placeholder="0" min="0" max="1000" step="0.1" class="form-input">
+                                                <div class="input-hint">Trigger take profit at % above average price</div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Max Slippage (%)</label>
+                                            <input type="number" id="dcaMaxSlippage" placeholder="3" min="0.1" max="50" step="0.1" class="form-input">
+                                            <div class="input-hint">Maximum acceptable slippage per purchase</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dca-summary">
+                                    <div class="summary-header">
+                                        <h4 class="summary-title">Strategy Summary</h4>
+                                    </div>
+                                    <div class="summary-content">
+                                        <div class="summary-row">
+                                            <span class="summary-label">Total Investment</span>
+                                            <span class="summary-value" id="dcaTotalInvestment">0 TOKEN</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="summary-label">Duration</span>
+                                            <span class="summary-value" id="dcaDuration">0 days</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="summary-label">Next Purchase</span>
+                                            <span class="summary-value" id="dcaNextPurchase">After creation</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="primary-btn full-width" id="createDCABtn">
+                                    <span>Create DCA Strategy</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="dca-list-panel">
+                        <div class="strategies-header">
+                            <h3 class="strategies-title">Your Strategies</h3>
+                            <div class="strategies-stats">
+                                <div class="stat-item">
+                                    <span class="stat-value" id="activeDCACount">0</span>
+                                    <span class="stat-label">Active</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="totalDCAInvested">$0</span>
+                                    <span class="stat-label">Invested</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="strategies-list" id="dcaStrategiesList">
+                            <div class="empty-state">
+                                <div class="empty-icon">📈</div>
+                                <p>No DCA strategies yet</p>
+                                <button class="secondary-btn" onclick="openCreateDCAModal()">Create Your First Strategy</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Yield Farming Section -->
+            <section id="yield" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">Yield Farming</h1>
+                    <div class="section-actions">
+                        <button class="secondary-btn" onclick="refreshYieldPools()">
+                            <span class="refresh-icon">🔄</span>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="yield-container">
+                    <div class="yield-pools-grid" id="yieldPoolsGrid">
+                        <!-- Yield pools will be populated here -->
+                    </div>
+
+                    <div class="yield-positions-panel">
+                        <div class="positions-header">
+                            <h3 class="positions-title">Your Positions</h3>
+                            <div class="positions-tabs">
+                                <button class="tab-btn active" data-tab="farming">Farming</button>
+                                <button class="tab-btn" data-tab="leveraged">Leveraged</button>
+                            </div>
+                        </div>
+
+                        <div class="positions-content">
+                            <div class="positions-list" id="farmingPositionsList">
+                                <div class="empty-state">
+                                    <div class="empty-icon">🌾</div>
+                                    <p>No farming positions</p>
+                                </div>
+                            </div>
+
+                            <div class="positions-list hidden" id="leveragedPositionsList">
+                                <div class="empty-state">
+                                    <div class="empty-icon">⚡</div>
+                                    <p>No leveraged positions</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Portfolio Section -->
+            <section id="portfolio" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">Portfolio</h1>
+                    <div class="section-actions">
+                        <button class="secondary-btn" onclick="exportPortfolio()">
+                            <span class="export-icon">📊</span>
+                            Export
+                        </button>
+                    </div>
+                </div>
+
+                <div class="portfolio-container">
+                    <div class="portfolio-overview-card">
+                        <div class="overview-header">
+                            <div class="total-value">
+                                <span class="value-label">Total Portfolio Value</span>
+                                <span class="value-amount" id="portfolioTotalValue">$0.00</span>
+                            </div>
+                            <div class="value-change">
+                                <span class="change-period">24h</span>
+                                <span class="change-amount positive" id="portfolioTotalChange">+$0.00 (+0.00%)</span>
+                            </div>
+                        </div>
+                        <div class="portfolio-allocation">
+                            <canvas id="allocationChart" width="200" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="assets-table-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Assets</h3>
+                            <div class="table-controls">
+                                <button class="control-btn" onclick="toggleHideSmallBalances()">
+                                    <span id="hideSmallBalancesText">Hide Small Balances</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="assets-table-container">
+                            <table class="assets-table" id="assetsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Asset</th>
+                                        <th>Balance</th>
+                                        <th>Value</th>
+                                        <th>24h Change</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="assetsTableBody">
+                                    <tr class="empty-row">
+                                        <td colspan="5">
+                                            <div class="empty-state">
+                                                <div class="empty-icon">💼</div>
+                                                <p>No assets found</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="transactions-history-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Transaction History</h3>
+                            <div class="history-filters">
+                                <select class="filter-select" id="transactionTypeFilter">
+                                    <option value="all">All Types</option>
+                                    <option value="swap">Swaps</option>
+                                    <option value="order">Orders</option>
+                                    <option value="dca">DCA</option>
+                                    <option value="yield">Yield Farming</option>
+                                </select>
+                                <select class="filter-select" id="transactionTimeFilter">
+                                    <option value="all">All Time</option>
+                                    <option value="24h">Last 24h</option>
+                                    <option value="7d">Last 7 days</option>
+                                    <option value="30d">Last 30 days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="transactions-table-container">
+                            <table class="transactions-table" id="transactionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Details</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Time</th>
+                                        <th>Tx Hash</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionsTableBody">
+                                    <tr class="empty-row">
+                                        <td colspan="6">
+                                            <div class="empty-state">
+                                                <div class="empty-icon">📝</div>
+                                                <p>No transactions found</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analytics Section -->
+            <section id="analytics" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">Analytics</h1>
+                    <div class="section-actions">
+                        <select class="time-range-select" id="analyticsTimeRange">
+                            <option value="24h">Last 24h</option>
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                            <option value="90d">Last 90 days</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="analytics-container">
+                    <div class="analytics-grid">
+                        <div class="analytics-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Portfolio Performance</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="performanceChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Trading Volume</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="volumeChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Yield Farming Returns</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="yieldChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card">
+                            <div class="card-header">
+                                <h3 class="card-title">DCA Performance</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="dcaChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="analytics-summary">
+                        <div class="summary-card">
+                            <div class="summary-header">
+                                <h3 class="summary-title">Performance Summary</h3>
+                            </div>
+                            <div class="summary-stats">
+                                <div class="stat-row">
+                                    <span class="stat-label">Total Return</span>
+                                    <span class="stat-value positive" id="totalReturn">+0.00%</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Best Performing Asset</span>
+                                    <span class="stat-value" id="bestAsset">-</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Total Trades</span>
+                                    <span class="stat-value" id="totalTrades">0</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Success Rate</span>
+                                    <span class="stat-value" id="successRate">0%</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Average Yield</span>
+                                    <span class="stat-value" id="averageYield">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- pool and liquidity management  -->
+            <!-- Pool & Liquidity Management Section -->
+            <section id="liquidity" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">Pool & Liquidity Management</h1>
+                    <div class="section-actions">
+                        <button class="primary-btn" onclick="openCreatePoolModal()">
+                            <span>Create Pool</span>
+                        </button>
+                        <button class="secondary-btn" onclick="refreshPools()">
+                            <span class="refresh-icon">🔄</span>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="liquidity-container">
+                    <div class="liquidity-panel">
+                        <div class="add-liquidity-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Add Liquidity</h3>
+                            </div>
+                            <form class="liquidity-form" id="addLiquidityForm">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Token A</label>
+                                        <select class="form-select" id="liquidityTokenA">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                        <div class="input-hint">Balance: <span id="liquidityTokenABalance">0</span></div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Token B</label>
+                                        <select class="form-select" id="liquidityTokenB">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                        <div class="input-hint">Balance: <span id="liquidityTokenBBalance">0</span></div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Amount A</label>
+                                        <input type="number" id="liquidityAmountA" placeholder="0.0" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Amount B</label>
+                                        <input type="number" id="liquidityAmountB" placeholder="0.0" class="form-input">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Slippage Tolerance</label>
+                                    <div class="slippage-selector">
+                                        <button type="button" class="slippage-btn active" data-slippage="0.1">0.1%</button>
+                                        <button type="button" class="slippage-btn" data-slippage="0.5">0.5%</button>
+                                        <button type="button" class="slippage-btn" data-slippage="1.0">1.0%</button>
+                                        <input type="number" class="slippage-input" placeholder="Custom" step="0.1" min="0.1" max="50">
+                                    </div>
+                                </div>
+                                <div class="liquidity-summary">
+                                    <div class="summary-row">
+                                        <span class="summary-label">Share of Pool</span>
+                                        <span class="summary-value" id="liquidityShare">-</span>
+                                    </div>
+                                    <div class="summary-row">
+                                        <span class="summary-label">Expected LP Tokens</span>
+                                        <span class="summary-value" id="expectedLPTokens">-</span>
+                                    </div>
+                                    <div class="summary-row">
+                                        <span class="summary-label">Network Fee</span>
+                                        <span class="summary-value" id="liquidityFee">~0.001 MAS</span>
+                                    </div>
+                                </div>
+                                <button type="submit" class="primary-btn full-width" id="addLiquidityBtn">
+                                    <span>Add Liquidity</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="liquidity-list-panel">
+                        <div class="pools-header">
+                            <h3 class="pools-title">Your Pools</h3>
+                            <div class="pools-stats">
+                                <div class="stat-item">
+                                    <span class="stat-value" id="activePoolCount">0</span>
+                                    <span class="stat-label">Active Pools</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="totalLiquidityProvided">$0</span>
+                                    <span class="stat-label">Provided</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pools-list" id="userPoolsList">
+                            <div class="empty-state">
+                                <div class="empty-icon">💧</div>
+                                <p>No liquidity positions found</p>
+                                <button class="secondary-btn" onclick="openCreatePoolModal()">Add Liquidity</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="all-pools-panel">
+                        <div class="card-header">
+                            <h3 class="card-title">All Pools</h3>
+                        </div>
+                        <div class="all-pools-list" id="allPoolsList">
+                            <div class="empty-state">
+                                <div class="empty-icon">🏊</div>
+                                <p>No pools available</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- pool creation -->
+            <!-- Pool Creation Section -->
+            <section id="createPool" class="section">
+                <div class="section-header">
+                    <h1 class="section-title">Create New Pool</h1>
+                    <div class="section-actions">
+                        <button class="secondary-btn" onclick="closeCreatePoolSection()">
+                            <span class="close-icon">✖️</span>
+                            Close
+                        </button>
+                    </div>
+                </div>
+                <div class="create-pool-container">
+                    <form class="create-pool-form" id="createPoolForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Token A</label>
+                                <select class="form-select" id="createPoolTokenA">
+                                    <option value="">Select Token</option>
+                                </select>
+                                <div class="input-hint">Balance: <span id="createPoolTokenABalance">0</span></div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Token B</label>
+                                <select class="form-select" id="createPoolTokenB">
+                                    <option value="">Select Token</option>
+                                </select>
+                                <div class="input-hint">Balance: <span id="createPoolTokenBBalance">0</span></div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Initial Amount A</label>
+                                <input type="number" id="createPoolAmountA" placeholder="0.0" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Initial Amount B</label>
+                                <input type="number" id="createPoolAmountB" placeholder="0.0" class="form-input">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fee Tier (%)</label>
+                            <select class="form-select" id="createPoolFeeTier">
+                                <option value="0.05">0.05%</option>
+                                <option value="0.3">0.3%</option>
+                                <option value="1">1%</option>
+                            </select>
+                            <div class="input-hint">Choose the trading fee for this pool</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Slippage Tolerance</label>
+                            <div class="slippage-selector">
+                                <button type="button" class="slippage-btn active" data-slippage="0.1">0.1%</button>
+                                <button type="button" class="slippage-btn" data-slippage="0.5">0.5%</button>
+                                <button type="button" class="slippage-btn" data-slippage="1.0">1.0%</button>
+                                <input type="number" class="slippage-input" placeholder="Custom" step="0.1" min="0.1" max="50">
+                            </div>
+                        </div>
+                        <div class="pool-summary">
+                            <div class="summary-row">
+                                <span class="summary-label">Pool Pair</span>
+                                <span class="summary-value" id="createPoolPair">-</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label">Initial Price</span>
+                                <span class="summary-value" id="createPoolInitialPrice">-</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label">Network Fee</span>
+                                <span class="summary-value" id="createPoolFee">~0.001 MAS</span>
+                            </div>
+                        </div>
+                        <button type="submit" class="primary-btn full-width" id="createPoolBtn">
+                            <span>Create Pool</span>
+                            <div class="btn-glow"></div>
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals and Overlays -->
+    <div id="tokenSelectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Select Token</h3>
+                <button class="modal-close" onclick="closeTokenSelectModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="token-search">
+                    <input type="text" id="tokenSearchInput" placeholder="Search tokens..." class="search-input">
+                </div>
+                <div class="token-list" id="tokenList">
+                    <!-- Tokens will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="src/js/contract.js"></script>
+    <script type="module" src="src/js/ui.js"></script>
+    <script type="module" src="src/js/utils.js"></script>
+    <script type="module" src="src/js/main.js"></script>
+</body>
+</html>

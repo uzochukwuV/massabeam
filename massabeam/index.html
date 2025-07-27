@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Massa DeFi Protocol - Autonomous DeFi on Massa Blockchain</title>
+    <link rel="stylesheet" href="styles/landing.css">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="landing-container">
+        <!-- Navigation -->
+        <nav class="landing-nav">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <div class="brand-icon">
+                        <div class="massa-logo"></div>
+                    </div>
+                    <span class="brand-text">Massa DeFi</span>
+                </div>
+                <div class="nav-links">
+                    <a href="#features" class="nav-link">Features</a>
+                    <a href="#stats" class="nav-link">Stats</a>
+                    <a href="#docs" class="nav-link">Docs</a>
+                    <button class="launch-app-btn" onclick="window.location.href='app.html'">
+                        Launch App
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="hero-container">
+                <div class="hero-content">
+                    <div class="hero-badge">
+                        <span class="badge-text">🚀 Now Live on Massa Buildnet</span>
+                    </div>
+                    <h1 class="hero-title">
+                        Autonomous DeFi
+                        <span class="gradient-text">Redefined</span>
+                    </h1>
+                    <p class="hero-subtitle">
+                        Experience the future of decentralized finance with self-executing limit orders, 
+                        intelligent DCA strategies, leveraged yield farming, and continuous arbitrage 
+                        opportunities on the Massa blockchain.
+                    </p>
+                    <div class="hero-actions">
+                        <button class="primary-btn" onclick="window.location.href='app.html'">
+                            <span>Launch Protocol</span>
+                            <div class="btn-glow"></div>
+                        </button>
+                        <button class="secondary-btn" onclick="scrollToSection('features')">
+                            Learn More
+                        </button>
+                    </div>
+                </div>
+                <div class="hero-visual">
+                    <div class="floating-cards">
+                        <div class="feature-card card-1">
+                            <div class="card-icon">⚡</div>
+                            <div class="card-title">Zero-Slippage AMM</div>
+                            <div class="card-value">$2.4M TVL</div>
+                        </div>
+                        <div class="feature-card card-2">
+                            <div class="card-icon">🎯</div>
+                            <div class="card-title">Autonomous Orders</div>
+                            <div class="card-value">1,247 Active</div>
+                        </div>
+                        <div class="feature-card card-3">
+                            <div class="card-icon">📈</div>
+                            <div class="card-title">Yield Farming</div>
+                            <div class="card-value">45.2% APR</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="features-section">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="section-title">Revolutionary Features</h2>
+                    <p class="section-subtitle">
+                        Built on Massa's unique autonomous smart contract capabilities
+                    </p>
+                </div>
+                <div class="features-grid">
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <div class="icon-bg">🎯</div>
+                        </div>
+                        <h3 class="feature-title">Autonomous Limit Orders</h3>
+                        <p class="feature-description">
+                            Set limit orders that execute themselves when conditions are met. 
+                            No need for external keepers or manual intervention.
+                        </p>
+                        <div class="feature-stats">
+                            <span class="stat">Self-executing</span>
+                            <span class="stat">Gas optimized</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <div class="icon-bg">📊</div>
+                        </div>
+                        <h3 class="feature-title">Smart DCA Strategies</h3>
+                        <p class="feature-description">
+                            Dollar-cost averaging with built-in stop-loss and take-profit mechanisms. 
+                            Automated execution based on your parameters.
+                        </p>
+                        <div class="feature-stats">
+                            <span class="stat">Stop-loss protection</span>
+                            <span class="stat">Take-profit automation</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <div class="icon-bg">⚡</div>
+                        </div>
+                        <h3 class="feature-title">Leveraged Yield Farming</h3>
+                        <p class="feature-description">
+                            Amplify your yields with up to 3x leverage. Advanced liquidation 
+                            protection and insurance fund backing.
+                        </p>
+                        <div class="feature-stats">
+                            <span class="stat">Up to 3x leverage</span>
+                            <span class="stat">Insurance protected</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <div class="icon-bg">🔄</div>
+                        </div>
+                        <h3 class="feature-title">Continuous Arbitrage</h3>
+                        <p class="feature-description">
+                            Automated arbitrage opportunities across pools with MEV protection 
+                            and flash loan integration for maximum capital efficiency.
+                        </p>
+                        <div class="feature-stats">
+                            <span class="stat">MEV protected</span>
+                            <span class="stat">Flash loans enabled</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <div class="icon-bg">🛡️</div>
+                        </div>
+                        <h3 class="feature-title">Zero-Slippage Trading</h3>
+                        <p class="feature-description">
+                            Advanced AMM with concentrated liquidity and dynamic fee adjustment 
+                            for optimal trading experience.
+                        </p>
+                        <div class="feature-stats">
+                            <span class="stat">Dynamic fees</span>
+                            <span class="stat">Concentrated liquidity</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <div class="icon-bg">🏦</div>
+                        </div>
+                        <h3 class="feature-title">Institutional Grade</h3>
+                        <p class="feature-description">
+                            Built with enterprise-level security, comprehensive analytics, 
+                            and professional-grade risk management tools.
+                        </p>
+                        <div class="feature-stats">
+                            <span class="stat">Audited contracts</span>
+                            <span class="stat">Risk management</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Section -->
+        <section id="stats" class="stats-section">
+            <div class="section-container">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="tvl-stat">$0</div>
+                        <div class="stat-label">Total Value Locked</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="volume-stat">$0</div>
+                        <div class="stat-label">24h Volume</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="orders-stat">0</div>
+                        <div class="stat-label">Active Orders</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="users-stat">0</div>
+                        <div class="stat-label">Total Users</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="how-it-works-section">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="section-title">How Autonomous Execution Works</h2>
+                    <p class="section-subtitle">
+                        Powered by Massa's unique autonomous smart contract technology
+                    </p>
+                </div>
+                <div class="steps-container">
+                    <div class="step-item">
+                        <div class="step-number">01</div>
+                        <div class="step-content">
+                            <h3 class="step-title">Set Your Strategy</h3>
+                            <p class="step-description">
+                                Configure your limit orders, DCA parameters, or yield farming positions 
+                                with your desired conditions and risk parameters.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">02</div>
+                        <div class="step-content">
+                            <h3 class="step-title">Autonomous Monitoring</h3>
+                            <p class="step-description">
+                                Massa's autonomous smart contracts continuously monitor market conditions, 
+                                prices, and your strategy parameters without external intervention.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">03</div>
+                        <div class="step-content">
+                            <h3 class="step-title">Automatic Execution</h3>
+                            <p class="step-description">
+                                When conditions are met, your strategies execute automatically with 
+                                optimal timing and gas efficiency, maximizing your returns.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta-section">
+            <div class="section-container">
+                <div class="cta-content">
+                    <h2 class="cta-title">Ready to Experience Autonomous DeFi?</h2>
+                    <p class="cta-subtitle">
+                        Join thousands of users already earning with intelligent automation
+                    </p>
+                    <button class="primary-btn large" onclick="window.location.href='app.html'">
+                        <span>Launch Protocol</span>
+                        <div class="btn-glow"></div>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="landing-footer">
+            <div class="footer-container">
+                <div class="footer-content">
+                    <div class="footer-brand">
+                        <div class="brand-icon">
+                            <div class="massa-logo"></div>
+                        </div>
+                        <span class="brand-text">Massa DeFi</span>
+                    </div>
+                    <div class="footer-links">
+                        <a href="#" class="footer-link">Documentation</a>
+                        <a href="#" class="footer-link">GitHub</a>
+                        <a href="#" class="footer-link">Discord</a>
+                        <a href="#" class="footer-link">Twitter</a>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <p>&copy; 2024 Massa DeFi Protocol. Built on Massa Blockchain.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="js/landing.js"></script>
+</body>
+</html>
