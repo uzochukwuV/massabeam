@@ -17,6 +17,8 @@ let accountAddress = null;
 const TOKEN_ADDRESSES = {
   USDC: "AS12GKSLndMdbpiFQNbUhcWt2CZusmL4sMTh21zpymnr6jjfm4xZj", // USDC token address
   WMAS: "AS12p4qNq9ZU8XZKDomM51stC9G1qz6faaAFX4jYfpbbr4gJULL9G",// W
+  Busdt: "AS1GrZXNAdVUtCbWC3FE3kajmaEg6FxiE9cxQuYBM3KQELGjEE31",
+  Busdc: "AS1xs2KfX3LVeFoF3v8PQZ8TTWsFAW3UYz1Wkg8358DcakPguWs9"
 };
 
 // Initialize the application

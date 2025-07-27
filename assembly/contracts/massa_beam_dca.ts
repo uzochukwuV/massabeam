@@ -28,6 +28,8 @@ import {
     validateAmounts,
     safeTransferFrom,
     safeTransfer,
+    grantRole,
+    revokeRole,
     // Constants
     ADMIN_ROLE,
     PAUSER_ROLE,
@@ -42,6 +44,8 @@ import {
     stopArbitrageEngine,
     ARBITRAGE_GAS_LIMIT
 } from "./massa_beam_engine";
+
+export {grantRole, revokeRole}
 
 // Enhanced constants for advanced features
 export const MAX_DCA_PERIODS : u64= 365; // Maximum 1 year DCA
@@ -399,6 +403,8 @@ export class YieldPool {
     }
 }
 
+
+
 // Leveraged position for yield farming
 export class LeveragedPosition {
     id: u64;
@@ -491,6 +497,7 @@ export class LeveragedPosition {
     }
 }
 
+
 // Storage keys
 const LIMIT_ORDER_COUNT = "limitOrderCount";
 const DCA_COUNT = "dcaCount";
@@ -504,6 +511,19 @@ let limitOrderCounter: u64 = 0;
 let dcaCounter: u64 = 0;
 let yieldPoolCounter: u64 = 0;
 let positionCounter: u64 = 0;
+
+
+
+export function constructor(): void {
+    // Initialize contract state, if needed
+    const owner = Context.caller();
+    Storage.set("owner", owner.toString());
+    Storage.set(ADMIN_ROLE + ":" + owner.toString(), "true");
+    
+    
+    setGasPrice(1000);
+    generateEvent(`Contract initialized by ${owner.toString()}`);
+}
 
 // Utility functions
 export function getCurrentGasPrice(): u64 {
@@ -1179,9 +1199,8 @@ export function initializeArbitrageEngine(): void {
 
 // Helper function to check if user has role (assuming this exists in your access control)
 function hasRole(role: string, user: Address): bool {
-    // This would depend on your role-based access control implementation
-    // For now, return false as placeholder
-    return false;
+    onlyRole(role)
+    return true;
 }
 
 

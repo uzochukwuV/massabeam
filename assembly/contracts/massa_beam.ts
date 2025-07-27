@@ -266,7 +266,7 @@ export function createPool(args: StaticArray<u8>): void {
     const amountB = argument.nextU64().unwrap();
     const deadline = argument.nextU64().unwrap();
     
-    validDeadline(deadline);
+    validDeadline(deadline + Context.timestamp());
     validateTokenPair(tokenA, tokenB);
     validateAmounts(amountA, amountB);
     

@@ -1,28 +1,37 @@
-import { getWallets, WalletName } from "@massalabs/wallet-provider"
-import { Args, OperationStatus } from "@massalabs/massa-web3"
+import { getWallets, WalletName,  } from "@massalabs/wallet-provider"
+import { Args, OperationStatus , WMAS, MRC20, USDCe, USDCs, USDTb, USDTbt, bytesToF64, bytesToStr} from "@massalabs/massa-web3"
 
 // Contract addresses
 const CONTRACTS = {
-  AMM: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5",
-  ENGINE: "AS12mFfp7XA8U5QyRPBWNT5V5BLeEMxuoxHft5Ph8y9uGH2SecDXw", // Same for demo
-  ADVANCED: "AS12mFfp7XA8U5QyRPBWNT5V5BLeEMxuoxHft5Ph8y9uGH2SecDXw", // Same for demo
+  AMM: "AS12oupNM6zL4mVneuHLrXEY2wVm1bibnK1sn5Ag5gqWu4995QDnc",
+  ENGINE: "AS12WoA6iCq17kiGA55izZMYhdrbosGRU4hVqfk5cbYgvVstUC9Md", // Same for demo
+  ADVANCED: "AS1i8UNYQdmRjB9K454UJ8DwaJmBLgu3G1UTwzFtUH9Aihgu4P1n", // Same for demo
 }
 
+const TOKENS = [
+  "AS1xs2KfX3LVeFoF3v8PQZ8TTWsFAW3UYz1Wkg8358DcakPguWs9",
+  "AS1GrZXNAdVUtCbWC3FE3kajmaEg6FxiE9cxQuYBM3KQELGjEE31",
+  "AS12k8viVmqPtRuXzCm6rKXjLgpQWqbuMjc37YHhB452KSUUb9FgL"
+]
 
-const COIN_ADDRESSES = {
-  MASS: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5", // Massa native coin
-  USDC: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5", // Example USDC address
-  BTC: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5", // Example BTC address
-  ETH: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5", // Example ETH address
-  BNB: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5", // Example BNB address
-  SOL: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5", // Example SOL address
-  ADA: "AS1hzwjwG4XAAfW7a2zcboEQhy7DYaLr9Zt86Xh5uCmkFgBxdVv5", // Example ADA address
-}
+
+
+
 
 // Global provider instance
 let provider = null
 let isConnected = false
 let userAddress = null
+
+
+export function getTokens(){
+  const custom =  TOKENS.map((address) => {
+    const coin = new MRC20(provider, address)
+    return coin
+  })
+  return [ ...custom]
+}
+
 
 // Error handling utility
 function showError(message) {
@@ -113,7 +122,7 @@ function updateWalletUI() {
 }
 
 // Generic contract call wrapper
-async function callContract(contractAddress, functionName, args = [], value = 0) {
+async function callContract(contractAddress, functionName, args) {
   if (!provider) {
     throw new Error("Wallet not connected")
   }
@@ -122,9 +131,10 @@ async function callContract(contractAddress, functionName, args = [], value = 0)
     const operation = await provider.callSC({
       target: contractAddress,
       func: functionName,
-      parameter: args.length > 0 ? new Args(...args).serialize() : new Args().serialize(),
-      coins: value,
+      parameter: args,
     })
+
+    
 
     const status = await operation.waitSpeculativeExecution()
     if (status !== OperationStatus.SpeculativeSuccess) {
@@ -139,7 +149,7 @@ async function callContract(contractAddress, functionName, args = [], value = 0)
 }
 
 // Generic contract read wrapper
-async function readContract(contractAddress, functionName, args = []) {
+async function readContract(contractAddress, functionName, args) {
   if (!provider) {
     throw new Error("Wallet not connected")
   }
@@ -148,10 +158,11 @@ async function readContract(contractAddress, functionName, args = []) {
     const result = await provider.readSC({
       target: contractAddress,
       func: functionName,
-      parameter: args.length > 0 ? new Args(...args).serialize() : new Args().serialize(),
+      parameter: args || new Args().serialize(),
     })
-
+    console.log(result)
     return result.value
+    // console.log(result.value)
   } catch (error) {
     console.error(`Contract read failed: ${functionName}`, error)
     throw error
@@ -163,8 +174,40 @@ export const AMMContract = {
   // Create a new liquidity pool
   async createPool(tokenA, tokenB, amountA, amountB, deadline) {
     try {
-      const args = [tokenA, tokenB, amountA, amountB, deadline]
-      const operation = await callContract(CONTRACTS.AMM, "createPool", args)
+      console.log(tokenA, tokenA, amountA, amountB, deadline);
+
+     const opA =await getTokenByAddress(tokenA).increaseAllowance(
+      CONTRACTS.AMM,
+      BigInt(amountA)
+     )
+
+      const statusA = await opA.waitSpeculativeExecution()
+      if (statusA !== OperationStatus.SpeculativeSuccess) {
+        throw new Error(`Transaction failed with status: ${statusA}`)
+      }
+
+      const oB =await getTokenByAddress(tokenB).increaseAllowance(
+         CONTRACTS.AMM,
+        BigInt(amountB)
+      )
+
+      const statusB = await oB.waitSpeculativeExecution()
+      if (statusB !== OperationStatus.SpeculativeSuccess) {
+        throw new Error(`Transaction failed with status: ${statusB}`)
+      }
+
+      
+
+      const args = new Args()
+                .addString(tokenA)
+                .addString(tokenB)
+                .addU64(BigInt(amountA))
+                .addU64(BigInt(amountB))
+                .addU64(BigInt(deadline))
+               ;
+
+      const operation = await callContract(CONTRACTS.AMM, "createPool", args.serialize());
+            
       showSuccess("Pool created successfully!")
       return operation
     } catch (error) {
@@ -176,8 +219,17 @@ export const AMMContract = {
   // Add liquidity to existing pool
   async addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin, deadline) {
     try {
-      const args = [tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin, deadline]
-      const operation = await callContract(CONTRACTS.AMM, "addLiquidity", args)
+      const args = new Args()
+                .addString(tokenA)
+                .addString(tokenB)
+                .addU64(amountADesired)
+                .addU64(amountBDesired)
+                .addU64(amountAMin)
+                .addU64(amountBMin)
+                .addU64(deadline)
+                .serialize();
+            const operation = await callContract(CONTRACTS.AMM, "addLiquidity", [], 0, args);
+            
       showSuccess("Liquidity added successfully!")
       return operation
     } catch (error) {
@@ -189,8 +241,16 @@ export const AMMContract = {
   // Remove liquidity from pool
   async removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, deadline) {
     try {
-      const args = [tokenA, tokenB, liquidity, amountAMin, amountBMin, deadline]
-      const operation = await callContract(CONTRACTS.AMM, "removeLiquidity", args)
+      const args = new Args()
+                .addString(tokenA)
+                .addString(tokenB)
+                .addU64(liquidity)
+                .addU64(amountAMin)
+                .addU64(amountBMin)
+                .addU64(deadline)
+                .serialize();
+            const operation = await callContract(CONTRACTS.AMM, "removeLiquidity", [], 0, args);
+            
       showSuccess("Liquidity removed successfully!")
       return operation
     } catch (error) {
@@ -202,9 +262,17 @@ export const AMMContract = {
   // Swap tokens
   async swap(tokenIn, tokenOut, amountIn, amountOutMin, deadline) {
     try {
-      const args = [tokenIn, tokenOut, amountIn, amountOutMin, deadline]
-      const operation = await callContract(CONTRACTS.AMM, "swap", args)
-      showSuccess("Swap completed successfully!")
+      
+          
+     const args = new Args()
+                .addString(tokenIn)
+                .addString(tokenOut)
+                .addU64(amountIn)
+                .addU64(amountOutMin)
+                .addU64(deadline)
+                .serialize();
+            const operation = await callContract(CONTRACTS.AMM, "swap", [], 0, args);
+            showSuccess("Swap completed successfully!")
       return operation
     } catch (error) {
       showError(`Failed to swap tokens: ${error.message}`)
@@ -215,7 +283,10 @@ export const AMMContract = {
   // Get pool information
   async getPool(tokenA, tokenB) {
     try {
-      const result = await readContract(CONTRACTS.AMM, "getPool", [tokenA, tokenB])
+      const args = new Args()
+          .addString(tokenA)
+          .addString(tokenB)
+      const result = await readContract(CONTRACTS.AMM, "getPool", args.serialize())
       return result
     } catch (error) {
       console.error("Failed to get pool info:", error)
@@ -226,7 +297,12 @@ export const AMMContract = {
   // Get amount out for swap
   async getAmountOut(amountIn, reserveIn, reserveOut, fee) {
     try {
-      const result = await readContract(CONTRACTS.AMM, "getAmountOut", [amountIn, reserveIn, reserveOut, fee])
+      const args = new Args()
+            .addU64(amountIn)
+            .addU64(reserveIn)
+            .addU64(reserveOut)
+            .addU64(fee)
+      const result = await readContract(CONTRACTS.AMM, "getAmountOut", args.serialize())
       return result
     } catch (error) {
       console.error("Failed to get amount out:", error)
@@ -240,9 +316,18 @@ export const AdvancedContract = {
   // Create limit order
   async createLimitOrder(tokenIn, tokenOut, amountIn, minAmountOut, expiry, orderType, partialFill, slippageTolerance) {
     try {
-      const args = [tokenIn, tokenOut, amountIn, minAmountOut, expiry, orderType, partialFill, slippageTolerance]
-      const operation = await callContract(CONTRACTS.ADVANCED, "createLimitOrder", args)
-      showSuccess("Limit order created successfully!")
+       const args = new Args()
+                .addString(tokenIn)
+                .addString(tokenOut)
+                .addU64(amountIn)
+                .addU64(minAmountOut)
+                .addU64(expiry)
+                .addString(orderType)
+                .addBool(partialFill)
+                .addU64(slippageTolerance)
+                .serialize();
+            const operation = await callContract(CONTRACTS.ADVANCED, "createLimitOrder", [], 0, args);
+            showSuccess("Limit order created successfully!")
       return operation
     } catch (error) {
       showError(`Failed to create limit order: ${error.message}`)
@@ -253,9 +338,11 @@ export const AdvancedContract = {
   // Cancel limit order
   async cancelOrder(orderId) {
     try {
-      const operation = await callContract(CONTRACTS.ADVANCED, "cancelOrder", [orderId])
-      showSuccess("Order cancelled successfully!")
-      return operation
+      const args = new Args()
+                .addU64(orderId)
+                .serialize();
+            const operation = await callContract(CONTRACTS.ADVANCED, "cancelOrder", [], 0, args);
+            return operation
     } catch (error) {
       showError(`Failed to cancel order: ${error.message}`)
       throw error
@@ -265,8 +352,11 @@ export const AdvancedContract = {
   // Get limit order
   async getLimitOrder(orderId) {
     try {
-      const result = await readContract(CONTRACTS.ADVANCED, "getLimitOrder", [orderId])
-      return result
+     const args = new Args()
+                .addU64(orderId)
+                .serialize();
+            const result = await readContract(CONTRACTS.ADVANCED, "getLimitOrder", args);
+            return result
     } catch (error) {
       console.error("Failed to get limit order:", error)
       return null
@@ -276,8 +366,11 @@ export const AdvancedContract = {
   // Get user orders
   async getUserOrders(userAddress) {
     try {
-      const result = await readContract(CONTRACTS.ADVANCED, "getUserOrders", [userAddress])
-      return result
+       const args = new Args()
+                .addString(userAddress)
+                .serialize();
+            const result = await readContract(CONTRACTS.ADVANCED, "getUserOrders", args);
+             return result
     } catch (error) {
       console.error("Failed to get user orders:", error)
       return []
@@ -297,19 +390,19 @@ export const AdvancedContract = {
     takeProfit,
   ) {
     try {
-      const args = [
-        tokenIn,
-        tokenOut,
-        amountPerPeriod,
-        intervalPeriods,
-        totalPeriods,
-        minAmountOut,
-        maxSlippage,
-        stopLoss,
-        takeProfit,
-      ]
-      const operation = await callContract(CONTRACTS.ADVANCED, "createDCAStrategy", args)
-      showSuccess("DCA strategy created successfully!")
+       const args = new Args()
+                .addString(tokenIn)
+                .addString(tokenOut)
+                .addU64(amountPerPeriod)
+                .addU64(intervalPeriods)
+                .addU64(totalPeriods)
+                .addU64(minAmountOut)
+                .addU64(maxSlippage)
+                .addU64(stopLoss)
+                .addU64(takeProfit)
+                .serialize();
+            const operation = await callContract(CONTRACTS.ADVANCED, "createDCAStrategy", [], 0, args);
+            showSuccess("DCA strategy created successfully!")
       return operation
     } catch (error) {
       showError(`Failed to create DCA strategy: ${error.message}`)
@@ -320,8 +413,11 @@ export const AdvancedContract = {
   // Get DCA strategy
   async getDCAStrategy(strategyId) {
     try {
-      const result = await readContract(CONTRACTS.ADVANCED, "getDCAStrategy", [strategyId])
-      return result
+     const args = new Args()
+                .addU64(strategyId)
+                .serialize();
+            const result = await readContract(CONTRACTS.ADVANCED, "getDCAStrategy", args);
+            return result
     } catch (error) {
       console.error("Failed to get DCA strategy:", error)
       return null
@@ -331,8 +427,11 @@ export const AdvancedContract = {
   // Get user DCA strategies
   async getUserDCAs(userAddress) {
     try {
-      const result = await readContract(CONTRACTS.ADVANCED, "getUserDCAs", [userAddress])
-      return result
+      const args = new Args()
+                .addString(userAddress)
+                .serialize();
+            const result = await readContract(CONTRACTS.ADVANCED, "getUserDCAs", args);
+            return result
     } catch (error) {
       console.error("Failed to get user DCAs:", error)
       return []
@@ -342,9 +441,17 @@ export const AdvancedContract = {
   // Create yield pool
   async createYieldPool(tokenA, tokenB, rewardToken, rewardRate, performanceFee, lockupPeriod, maxLeverage) {
     try {
-      const args = [tokenA, tokenB, rewardToken, rewardRate, performanceFee, lockupPeriod, maxLeverage]
-      const operation = await callContract(CONTRACTS.ADVANCED, "createYieldPool", args)
-      showSuccess("Yield pool created successfully!")
+      const args = new Args()
+                .addString(tokenA)
+                .addString(tokenB)
+                .addString(rewardToken)
+                .addU64(rewardRate)
+                .addU64(performanceFee)
+                .addU64(lockupPeriod)
+                .addU64(maxLeverage)
+                .serialize();
+            const operation = await callContract(CONTRACTS.ADVANCED, "createYieldPool", [], 0, args);
+            showSuccess("Yield pool created successfully!")
       return operation
     } catch (error) {
       showError(`Failed to create yield pool: ${error.message}`)
@@ -355,9 +462,13 @@ export const AdvancedContract = {
   // Stake in yield pool
   async stakeInYieldPool(poolId, amountA, amountB) {
     try {
-      const args = [poolId, amountA, amountB]
-      const operation = await callContract(CONTRACTS.ADVANCED, "stakeInYieldPool", args)
-      showSuccess("Staked in yield pool successfully!")
+       const args = new Args()
+                .addU64(poolId)
+                .addU64(amountA)
+                .addU64(amountB)
+                .serialize();
+            const operation = await callContract(CONTRACTS.ADVANCED, "stakeInYieldPool", [], 0, args);
+            showSuccess("Staked in yield pool successfully!")
       return operation
     } catch (error) {
       showError(`Failed to stake in yield pool: ${error.message}`)
@@ -368,9 +479,13 @@ export const AdvancedContract = {
   // Create leveraged position
   async createLeveragedPosition(poolId, collateralAmount, leverage) {
     try {
-      const args = [poolId, collateralAmount, leverage]
-      const operation = await callContract(CONTRACTS.ADVANCED, "createLeveragedPosition", args)
-      showSuccess("Leveraged position created successfully!")
+      const args = new Args()
+                .addU64(poolId)
+                .addU64(collateralAmount)
+                .addU64(leverage)
+                .serialize();
+            const operation = await callContract(CONTRACTS.ADVANCED, "createLeveragedPosition", [], 0, args);
+            showSuccess("Leveraged position created successfully!")
       return operation
     } catch (error) {
       showError(`Failed to create leveraged position: ${error.message}`)
@@ -381,8 +496,11 @@ export const AdvancedContract = {
   // Get yield pool
   async getYieldPool(poolId) {
     try {
-      const result = await readContract(CONTRACTS.ADVANCED, "getYieldPool", [poolId])
-      return result
+      const args = new Args()
+                .addU64(poolId)
+                .serialize();
+            const result = await readContract(CONTRACTS.ADVANCED, "getYieldPool", args);
+            return result
     } catch (error) {
       console.error("Failed to get yield pool:", error)
       return null
@@ -392,8 +510,11 @@ export const AdvancedContract = {
   // Get leveraged position
   async getLeveragedPosition(positionId) {
     try {
-      const result = await readContract(CONTRACTS.ADVANCED, "getLeveragedPosition", [positionId])
-      return result
+      const args = new Args()
+                .addU64(positionId)
+                .serialize();
+            const result = await readContract(CONTRACTS.ADVANCED, "getLeveragedPosition", args);
+            return result
     } catch (error) {
       console.error("Failed to get leveraged position:", error)
       return null
@@ -403,8 +524,11 @@ export const AdvancedContract = {
   // Get user positions
   async getUserPositions(userAddress) {
     try {
-      const result = await readContract(CONTRACTS.ADVANCED, "getUserPositions", [userAddress])
-      return result
+   const args = new Args()
+                .addString(userAddress)
+                .serialize();
+            const result = await readContract(CONTRACTS.ADVANCED, "getUserPositions", args);
+            return result
     } catch (error) {
       console.error("Failed to get user positions:", error)
       return []
@@ -452,7 +576,10 @@ export const ArbitrageContract = {
   // Execute arbitrage opportunity
   async executeArbitrageOpportunity(opportunityId) {
     try {
-      const operation = await callContract(CONTRACTS.ENGINE, "executeArbitrageOpportunity", [opportunityId])
+      const args = new Args()
+      .addString(opportunityId)
+      .serialize()
+      const operation = await callContract(CONTRACTS.ENGINE, "executeArbitrageOpportunity", args)
       showSuccess("Arbitrage opportunity executed!")
       return operation
     } catch (error) {
@@ -478,8 +605,11 @@ export function getUserAddress() {
 // Get current gas price
 export async function getCurrentGasPrice() {
   try {
-    const result = await readContract(CONTRACTS.ADVANCED, "getCurrentGasPrice", [])
-    return result || 1000
+    const args = new Args()
+    .serialize()
+    const result = await readContract(CONTRACTS.ADVANCED, "getCurrentGasPrice", args)
+    console.log(Uint8Array.from(result))
+    return bytesToF64(result, 2) || 1000
   } catch (error) {
     console.error("Failed to get gas price:", error)
     return 1000
@@ -511,48 +641,19 @@ export function calculateDeadline(hours = 1) {
   return Date.now() + hours * 60 * 60 * 1000
 }
 
-// Mock token data for demo
-export const MOCK_TOKENS = [
-  {
-    address: "AS1234567890abcdef1234567890abcdef1234567890abcdef",
-    symbol: "MAS",
-    name: "Massa",
-    decimals: 9,
-    balance: "1000000000000", // 1000 MAS
-  },
-  {
-    address: "AS2345678901bcdef12345678901bcdef12345678901bcdef1",
-    symbol: "USDC",
-    name: "USD Coin",
-    decimals: 6,
-    balance: "5000000000", // 5000 USDC
-  },
-  {
-    address: "AS3456789012cdef123456789012cdef123456789012cdef12",
-    symbol: "WETH",
-    name: "Wrapped Ethereum",
-    decimals: 18,
-    balance: "2000000000000000000", // 2 WETH
-  },
-  {
-    address: "AS4567890123def1234567890123def1234567890123def123",
-    symbol: "DAI",
-    name: "Dai Stablecoin",
-    decimals: 18,
-    balance: "10000000000000000000000", // 10000 DAI
-  },
-]
+
+
 
 // Get token by address
 export function getTokenByAddress(address) {
-  return MOCK_TOKENS.find((token) => token.address === address)
+  return getTokens().find((token) => token.address === address)
 }
 
 
 
 // Get token by symbol
 export function getTokenBySymbol(symbol) {
-  return MOCK_TOKENS.find((token) => token.symbol === symbol)
+  return getTokens().find(async (token) => await token.symbol() === symbol)
 }
 
 // Initialize contract system
@@ -562,6 +663,7 @@ export async function initializeContracts() {
 
     // Update gas price
     const gasPrice = await getCurrentGasPrice()
+    console.log(gasPrice)
     const gasPriceElement = document.getElementById("gasPrice")
     if (gasPriceElement) {
       gasPriceElement.textContent = gasPrice
