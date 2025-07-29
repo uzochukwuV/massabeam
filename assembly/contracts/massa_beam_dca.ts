@@ -17,7 +17,7 @@ import {
     getAmountOut,
     getAmountIn,
     getPoolKey,
-    sqrt,
+    safeSqrt as sqrt,
     // Access control functions
     onlyRole,
     whenNotPaused,
@@ -1079,7 +1079,7 @@ function updateUserStake(user: Address, poolId: u64, amount: u64, add: bool): vo
 
 function calculateLPTokens(amountA: u64, amountB: u64, pool: YieldPool): u64 {
     // Simple LP token calculation - in production, use proper AMM math
-    return sqrt(amountA * amountB);
+    return sqrt(amountA , amountB);
 }
 
 function performSwap(

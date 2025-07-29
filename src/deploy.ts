@@ -30,6 +30,8 @@ const contract = await SmartContract.deploy(
 );
 
 
+
+
 // beam_usdt = AS1GrZXNAdVUtCbWC3FE3kajmaEg6FxiE9cxQuYBM3KQELGjEE31
 // beamusdc =AS1xs2KfX3LVeFoF3v8PQZ8TTWsFAW3UYz1Wkg8358DcakPguWs9
 

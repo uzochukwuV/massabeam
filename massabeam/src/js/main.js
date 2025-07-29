@@ -1276,7 +1276,7 @@ async function loadcreatePoolData() {
             tokenBSelect.value,
             amountAInput.value,
             amountBInput.value,
-            "10000"
+            "100"
           )
           
         })

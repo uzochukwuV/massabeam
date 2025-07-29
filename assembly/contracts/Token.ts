@@ -2,7 +2,7 @@ import { u256 } from 'as-bignum/assembly';
 import { mrc20Constructor } from './MRC20';
 
 export function constructor(): void {
-  mrc20Constructor('BeamUSDC', 'BUSDC', 6, u256.fromU64(500000000));
+  mrc20Constructor('BeamCoin', 'Beam', 8, u256.fromI64(50000000000000));
 }
 
 export {

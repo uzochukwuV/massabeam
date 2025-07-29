@@ -16,7 +16,8 @@ import {
     getAmountOut,
     getAmountIn,
     getPoolKey,
-    sqrt
+    sqrt,
+    safeSqrt
 } from "./massa_beam";
 
 // Advanced arbitrage constants
@@ -557,7 +558,7 @@ export function calculateOptimalArbitrageAmount(pool1: Pool, pool2: Pool, tokenA
     const feeAdjust2 = 10000 - fee2;
     
     // Calculate derivative = 0 point for profit maximization
-    const numerator = sqrt(r1A * r1B * r2A * r2B * feeAdjust1 * feeAdjust2) - r1A * r2B * 10000;
+    const numerator = safeSqrt(r1A * r1B * r2A * r2B , feeAdjust1 * feeAdjust2) - r1A * r2B * 10000;
     const denominator = r2B * feeAdjust1;
     
     if (denominator == 0) return 0;

@@ -1,20 +1,22 @@
-import { getWallets, WalletName,  } from "@massalabs/wallet-provider"
-import { Args, OperationStatus , WMAS, MRC20, USDCe, USDCs, USDTb, USDTbt, bytesToF64, bytesToStr} from "@massalabs/massa-web3"
+import { getWallets, WalletName } from "@massalabs/wallet-provider"
+import { Args, OperationStatus , WMAS, MRC20, USDTbt, bytesToF64, bytesToStr, Mas,  } from "@massalabs/massa-web3"
 
 // Contract addresses
 const CONTRACTS = {
-  AMM: "AS12oupNM6zL4mVneuHLrXEY2wVm1bibnK1sn5Ag5gqWu4995QDnc",
+  AMM: "AS12ZcfvgMZniY5xprqhnF6ufhiZYDEfxEgL7CED3sXiWs6TwAF4t", //AS1zD79GntUsGAH5u5VooFjWqD8VHBCRF2nJu4hazrH1vbJ3pBUh
   ENGINE: "AS12WoA6iCq17kiGA55izZMYhdrbosGRU4hVqfk5cbYgvVstUC9Md", // Same for demo
   ADVANCED: "AS1i8UNYQdmRjB9K454UJ8DwaJmBLgu3G1UTwzFtUH9Aihgu4P1n", // Same for demo
 }
 
+
 const TOKENS = [
   "AS1xs2KfX3LVeFoF3v8PQZ8TTWsFAW3UYz1Wkg8358DcakPguWs9",
   "AS1GrZXNAdVUtCbWC3FE3kajmaEg6FxiE9cxQuYBM3KQELGjEE31",
-  "AS12k8viVmqPtRuXzCm6rKXjLgpQWqbuMjc37YHhB452KSUUb9FgL"
+  "AS12k8viVmqPtRuXzCm6rKXjLgpQWqbuMjc37YHhB452KSUUb9FgL",
+  "AS1TyABhGT2YUPuGFxeEaJJ4Fq8s4fqEEZW9W4zKFkkGcHr4AC1t",
+  "AS129pB16sJRntR5NddE9iJ75wGF6ZSGu18eBVbwUfgx6sBcb5BQt",
+  "AS126qeGWzikiAmyT4ZqhcrQTDQuJJRpN9adQKCU8oKbdiweUgLbh"
 ]
-
-
 
 
 
@@ -90,6 +92,7 @@ export async function initProvider() {
     }
 
     provider = accounts[0]
+    
     isConnected = true
     userAddress = provider.address
 
@@ -131,7 +134,7 @@ async function callContract(contractAddress, functionName, args) {
     const operation = await provider.callSC({
       target: contractAddress,
       func: functionName,
-      parameter: args,
+      parameter: args
     })
 
     
@@ -158,7 +161,9 @@ async function readContract(contractAddress, functionName, args) {
     const result = await provider.readSC({
       target: contractAddress,
       func: functionName,
-      parameter: args || new Args().serialize(),
+      parameter: args,
+      maxGas: 1_000_000_000n,
+      coins: Mas.fromString("1"), 
     })
     console.log(result)
     return result.value
@@ -175,10 +180,17 @@ export const AMMContract = {
   async createPool(tokenA, tokenB, amountA, amountB, deadline) {
     try {
       console.log(tokenA, tokenA, amountA, amountB, deadline);
+      return await this.getPool(tokenA, tokenB)
 
-     const opA =await getTokenByAddress(tokenA).increaseAllowance(
+      const tokenAcontract =getTokenByAddress(tokenA);
+      if(await tokenAcontract.balanceOf(provider.address) < Mas.fromString(amountA)){
+        const symbol = await tokenAcontract.symbol()
+        showError("Insufficient funds in " + symbol)
+      }
+
+     const opA =await tokenAcontract.increaseAllowance(
       CONTRACTS.AMM,
-      BigInt(amountA)
+      Mas.fromString(amountA)
      )
 
       const statusA = await opA.waitSpeculativeExecution()
@@ -186,9 +198,16 @@ export const AMMContract = {
         throw new Error(`Transaction failed with status: ${statusA}`)
       }
 
-      const oB =await getTokenByAddress(tokenB).increaseAllowance(
+       const tokenBcontract =getTokenByAddress(tokenB);
+
+        if(await tokenBcontract.balanceOf(provider.address) < Mas.fromString(amountB)){
+        const symbol = await tokenBcontract.symbol()
+        showError("Insufficient funds in " + symbol)
+      }
+
+      const oB =await tokenBcontract.increaseAllowance(
          CONTRACTS.AMM,
-        BigInt(amountB)
+        Mas.fromString(amountA)
       )
 
       const statusB = await oB.waitSpeculativeExecution()
@@ -196,15 +215,16 @@ export const AMMContract = {
         throw new Error(`Transaction failed with status: ${statusB}`)
       }
 
-      
+      // const p = prompt(`do you wish to continue ${Mas.fromString(amountA)} ${Mas.fromString(amountA)} `)
 
       const args = new Args()
                 .addString(tokenA)
                 .addString(tokenB)
-                .addU64(BigInt(amountA))
-                .addU64(BigInt(amountB))
-                .addU64(BigInt(deadline))
+                .addU64(Mas.fromString(amountA))
+                .addU64(Mas.fromString(amountB))
+                .addU64(1000n)
                ;
+      console.log(args.serialize()) // 300000000
 
       const operation = await callContract(CONTRACTS.AMM, "createPool", args.serialize());
             
@@ -286,7 +306,11 @@ export const AMMContract = {
       const args = new Args()
           .addString(tokenA)
           .addString(tokenB)
-      const result = await readContract(CONTRACTS.AMM, "getPool", args.serialize())
+          .serialize()
+
+        console.log(args)
+      const result = await readContract(CONTRACTS.AMM, "getPool", args)
+      console.log(result.value)
       return result
     } catch (error) {
       console.error("Failed to get pool info:", error)
