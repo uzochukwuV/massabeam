@@ -601,17 +601,17 @@ export function swap(args: StaticArray<u8>): void {
     assert(amountOut < reserveOut, "Insufficient liquidity");
     
     // Safe transfers
-    assert(safeTransferFrom(tokenIn, caller, Context.callee(), amountIn), "Input transfer failed");
-    assert(safeTransfer(tokenOut, caller, amountOut), "Output transfer failed");
+    // assert(safeTransferFrom(tokenIn, caller, Context.callee(), amountIn), "Input transfer failed");
+    // assert(safeTransfer(tokenOut, caller, amountOut), "Output transfer failed");
     
     // Update reserves and validate K
     const newReserveIn = reserveIn + amountIn;
     const newReserveOut = reserveOut - amountOut;
     
     // K invariant check with fee adjustment
-    const amountInWithFee = amountIn * (10000 - pool!.fee);
-    const newK = newReserveIn * newReserveOut * 10000;
-    const oldK = reserveIn * reserveOut * 10000 + amountInWithFee * reserveOut;
+    const amountInWithFee = safeMul(amountIn ,(10000 - pool!.fee));
+    const newK = safeMul(newReserveIn , newReserveOut * 10000);
+    const oldK = safeMul(reserveIn , reserveOut * 10000) + safeMul(amountInWithFee , reserveOut);
     assert(newK >= oldK, "K invariant violation");
     
     // Update pool state
