@@ -16,7 +16,7 @@ const provider = JsonRpcProvider.buildnet(account);
 
 console.log('Deploying contract...');
 
-const byteCode = getScByteCode('build', 'massa_beam.wasm');
+const byteCode = getScByteCode('build', 'Token.wasm');
 
 const name = 'MassaCoin';
 const constructorArgs = new Args()
@@ -26,7 +26,7 @@ const contract = await SmartContract.deploy(
   provider,
   byteCode,
   constructorArgs,
-  { coins: Mas.fromString('0.11') },
+  { coins: Mas.fromString('1') },
 );
 
 

@@ -1,4 +1,4 @@
-import { initializeContracts, connectWallet, getUserAddress, getTokens, getTokenByAddress, getProvider, AMMContract } from "./contract.js"
+import { initializeContracts, connectWallet, getUserAddress, getTokens, getTokenByAddress, getProvider, AMMContract, getProtocolStats } from "./contract.js"
 import { initializeUI, updateDashboard } from "./ui.js"
 import { formatNumber, formatAddress, debounce } from "./utils.js"
 
@@ -252,13 +252,14 @@ async function loadProtocolData() {
   try {
     // Load pools, stats, etc.
     console.log("Loading protocol data...")
-
+    const {tvl, poolCount} = await getProtocolStats()
     // Mock data for demo
     updateProtocolStats({
-      tvl: 2400000,
+      tvl: Number(tvl),
       volume24h: 150000,
       activeOrders: 1247,
       totalUsers: 3456,
+      poolCount
     })
   } catch (error) {
     console.error("Failed to load protocol data:", error)
@@ -272,6 +273,7 @@ function updateProtocolStats(stats) {
     protocol24hVolume: document.getElementById("protocol24hVolume"),
     protocolActiveOrders: document.getElementById("protocolActiveOrders"),
     protocolUsers: document.getElementById("protocolUsers"),
+    poolCount: document.getElementById("poolCount"),
   }
 
   if (elements.protocolTVL) {
@@ -285,6 +287,10 @@ function updateProtocolStats(stats) {
   }
   if (elements.protocolUsers) {
     elements.protocolUsers.textContent = formatNumber(stats.totalUsers)
+  }
+
+  if (elements.poolCount) {
+    elements.poolCount.textContent = formatNumber(stats.poolCount)
   }
 }
 

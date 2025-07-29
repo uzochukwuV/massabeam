@@ -364,6 +364,7 @@ export function constructor(_: StaticArray<u8>): void {
     assert(Context.isDeployingContract(), "Not deploying");
     
     const deployer = Context.caller();
+    const poolList :string[] = [];
     
     // Initialize access control
     Storage.set(ADMIN_ROLE + ":" + deployer.toString(), "true");
@@ -376,6 +377,7 @@ export function constructor(_: StaticArray<u8>): void {
     Storage.set("total_fees", "0");
     Storage.set("protocol_fee_rate", "0"); // 0% initially
     Storage.set("initialized", "true");
+    Storage.set("pool_list", poolList.join(","));
     
     generateEvent("MassaSwap: DEX deployed with enhanced security");
 }
@@ -430,6 +432,11 @@ export function createPool(args: StaticArray<u8>): void {
     const poolCount = u64(parseInt(Storage.get("pool_count")));
     Storage.set("pool_index:" + poolCount.toString(), poolKey);
     Storage.set("pool_count", (poolCount + 1).toString());
+    const poolListStr = Storage.get("pool_list");
+    const poolList = poolListStr.split(",");
+    poolList.push(poolKey)
+
+    Storage.set("pool_list", poolList.join(","));
     
     // Mint LP tokens (subtract minimum liquidity)
     const lpTokenKey = "lp_balance:" + poolKey + ":" + caller.toString();
@@ -757,4 +764,8 @@ export function readProtocolFeeRate():StaticArray<u8>{
 
 export function readInitialized():StaticArray<u8>{
     return stringToBytes(Storage.get("initialized"));
+}
+
+export function readPoolList():StaticArray<u8>{
+    return stringToBytes(Storage.get("pool_list"));
 }

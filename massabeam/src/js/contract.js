@@ -1,21 +1,18 @@
 import { getWallets, WalletName } from "@massalabs/wallet-provider"
-import { Args, OperationStatus , WMAS, MRC20, USDTbt, bytesToF64, bytesToStr, Mas,  } from "@massalabs/massa-web3"
+import { Args, OperationStatus , WMAS, MRC20, USDTbt, bytesToF64, bytesToStr, Mas, bytesToSerializableObjectArray,  } from "@massalabs/massa-web3"
 
 // Contract addresses
 const CONTRACTS = {
-  AMM: "AS12ZcfvgMZniY5xprqhnF6ufhiZYDEfxEgL7CED3sXiWs6TwAF4t", //AS1zD79GntUsGAH5u5VooFjWqD8VHBCRF2nJu4hazrH1vbJ3pBUh
+  AMM:  "AS12qGoGTfwyXorDss35T6xps79q3MT2fdg48Zk4pnkAxkFbak75b",//"AS12ZcfvgMZniY5xprqhnF6ufhiZYDEfxEgL7CED3sXiWs6TwAF4t",
   ENGINE: "AS12WoA6iCq17kiGA55izZMYhdrbosGRU4hVqfk5cbYgvVstUC9Md", // Same for demo
   ADVANCED: "AS1i8UNYQdmRjB9K454UJ8DwaJmBLgu3G1UTwzFtUH9Aihgu4P1n", // Same for demo
 }
 
 
 const TOKENS = [
-  "AS1xs2KfX3LVeFoF3v8PQZ8TTWsFAW3UYz1Wkg8358DcakPguWs9",
-  "AS1GrZXNAdVUtCbWC3FE3kajmaEg6FxiE9cxQuYBM3KQELGjEE31",
-  "AS12k8viVmqPtRuXzCm6rKXjLgpQWqbuMjc37YHhB452KSUUb9FgL",
-  "AS1TyABhGT2YUPuGFxeEaJJ4Fq8s4fqEEZW9W4zKFkkGcHr4AC1t",
-  "AS129pB16sJRntR5NddE9iJ75wGF6ZSGu18eBVbwUfgx6sBcb5BQt",
-  "AS126qeGWzikiAmyT4ZqhcrQTDQuJJRpN9adQKCU8oKbdiweUgLbh"
+
+  "AS1CEhhk1dqe2HpVG7AxKvVCdMVjsbSqLJPbZMmvyzV4gJShsfjV",
+  "AS122GRtTijhmh48MLCmqLVqTet4r5JDzvZZCKSsJrCWTSWjyD6Kz",
 ]
 
 
@@ -152,7 +149,7 @@ async function callContract(contractAddress, functionName, args) {
 }
 
 // Generic contract read wrapper
-async function readContract(contractAddress, functionName, args) {
+export async function readContract(contractAddress, functionName, args) {
   if (!provider) {
     throw new Error("Wallet not connected")
   }
@@ -180,7 +177,7 @@ export const AMMContract = {
   async createPool(tokenA, tokenB, amountA, amountB, deadline) {
     try {
       console.log(tokenA, tokenA, amountA, amountB, deadline);
-      return await this.getPool(tokenA, tokenB)
+      
 
       const tokenAcontract =getTokenByAddress(tokenA);
       if(await tokenAcontract.balanceOf(provider.address) < Mas.fromString(amountA)){
@@ -309,9 +306,10 @@ export const AMMContract = {
           .serialize()
 
         console.log(args)
-      const result = await readContract(CONTRACTS.AMM, "getPool", args)
-      console.log(result.value)
-      return result
+      const result = await readContract(CONTRACTS.AMM, "readPool", args)
+      console.log(result)
+      console.log(bytesToStr(result))
+      return bytesToStr(result)
     } catch (error) {
       console.error("Failed to get pool info:", error)
       return null
@@ -702,3 +700,26 @@ export async function initializeContracts() {
 
 // Export provider initialization for main app
 export { initProvider as connectWallet }
+
+
+export async function getProtocolStats() {
+    const tvl = await readContract(CONTRACTS.AMM, "readTotalVolume" , new Args().serialize())
+    const poolCount = await getPoolCount()
+    console.log(tvl)
+    
+    return {tvl: bytesToStr(tvl), poolCount}
+}
+
+async function getPoolCount() {
+    try {
+      const args = new Args()
+          .serialize()
+
+      
+      const result = await readContract(CONTRACTS.AMM, "readPoolCount", args)
+      return bytesToStr(result)
+    } catch (error) {
+      console.error("Failed to get pool info:", error)
+      return null
+    }
+  }
