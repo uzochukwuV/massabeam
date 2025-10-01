@@ -1,0 +1,14 @@
+{
+  "tokens": {
+    "USDT": "AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk",
+    "USDC": "AS1DtUpyTE2q7rc7r24xt3ZGy3MEHKLFBGQtpMAkPKmAadfLojem",
+    "BEAM": "AS12ohemfEnZcSedvahBwgKdVfjTDJER5cvgXSszcF4kBtT6EkTx9"
+  },
+  "contracts": {
+    "massaBeam": "AS168XvaRiZPuV65k3mut4hbcLz8fUNvP2ZrZQZFPyoYUHBbtJg3",
+    "massaBeamDCA": "AS19FLoP64D4ZMB1QagnprYHFwbojCjcympYQ5ALoP4o2soJcsjt",
+    "massaBeamEngine": "AS1jymVw7ZKXSZwyLbTxhCorVqWDMZ3dBxQZVvgavFuVFT7tgmm1"
+  },
+  "deployer": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
+  "timestamp": "2025-10-01T10:19:34.814Z"
+}

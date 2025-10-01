@@ -13,6 +13,8 @@ import { loadPortfolioData } from "./features/portfolio.js";
 import { loadAnalyticsData } from "./features/analytics.js";
 import { loadLiquityData, loadCreatePoolData, setupLiquidityEventListeners } from "./features/liquidity.js";
 import { initializeContracts } from "./contract.js";
+// Import global handlers for inline onclick events
+import "./global-handlers.js";
 
 // Initialize application
 async function initializeApp() {

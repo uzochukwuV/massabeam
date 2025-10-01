@@ -4,9 +4,10 @@ import { showError, showSuccess } from "./ui.js";
 import { getTokenByAddress } from "./services/token-service.js";
 import { toU256 } from "./utils.js";
 import { getProvider } from "./wallet.js";
+import { DEPLOYED_CONTRACTS } from "./contracts-config.js";
 
 const CONTRACTS = {
-  AMM:  "AS12DhamoYfuLLCPVUUWbLNt9yVjXZuHDvrEETujqEDAJcNLneep5",
+  AMM: DEPLOYED_CONTRACTS.AMM,
 }
 
 // AMM Contract Functions

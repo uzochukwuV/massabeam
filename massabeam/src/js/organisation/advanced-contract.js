@@ -3,9 +3,10 @@ import { callContract, readContract } from "./contract-helpers.js";
 import { showError, showSuccess } from "./ui.js";
 import { toU256 } from "./utils.js";
 import { getTokenByAddress } from "./services/token-service.js";
+import { DEPLOYED_CONTRACTS } from "./contracts-config.js";
 
 const CONTRACTS = {
-  ADVANCED: "AS1i8UNYQdmRjB9K454UJ8DwaJmBLgu3G1UTwzFtUH9Aihgu4P1n",
+  ADVANCED: DEPLOYED_CONTRACTS.DCA,
 }
 
 // Advanced Features Contract Functions

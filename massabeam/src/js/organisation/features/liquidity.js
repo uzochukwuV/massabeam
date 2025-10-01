@@ -3,6 +3,7 @@ import { showLoading, showError, showSuccess, switchToSection } from "../ui.js";
 import { getTokens, getTokenByAddress } from "../services/token-service.js";
 import { getProvider } from "../wallet.js";
 import { AMMContract } from "../amm-contract.js";
+import { TOKENS_LIST, TOKEN_METADATA } from "../contracts-config.js";
 
 // Load liquidity management data (your pools, all pools, etc.)
 export async function loadLiquityData() {
@@ -86,46 +87,82 @@ export async function loadCreatePoolData() {
     try {
         showLoading(true);
 
-        console.log("loading create pool")
+        console.log("Loading create pool with deployed tokens:", TOKENS_LIST);
 
-        // Populate token dropdowns (mock/demo)
-        const tokens = await getTokens()
         const tokenASelect = document.getElementById("createPoolTokenA");
         const tokenBSelect = document.getElementById("createPoolTokenB");
+
+        // Populate token dropdowns with deployed tokens
         if (tokenASelect) {
-            
-              // Populate tokenASelect with token options (handle async symbols)
-              Promise.all(tokens.map(async t => {
-                const symbol = await t.symbol();
-                return `<option value="${t.address}">${symbol}</option>`;
-              })).then(options => {
-                tokenASelect.innerHTML = `<option value="">Select Token</option>` + options.join("");
-              });
-              
+            const options = TOKENS_LIST.map(token =>
+                `<option value="${token.address}">${token.symbol} - ${token.name}</option>`
+            ).join("");
+            tokenASelect.innerHTML = `<option value="">Select Token A</option>` + options;
         }
+
         if (tokenBSelect) {
-           Promise.all(tokens.map(async t => {
-                const symbol = await t.symbol();
-                return `<option value="${t.address}">${symbol}</option>`;
-              })).then(options => {
-                tokenBSelect.innerHTML = `<option value="">Select Token</option>` + options.join("");
-              });
+            const options = TOKENS_LIST.map(token =>
+                `<option value="${token.address}">${token.symbol} - ${token.name}</option>`
+            ).join("");
+            tokenBSelect.innerHTML = `<option value="">Select Token B</option>` + options;
         }
 
         // Reset balances and summary
-        document.getElementById("createPoolTokenABalance").textContent = (await getTokenByAddress(document.getElementById("createPoolTokenA").value)?.balanceOf(getProvider().address))?.toString() || "0";
-        document.getElementById("createPoolTokenBBalance").textContent = "0";
+        document.getElementById("createPoolTokenABalance").textContent = "0.00";
+        document.getElementById("createPoolTokenBBalance").textContent = "0.00";
         document.getElementById("createPoolPair").textContent = "-";
         document.getElementById("createPoolInitialPrice").textContent = "-";
         document.getElementById("createPoolFee").textContent = "~0.001 MAS";
 
-        tokenASelect.addEventListener("change", async (e)=>{
-                document.getElementById("createPoolTokenABalance").textContent = (await getTokenByAddress(document.getElementById("createPoolTokenA").value)?.balanceOf(getProvider().address))?.toString() || "0";
-        })
+        // Update balance when token A changes
+        tokenASelect.addEventListener("change", async (e) => {
+            const selectedAddress = e.target.value;
+            if (!selectedAddress) {
+                document.getElementById("createPoolTokenABalance").textContent = "0.00";
+                return;
+            }
 
-        tokenBSelect.addEventListener("change", async (e)=>{
-                document.getElementById("createPoolTokenBBalance").textContent = (await getTokenByAddress(document.getElementById("createPoolTokenB").value)?.balanceOf(getProvider().address))?.toString() || "0";
-        })
+            try {
+                const provider = getProvider();
+                if (!provider) return;
+
+                const tokenContract = await getTokenByAddress(selectedAddress);
+                const balance = await tokenContract.balanceOf(provider.address);
+                const decimals = await tokenContract.decimals();
+
+                // Convert u256 balance to human-readable
+                const balanceFormatted = Number(balance.toString()) / (10 ** Number(decimals));
+                document.getElementById("createPoolTokenABalance").textContent = balanceFormatted.toFixed(2);
+            } catch (error) {
+                console.error("Error fetching Token A balance:", error);
+                document.getElementById("createPoolTokenABalance").textContent = "Error";
+            }
+        });
+
+        // Update balance when token B changes
+        tokenBSelect.addEventListener("change", async (e) => {
+            const selectedAddress = e.target.value;
+            if (!selectedAddress) {
+                document.getElementById("createPoolTokenBBalance").textContent = "0.00";
+                return;
+            }
+
+            try {
+                const provider = getProvider();
+                if (!provider) return;
+
+                const tokenContract = await getTokenByAddress(selectedAddress);
+                const balance = await tokenContract.balanceOf(provider.address);
+                const decimals = await tokenContract.decimals();
+
+                // Convert u256 balance to human-readable
+                const balanceFormatted = Number(balance.toString()) / (10 ** Number(decimals));
+                document.getElementById("createPoolTokenBBalance").textContent = balanceFormatted.toFixed(2);
+            } catch (error) {
+                console.error("Error fetching Token B balance:", error);
+                document.getElementById("createPoolTokenBBalance").textContent = "Error";
+            }
+        });
 
 
        
@@ -141,18 +178,68 @@ export async function loadCreatePoolData() {
         }
 
 
-         document.getElementById("createPoolForm").addEventListener("submit", async (e)=>{
-          e.preventDefault()
+        // Handle form submission
+        const createPoolForm = document.getElementById("createPoolForm");
+        if (createPoolForm) {
+            createPoolForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
 
-          AMMContract.createPool(
-            tokenASelect.value,
-            tokenBSelect.value,
-            amountAInput.value,
-            amountBInput.value,
-            "100"
-          )
-          
-        })
+                const tokenA = tokenASelect.value;
+                const tokenB = tokenBSelect.value;
+                const amountA = amountAInput.value;
+                const amountB = amountBInput.value;
+
+                // Validation
+                if (!tokenA || !tokenB) {
+                    showError("Please select both tokens");
+                    return;
+                }
+
+                if (tokenA === tokenB) {
+                    showError("Cannot create pool with same token");
+                    return;
+                }
+
+                if (!amountA || !amountB || parseFloat(amountA) <= 0 || parseFloat(amountB) <= 0) {
+                    showError("Please enter valid amounts");
+                    return;
+                }
+
+                try {
+                    showLoading(true);
+
+                    // Deadline is 1 hour from now (in milliseconds)
+                    const deadline = Date.now() + (60 * 60 * 1000);
+
+                    console.log("Creating pool:", {
+                        tokenA,
+                        tokenB,
+                        amountA,
+                        amountB,
+                        deadline
+                    });
+
+                    await AMMContract.createPool(
+                        tokenA,
+                        tokenB,
+                        amountA,
+                        amountB,
+                        deadline
+                    );
+
+                    showSuccess("Pool created successfully! 🎉");
+
+                    // Reset form
+                    createPoolForm.reset();
+                    updateCreatePoolSummary();
+                } catch (error) {
+                    console.error("Create pool error:", error);
+                    showError(`Failed to create pool: ${error.message}`);
+                } finally {
+                    showLoading(false);
+                }
+            });
+        }
 
         showSuccess("Create Pool UI ready!");
     } catch (error) {
@@ -165,16 +252,20 @@ export async function loadCreatePoolData() {
 
 // Helper to update create pool summary UI
 function updateCreatePoolSummary() {
-    const tokenA = document.getElementById("createPoolTokenA")?.value || "-";
-    const tokenB = document.getElementById("createPoolTokenB")?.value || "-";
+    const tokenAAddress = document.getElementById("createPoolTokenA")?.value || "";
+    const tokenBAddress = document.getElementById("createPoolTokenB")?.value || "";
     const amountA = parseFloat(document.getElementById("createPoolAmountA")?.value || "0");
     const amountB = parseFloat(document.getElementById("createPoolAmountB")?.value || "0");
-    const feeTier = document.getElementById("createPoolFeeTier")?.value || "-";
+    const feeTier = document.getElementById("createPoolFeeTier")?.value || "0.3";
 
-    document.getElementById("createPoolPair").textContent = `${tokenA.slice(0,4)}/${tokenB.slice(0,4)}`;
+    // Find token symbols from metadata
+    const tokenASymbol = TOKENS_LIST.find(t => t.address === tokenAAddress)?.symbol || "?";
+    const tokenBSymbol = TOKENS_LIST.find(t => t.address === tokenBAddress)?.symbol || "?";
+
+    document.getElementById("createPoolPair").textContent = `${tokenASymbol}/${tokenBSymbol}`;
     document.getElementById("createPoolInitialPrice").textContent =
-        amountB > 0 ? (amountA / amountB).toFixed(4) : "-";
-    document.getElementById("createPoolFee").textContent = `~0.001 MAS (${feeTier}%)`;
+        amountB > 0 ? `1 ${tokenASymbol} = ${(amountB / amountA).toFixed(6)} ${tokenBSymbol}` : "-";
+    document.getElementById("createPoolFee").textContent = `~0.001 MAS (${feeTier}% swap fee)`;
 }
 
 export function openCreatePoolModal() {
@@ -184,6 +275,13 @@ export function openCreatePoolModal() {
       .then(()=> console.log("done"))
       .catch((e)=> console.log(e))
     showSuccess("Create Pool section opened!");
+}
+
+// Refresh pools data
+export function refreshPools() {
+    loadLiquityData()
+        .then(() => console.log("Pools refreshed"))
+        .catch((e) => console.error("Failed to refresh pools:", e));
 }
 
 async function handleAddLiquidity(event) {

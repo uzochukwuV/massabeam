@@ -1,11 +1,7 @@
 import { MRC20 } from "@massalabs/massa-web3";
-import { getProvider } from "../wallet.js";
 import { showError } from "../ui.js";
-
-const TOKENS = [
-  "AS1CEhhk1dqe2HpVG7AxKvVCdMVjsbSqLJPbZMmvyzV4gJShsfjV",
-  "AS122GRtTijhmh48MLCmqLVqTet4r5JDzvZZCKSsJrCWTSWjyD6Kz",
-];
+import {TOKENS_LIST } from "../contracts-config.js"
+import { getProvider } from "../wallet.js";
 
 let tokensCache = null;
 
@@ -20,12 +16,17 @@ export async function getTokens() {
             throw new Error("Provider not initialized");
         }
 
-        const tokenPromises = TOKENS.map(async (address) => {
-            const token = new MRC20(provider, address);
-            const symbol = await token.symbol();
-            const decimals = await token.decimals();
+        const tokenPromises = TOKENS_LIST.map(async (x) => {
+            console.log(x.address)
+            console.log("AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk")
+            console.log(provider)
+            const token = new MRC20(provider, "AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk");
+            const symbol = x.symbol;
+            const decimals = x.decimals;
+            const balance = await token.balanceOf("AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma");
+            console.log(balance)
             return {
-                address,
+                address : x.address,
                 symbol,
                 decimals,
                 contract: token
