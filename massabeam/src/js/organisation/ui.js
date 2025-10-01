@@ -109,6 +109,7 @@ export function switchToSection(sectionName) {
 
 // Update protocol statistics
 export function updateProtocolStats(stats) {
+  console.log(stats)
   const elements = {
     protocolTVL: document.getElementById("protocolTVL"),
     protocol24hVolume: document.getElementById("protocol24hVolume"),
@@ -136,9 +137,7 @@ export function updateProtocolStats(stats) {
 }
 
 export function updateDashboard(state) {
-    // This is a placeholder. In a real app, you'd update the dashboard UI
-    // with data from the state object.
-    console.log("Updating dashboard with state:", state);
+    
 }
 
 // Initialize charts

@@ -605,8 +605,8 @@ export function swap(args: StaticArray<u8>): void {
     assert(amountOut < reserveOut, "Insufficient liquidity");
     
     // Safe transfers
-    // assert(safeTransferFrom(tokenIn, caller, Context.callee(), amountIn), "Input transfer failed");
-    // assert(safeTransfer(tokenOut, caller, amountOut), "Output transfer failed");
+    assert(safeTransferFrom(tokenIn, caller, Context.callee(), amountIn), "Input transfer failed");
+    assert(safeTransfer(tokenOut, caller, amountOut), "Output transfer failed");
     
     // Update reserves and validate K
     const newReserveIn = reserveIn + amountIn;

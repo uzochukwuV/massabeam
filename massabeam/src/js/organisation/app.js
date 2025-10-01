@@ -157,8 +157,8 @@ async function loadUserData() {
 
     AppState.portfolio.assets = await Promise.all(tokens.map(async (token) => {
       const balance = await token.contract.balanceOf(AppState.user.address);
-      const decimals = await token.decimals();
-      const symbol = await token.symbol();
+      const decimals = token.decimals
+      const symbol = token.symbol
 
       // Convert u256 balance to human-readable format
       // balance is u256, decimals is typically 8 or 18

@@ -1,4 +1,4 @@
-import { OperationStatus, Mas } from "@massalabs/massa-web3";
+import { OperationStatus, Mas,formatReadOnlyCallResponse } from "@massalabs/massa-web3";
 import { getProvider } from "./wallet.js";
 
 // Generic contract call wrapper
@@ -40,9 +40,9 @@ export async function readContract(contractAddress, functionName, args) {
       func: functionName,
       parameter: args,
       maxGas: 1_000_000_000n,
-      coins: Mas.fromString("1"), 
+      coins: Mas.fromString("0.1"), 
     });
-    return result.value;
+    return result;
   } catch (error) {
     console.error(`Contract read failed: ${functionName}`, error);
     throw error;

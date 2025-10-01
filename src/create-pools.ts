@@ -32,8 +32,8 @@ const POOLS = [
     name: 'BEAM/USDT',
     tokenA: 'BEAM',
     tokenB: 'USDT',
-    amountA: '10000', // 10,000 BEAM
-    amountB: '1000', // 1,000 USDT (1 BEAM = 0.1 USDT)
+    amountA: '10', // 1 BEAM
+    amountB: '10', // 1 USDT (1 BEAM = 1 USDT)
     decimalsA: 8,
     decimalsB: 8,
   },
@@ -41,8 +41,8 @@ const POOLS = [
     name: 'BEAM/USDC',
     tokenA: 'BEAM',
     tokenB: 'USDC',
-    amountA: '10000', // 10,000 BEAM
-    amountB: '1000', // 1,000 USDC (1 BEAM = 0.1 USDC)
+    amountA: '5000', // 5 BEAM
+    amountB: '500', // 1 USDC (5 BEAM = 1 USDC)
     decimalsA: 8,
     decimalsB: 8,
   },
@@ -50,8 +50,8 @@ const POOLS = [
     name: 'USDT/USDC',
     tokenA: 'USDT',
     tokenB: 'USDC',
-    amountA: '5000', // 5,000 USDT
-    amountB: '5000', // 5,000 USDC (1:1 ratio)
+    amountA: '5000', // 5 USDT
+    amountB: '500', // 1 USDC (1:1 ratio)
     decimalsA: 8,
     decimalsB: 8,
   },
@@ -147,13 +147,13 @@ async function main() {
       // Step 3: Create Pool
       console.log(`🏊 Creating pool...`);
 
-      const deadline = BigInt(Date.now() + 60 * 60 * 1000); // 1 hour from now
+      const deadline = BigInt(60 * 60 * 1000); // 1 hour from now
 
       const createPoolArgs = new Args()
         .addString(tokenAAddress)
         .addString(tokenBAddress)
-        .addU256(amountA256)
-        .addU256(amountB256)
+        .addU64(BigInt(pool.amountA))
+        .addU64(BigInt(pool.amountB))
         .addU64(deadline);
 
       await ammContract.call('createPool', createPoolArgs, {

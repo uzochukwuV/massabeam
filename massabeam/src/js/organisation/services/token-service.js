@@ -18,13 +18,11 @@ export async function getTokens() {
 
         const tokenPromises = TOKENS_LIST.map(async (x) => {
             console.log(x.address)
-            console.log("AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk")
-            console.log(provider)
-            const token = new MRC20(provider, "AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk");
+            
+            const token = new MRC20(provider, x.address);
             const symbol = x.symbol;
             const decimals = x.decimals;
-            const balance = await token.balanceOf("AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma");
-            console.log(balance)
+            
             return {
                 address : x.address,
                 symbol,

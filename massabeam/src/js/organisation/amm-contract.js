@@ -1,4 +1,4 @@
-import { Args, Mas, bytesToStr, OperationStatus } from "@massalabs/massa-web3";
+import { Args, Mas, bytesToStr, OperationStatus, bytesToF64, bytesToSerializableObjectArray, bytesToF32, formatReadOnlyCallResponse, U128, U256, U32 } from "@massalabs/massa-web3";
 import { callContract, readContract } from "./contract-helpers.js";
 import { showError, showSuccess } from "./ui.js";
 import { getTokenByAddress } from "./services/token-service.js";
@@ -10,6 +10,8 @@ const CONTRACTS = {
   AMM: DEPLOYED_CONTRACTS.AMM,
 }
 
+let provider = null;
+
 // AMM Contract Functions
 export const AMMContract = {
   // Create a new liquidity pool
@@ -17,7 +19,7 @@ export const AMMContract = {
     try {
       console.log("Creating pool:", tokenA, tokenB, amountA, amountB, deadline);
 
-      const provider = getProvider();
+      provider = await getProvider()
       const tokenAcontract = await getTokenByAddress(tokenA);
       const tokenBcontract = await getTokenByAddress(tokenB);
 
@@ -205,6 +207,8 @@ export const AMMContract = {
     }
   },
 
+  
+
   // Get amount out for swap
   async getAmountOut(amountIn, reserveIn, reserveOut, fee) {
     try {
@@ -220,26 +224,68 @@ export const AMMContract = {
       return 0
     }
   },
+
+  async getPools() {
+      
+      if (!provider) {
+          throw new Error("Provider not initialized");
+      }
+      const args = new Args()
+      const pools =  await readContract(CONTRACTS.AMM, "readPoolList", args.serialize())
+      console.log("getPools:", pools);
+
+      return pools;
+  },
+
+  async getPoolCount() {
+      
+      if (!provider) {
+          throw new Error("Provider not initialized");
+      }
+      const args = new Args()
+      const poolCount =  await readContract(CONTRACTS.AMM, "readPoolCount", args.serialize())
+      console.log("getPoolCount:", poolCount);
+
+      return poolCount;
+  },
+
+  async getTotalVolume() {
+      
+      if (!provider) {
+          throw new Error("Provider not initialized"); 
+      }
+      const args = new Args()
+      const volume =  await readContract(CONTRACTS.AMM, "readTotalVolume", args.serialize())
+      console.log("getTotalVolume :", volume);
+
+      return volume;
+  },
+
+  async getProtocolFeeRate() {
+      
+      if (!provider) {
+          throw new Error("Provider not initialized"); 
+      }
+      const args = new Args()
+
+      const readProtocolFeeRate =  await readContract(CONTRACTS.AMM, "readProtocolFeeRate", args.serialize())
+      console.log("readProtocolFeeRate:", readProtocolFeeRate);
+
+      return readProtocolFeeRate;
+  },
+
 }
 
 export async function getProtocolStats() {
-    const tvl = await readContract(CONTRACTS.AMM, "readTotalVolume" , new Args().serialize())
-    const poolCount = await getPoolCount()
-    console.log(tvl)
+    provider = await getProvider()
     
-    return {tvl: bytesToStr(tvl), poolCount}
+    const tvl = await AMMContract.getTotalVolume()
+    const poolCount = await AMMContract.getPoolCount()
+    const readProtocolFeeRate = await AMMContract.getProtocolFeeRate()
+
+    console.log( U256.fromBytes(poolCount), bytesToF32(readProtocolFeeRate))
+    
+    return {tvl: bytesToF64(tvl), poolCount: bytesToF64(poolCount), readProtocolFeeRate: bytesToF64(readProtocolFeeRate)}
 }
 
-async function getPoolCount() {
-    try {
-      const args = new Args()
-          .serialize()
 
-      
-      const result = await readContract(CONTRACTS.AMM, "readPoolCount", args)
-      return bytesToStr(result)
-    } catch (error) {
-      console.error("Failed to get pool info:", error)
-      return null
-    }
-  }

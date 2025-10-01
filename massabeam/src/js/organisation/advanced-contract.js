@@ -1,4 +1,4 @@
-import { Args } from "@massalabs/massa-web3";
+import { Args,bytesToF64, U128 } from "@massalabs/massa-web3";
 import { callContract, readContract } from "./contract-helpers.js";
 import { showError, showSuccess } from "./ui.js";
 import { toU256 } from "./utils.js";
@@ -239,8 +239,9 @@ export const AdvancedContract = {
       const args = new Args()
       .serialize()
       const result = await readContract(CONTRACTS.ADVANCED, "getCurrentGasPrice", args)
+      console.log(result.info)
       console.log(Uint8Array.from(result))
-      return bytesToF64(result, 2) || 1000
+      return U128.fromBuffer(result, 1) || 1000
     } catch (error) {
       console.error("Failed to get gas price:", error)
       return 1000
