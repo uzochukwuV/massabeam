@@ -20,6 +20,7 @@ import {
     getPrice,
     getAllPoolKeys
 } from "./uni_massa";
+import { u256, u128Safe, u128, u256Safe } from 'as-bignum/assembly';
 
 
 
@@ -447,7 +448,7 @@ export function executeDCAOrder(strategy: DCAStrategy): void {
     
     if (amountOut >= strategy.minAmountOut) {
         // Execute the trade
-        tokenInContract.transferFrom(strategy.user, Context.callee(), strategy.amountPerPeriod);
+        tokenInContract.transferFrom(strategy.user, Context.callee(), u256.fromU64(strategy.amountPerPeriod));
         tokenOutContract.transfer(strategy.user, amountOut);
         
         // Update pool reserves
@@ -533,13 +534,13 @@ export function calculatePoolVolatility(pool: Pool): u64 {
 
 // User-facing functions for creating strategies
 export function createDCAStrategy(args: StaticArray<u8>): void {
-    const arguments = new Args(args);
-    const tokenIn = new Address(arguments.nextString().unwrap());
-    const tokenOut = new Address(arguments.nextString().unwrap());
-    const amountPerPeriod = arguments.nextU64().unwrap();
-    const intervalPeriods = arguments.nextU64().unwrap();
-    const totalPeriods = arguments.nextU64().unwrap();
-    const minAmountOut = arguments.nextU64().unwrap();
+    const argument = new Args(args);
+    const tokenIn = new Address(argument.nextString().unwrap());
+    const tokenOut = new Address(argument.nextString().unwrap());
+    const amountPerPeriod = argument.nextU64().unwrap();
+    const intervalPeriods = argument.nextU64().unwrap();
+    const totalPeriods = argument.nextU64().unwrap();
+    const minAmountOut = argument.nextU64().unwrap();
     
     const caller = Context.caller();
     const dcaCount = u64(parseInt(Storage.has("dca_count") ? Storage.get("dca_count") : "0"));
@@ -570,20 +571,20 @@ export function createDCAStrategy(args: StaticArray<u8>): void {
 }
 
 export function createLimitOrder(args: StaticArray<u8>): void {
-    const arguments = new Args(args);
-    const tokenIn = new Address(arguments.nextString().unwrap());
-    const tokenOut = new Address(arguments.nextString().unwrap());
-    const amountIn = arguments.nextU64().unwrap();
-    const minAmountOut = arguments.nextU64().unwrap();
-    const expiry = arguments.nextU64().unwrap();
-    const orderType = arguments.nextString().unwrap();
+    const argument = new Args(args);
+    const tokenIn = new Address(argument.nextString().unwrap());
+    const tokenOut = new Address(argument.nextString().unwrap());
+    const amountIn = argument.nextU64().unwrap();
+    const minAmountOut = argument.nextU64().unwrap();
+    const expiry = argument.nextU64().unwrap();
+    const orderType = argument.nextString().unwrap();
     
     const caller = Context.caller();
     const orderCount = u64(parseInt(Storage.has("order_count") ? Storage.get("order_count") : "0"));
     
     // Transfer tokens to contract
     const tokenInContract = new IERC20(tokenIn);
-    tokenInContract.transferFrom(caller, Context.callee(), amountIn);
+    tokenInContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
     
     // Create limit order
     const order = new LimitOrder(
@@ -611,11 +612,11 @@ export function createLimitOrder(args: StaticArray<u8>): void {
 }
 
 export function createYieldPool(args: StaticArray<u8>): void {
-    const arguments = new Args(args);
-    const tokenA = new Address(arguments.nextString().unwrap());
-    const tokenB = new Address(arguments.nextString().unwrap());
-    const rewardToken = new Address(arguments.nextString().unwrap());
-    const rewardRate = arguments.nextU64().unwrap();
+    const argument = new Args(args);
+    const tokenA = new Address(argument.nextString().unwrap());
+    const tokenB = new Address(argument.nextString().unwrap());
+    const rewardToken = new Address(argument.nextString().unwrap());
+    const rewardRate = argument.nextU64().unwrap();
     
     const yieldPoolCount = u64(parseInt(Storage.has("yield_pool_count") ? Storage.get("yield_pool_count") : "0"));
     
@@ -636,9 +637,9 @@ export function createYieldPool(args: StaticArray<u8>): void {
 }
 
 export function stakeLP(args: StaticArray<u8>): void {
-    const arguments = new Args(args);
-    const yieldPoolId = arguments.nextU64().unwrap();
-    const amount = arguments.nextU64().unwrap();
+    const argument = new Args(args);
+    const yieldPoolId = argument.nextU64().unwrap();
+    const amount = argument.nextU64().unwrap();
     
     const caller = Context.caller();
     const yieldPoolKey = "yield_pool:" + yieldPoolId.toString();
@@ -678,9 +679,9 @@ export function stakeLP(args: StaticArray<u8>): void {
 }
 
 export function unstakeLP(args: StaticArray<u8>): void {
-    const arguments = new Args(args);
-    const yieldPoolId = arguments.nextU64().unwrap();
-    const amount = arguments.nextU64().unwrap();
+    const argument = new Args(args);
+    const yieldPoolId = argument.nextU64().unwrap();
+    const amount = argument.nextU64().unwrap();
     
     const caller = Context.caller();
     const yieldPoolKey = "yield_pool:" + yieldPoolId.toString();
@@ -734,8 +735,8 @@ export function calculateUserRewards(yieldPool: YieldPool, userStake: u64): u64 
 }
 
 export function claimRewards(args: StaticArray<u8>): void {
-    const arguments = new Args(args);
-    const yieldPoolId = arguments.nextU64().unwrap();
+    const argument = new Args(args);
+    const yieldPoolId = argument.nextU64().unwrap();
     
     const caller = Context.caller();
     const yieldPoolKey = "yield_pool:" + yieldPoolId.toString();

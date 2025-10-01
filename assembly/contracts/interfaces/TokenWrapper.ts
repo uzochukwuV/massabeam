@@ -1,5 +1,6 @@
-import { bytesToString, NoArg, bytesToU64, Args } from "@massalabs/as-types";
+import { bytesToString, NoArg, bytesToU256, Args } from "@massalabs/as-types";
 import { Address, call } from "@massalabs/massa-as-sdk";
+import { u256 } from 'as-bignum/assembly';
 
 /**
  * The Massa's standard token implementation wrapper.
@@ -8,11 +9,13 @@ import { Address, call } from "@massalabs/massa-as-sdk";
  * Massa standard token.
  * All the serialization/deserialization will handled here.
  *
+ * FIXED VERSION: All amounts now use u256 to match MRC20 standard
+ *
  * ```typescript
  *  const coin = new TokenWrapper(scAddress);
  *  const coinName = coin.name();
  *  const bal = coin.balanceOf(myAddress);
- *  console.log(`balance: ${bal.value.toString()} of token: ${coinName}`);
+ *  console.log(`balance: ${bal.toString()} of token: ${coinName}`);
  * ```
  */
 export class TokenWrapper {
@@ -59,39 +62,41 @@ export class TokenWrapper {
      *
      * The number of tokens that were initially minted.
      *
-     * @returns number of minted tokens.
+     * @returns number of minted tokens as u256.
      */
-    totalSupply(): u64 {
-        return bytesToU64(call(this._origin, "totalSupply", NoArg, 0));
+    totalSupply(): u256 {
+        return bytesToU256(call(this._origin, "totalSupply", NoArg, 0));
     }
 
     /**
      * Returns the balance of an account.
      *
-     * @param account -
+     * @param account - The address to query balance for
+     * @returns Balance as u256
      */
-    balanceOf(account: Address): u64 {
-        return bytesToU64(call(this._origin, "balanceOf", new Args().add(account), 0));
+    balanceOf(account: Address): u256 {
+        return bytesToU256(call(this._origin, "balanceOf", new Args().add(account), 0));
     }
 
     /**
      * Transfers tokens from the caller's account to the recipient's account.
      *
-     * @param toAccount -
-     * @param nbTokens -
+     * @param toAccount - Recipient address
+     * @param nbTokens - Amount to transfer (u256)
      */
-    transfer(toAccount: Address, nbTokens: u64): void {
+    transfer(toAccount: Address, nbTokens: u256): void {
         call(this._origin, "transfer", new Args().add(toAccount).add(nbTokens), 0);
     }
 
     /**
      * Returns the allowance set on the owner's account for the spender.
      *
-     * @param ownerAccount -
-     * @param spenderAccount -
+     * @param ownerAccount - Token owner address
+     * @param spenderAccount - Spender address
+     * @returns Allowance as u256
      */
-    allowance(ownerAccount: Address, spenderAccount: Address): u64 {
-        return bytesToU64(call(this._origin, "allowance", new Args().add(ownerAccount).add(spenderAccount), 0));
+    allowance(ownerAccount: Address, spenderAccount: Address): u256 {
+        return bytesToU256(call(this._origin, "allowance", new Args().add(ownerAccount).add(spenderAccount), 0));
     }
 
     /**
@@ -100,10 +105,10 @@ export class TokenWrapper {
      *
      * This function can only be called by the owner.
      *
-     * @param spenderAccount -
-     * @param nbTokens -
+     * @param spenderAccount - Spender address
+     * @param nbTokens - Amount to increase (u256)
      */
-    increaseAllowance(spenderAccount: Address, nbTokens: u64): void {
+    increaseAllowance(spenderAccount: Address, nbTokens: u256): void {
         call(this._origin, "increaseAllowance", new Args().add(spenderAccount).add(nbTokens), 0);
     }
 
@@ -113,10 +118,10 @@ export class TokenWrapper {
      *
      * This function can only be called by the owner.
      *
-     * @param spenderAccount -
-     * @param nbTokens -
+     * @param spenderAccount - Spender address
+     * @param nbTokens - Amount to decrease (u256)
      */
-    decreaseAllowance(spenderAccount: Address, nbTokens: u64): void {
+    decreaseAllowance(spenderAccount: Address, nbTokens: u256): void {
         call(this._origin, "decreaseAllowance", new Args().add(spenderAccount).add(nbTokens), 0);
     }
 
@@ -129,30 +134,30 @@ export class TokenWrapper {
      * - both allowance and transfer are executed if possible;
      * - or if allowance or transfer is not possible, both are discarded.
      *
-     * @param ownerAccount -
-     * @param recipientAccount -
-     * @param nbTokens -
+     * @param ownerAccount - Token owner address
+     * @param recipientAccount - Recipient address
+     * @param nbTokens - Amount to transfer (u256)
      */
-    transferFrom(ownerAccount: Address, recipientAccount: Address, nbTokens: u64): void {
+    transferFrom(ownerAccount: Address, recipientAccount: Address, nbTokens: u256): void {
         call(this._origin, "transferFrom", new Args().add(ownerAccount).add(recipientAccount).add(nbTokens), 0);
     }
 
     /**
-     * Mint an amount of nbTokens tokens from to the toAccount address .
+     * Mint an amount of nbTokens tokens to the toAccount address.
      *
-     * @param toAccount -
-     * @param nbTokens -
+     * @param toAccount - Recipient address
+     * @param nbTokens - Amount to mint (u256)
      */
-    mint(toAccount: Address, nbTokens: u64): void {
+    mint(toAccount: Address, nbTokens: u256): void {
         call(this._origin, "mint", new Args().add(toAccount).add(nbTokens), 0);
     }
 
     /**
      * Burn nbTokens on the caller address
      *
-     * @param nbTokens -
+     * @param nbTokens - Amount to burn (u256)
      */
-    burn(nbTokens: u64): void {
+    burn(nbTokens: u256): void {
         call(this._origin, "burn", new Args().add(nbTokens), 0);
     }
 }

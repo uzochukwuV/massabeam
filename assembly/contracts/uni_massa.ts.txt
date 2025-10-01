@@ -7,6 +7,7 @@ import {
 } from "@massalabs/massa-as-sdk";
 import { Args, Result, stringToBytes } from "@massalabs/as-types";
 import { IERC20 } from "./interfaces/IERC20";
+import { u256 } from 'as-bignum/assembly';
 // Core constants
 export const ONE_UNIT = 10 ** 9;
 export const FEE_RATE = 30; // 0.3% base fee
@@ -274,14 +275,14 @@ export function createPool(args: StaticArray<u8>): void {
     const tokenBContract = new IERC20(tokenB);
 
 
-    if (tokenAContract.allowance(caller, Context.callee()) < amountA ||
-        tokenBContract.allowance(caller, Context.callee()) < amountB) {
+    if (tokenAContract.allowance(caller, Context.callee()).toU64() < amountA ||
+        tokenBContract.allowance(caller, Context.callee()).toU64() < amountB) {
         generateEvent("MassaSwap: Token A transfer failed");
         return;
     }
     
-    tokenAContract.transferFrom(caller, Context.callee(), amountA);
-    tokenBContract.transferFrom(caller, Context.callee(), amountB);
+    tokenAContract.transferFrom(caller, Context.callee(), u256.fromU64(amountA));
+    tokenBContract.transferFrom(caller, Context.callee(),  u256.fromU64(amountB));
     
     // Calculate initial liquidity
     const liquidity = sqrt(amountA * amountB);
@@ -336,14 +337,14 @@ export function addLiquidity(args: StaticArray<u8>): void {
     const tokenAContract = new IERC20(tokenA);
     const tokenBContract = new IERC20(tokenB);
 
-    if (tokenAContract.allowance(caller, Context.callee()) < finalAmountA ||
-        tokenBContract.allowance(caller, Context.callee()) < finalAmountB) {
+    if (tokenAContract.allowance(caller, Context.callee()).toU64() < finalAmountA ||
+        tokenBContract.allowance(caller, Context.callee()).toU64() < finalAmountB) {
         generateEvent("MassaSwap: Token transfer failed");
         return;
     }
     
-    tokenAContract.transferFrom(caller, Context.callee(), finalAmountA);
-    tokenBContract.transferFrom(caller, Context.callee(), finalAmountB);
+    tokenAContract.transferFrom(caller, Context.callee(),  u256.fromU64(finalAmountA));
+    tokenBContract.transferFrom(caller, Context.callee(),  u256.fromU64(finalAmountB));
     
     // Calculate liquidity to mint
     const liquidity = (finalAmountA * pool.totalSupply) / pool.reserveA;
@@ -404,8 +405,8 @@ export function removeLiquidity(args: StaticArray<u8>): void {
     const tokenAContract = new IERC20(tokenA);
     const tokenBContract = new IERC20(tokenB);
     
-    tokenAContract.transfer(caller, amountA);
-    tokenBContract.transfer(caller, amountB);
+    tokenAContract.transfer(caller, u256.fromU64(amountA));
+    tokenBContract.transfer(caller, u256.fromU64(amountB));
     
     updatePrice(tokenA, tokenB);
     
@@ -443,13 +444,13 @@ export function swap(args: StaticArray<u8>): void {
     // Transfer tokens
     const tokenInContract = new IERC20(tokenIn);
     const tokenOutContract = new IERC20(tokenOut);
-    if (tokenInContract.allowance(caller, Context.callee()) < amountIn ){
+    if (tokenInContract.allowance(caller, Context.callee()).toU64() < amountIn ){
         generateEvent("MassaSwap: Token transfer failed");
         return;
     }
     
-    tokenInContract.transferFrom(caller, Context.callee(), amountIn);
-    tokenOutContract.transfer(caller, amountOut);
+    tokenInContract.transferFrom(caller, Context.callee(),  u256.fromU64(amountIn));
+    tokenOutContract.transfer(caller, u256.fromU64(amountOut));
     
     // Update pool reserves
     if (tokenInIsA) {

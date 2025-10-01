@@ -19,6 +19,7 @@ import {
     sqrt,
     safeSqrt
 } from "./massa_beam";
+import { u256 } from 'as-bignum/assembly';
 
 // Advanced arbitrage constants
 export const MIN_PROFIT_THRESHOLD :u64 = 1000 * ONE_UNIT; // Minimum 1000 tokens profit
@@ -736,18 +737,19 @@ export function initiateFlashLoan(token: Address, amount: u64, calldata: StaticA
     
     // Check if we have enough liquidity
     const tokenContract = new IERC20(token);
+    const amount256 = u256.fromU64(amount);
     const contractBalance = tokenContract.balanceOf(Context.callee());
-    
-    if (contractBalance < amount) {
+
+    if (contractBalance < amount256) {
         generateEvent("Flash loan: Insufficient contract balance");
         return 0;
     }
-    
+
     // Store flash loan details
     Storage.set("flash_loan:" + flashLoanId.toString(), flashLoan.serialize().toString());
-    
+
     // Send tokens to borrower
-    tokenContract.transfer(caller, amount);
+    tokenContract.transfer(caller, amount256);
     
     // Schedule callback for repayment check
     callNextSlot(Context.callee(), "checkFlashLoanRepayment", ARBITRAGE_GAS_LIMIT, [flashLoanId.toString()]);
@@ -767,10 +769,11 @@ export function checkFlashLoanRepayment(args: StaticArray<u8>): void {
     
     const tokenContract = new IERC20(flashLoan.token);
     const repaymentAmount = flashLoan.amount + flashLoan.fee;
-    
+    const repaymentAmount256 = u256.fromU64(repaymentAmount);
+
     // Check if loan was repaid
-    if (tokenContract.allowance(flashLoan.borrower, Context.callee()) >= repaymentAmount) {
-        tokenContract.transferFrom(flashLoan.borrower, Context.callee(), repaymentAmount);
+    if (tokenContract.allowance(flashLoan.borrower, Context.callee()) >= repaymentAmount256) {
+        tokenContract.transferFrom(flashLoan.borrower, Context.callee(), repaymentAmount256);
         
         // Update fee collection
         const totalFees = u64(parseInt(Storage.has("flash_loan_fees") ? Storage.get("flash_loan_fees") : "0"));

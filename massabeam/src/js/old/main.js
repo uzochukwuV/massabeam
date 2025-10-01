@@ -1,6 +1,8 @@
 import { initializeContracts, connectWallet, getUserAddress, getTokens, getTokenByAddress, getProvider, AMMContract, getProtocolStats } from "./contract.js"
 import { initializeUI, updateDashboard } from "./ui.js"
 import { formatNumber, formatAddress, debounce } from "./utils.js"
+import { Mas  } from "@massalabs/massa-web3"
+
 
 // Global application state
 const AppState = {
@@ -307,6 +309,19 @@ async function loadDashboardData() {
 async function loadTradeData() {
   try {
     // Load available pools, prices, etc.
+    const fromTokenSelect = document.getElementById("fromTokenSelect")
+    const div = document.createElement("div")
+    fromTokenSelect.parentElement.appendChild(div)
+
+    fromTokenSelect.addEventListener("click", async (e)=>{
+          const tokens = getTokens()
+         Promise.all(tokens.map(async t => {
+                const symbol = await t.symbol();
+                return `<button onclick='setSwapTokenA()' value="${t.address}">${symbol}</button>`;
+              })).then(options => {
+                div.innerHTML = `` + options.join("");
+              });
+    })
     console.log("Loading trade data...")
   } catch (error) {
     console.error("Failed to load trade data:", error)
@@ -531,6 +546,14 @@ function setupFormListeners() {
   })
 }
 // ...existing code...
+
+window.setSwapTokenA =  function () {
+  document.getElementById('fromTokenSelect').dataset.address = e.target.value
+}
+
+window.setSwapTokenB =  function () {
+  document.getElementById('fromTokenSelect').dataset.address = e.target.value
+}
 
 // Handle swap
 async function handleSwap() {

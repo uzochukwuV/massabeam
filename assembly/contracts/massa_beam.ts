@@ -333,30 +333,34 @@ export function validateAmounts(amountA: u64, amountB: u64): void {
 
 export function safeTransferFrom(token: Address, from: Address, to: Address, amount: u64): bool {
     if (amount == 0) return true;
-    
+
     const tokenContract = new IERC20(token);
+    const amount256 = u256.fromU64(amount);
     const allowance = tokenContract.allowance(from, to);
     const balance = tokenContract.balanceOf(from);
-    
-    if (allowance < amount || balance < amount) {
+
+    // Compare u256 values
+    if (allowance < amount256 || balance < amount256) {
         return false;
     }
-    tokenContract.transferFrom(from, to, amount)
+    tokenContract.transferFrom(from, to, amount256);
     return true;
 }
 
 export function safeTransfer(token: Address, to: Address, amount: u64): bool {
     if (amount == 0) return true;
-    
+
     const tokenContract = new IERC20(token);
+    const amount256 = u256.fromU64(amount);
     const balance = tokenContract.balanceOf(Context.callee());
-    
-    if (balance < amount) {
+
+    // Compare u256 values
+    if (balance < amount256) {
         return false;
     }
-    
-    tokenContract.transfer(to, amount);
-    return  true;
+
+    tokenContract.transfer(to, amount256);
+    return true;
 }
 
 // Main contract functions with enhanced security
@@ -415,8 +419,8 @@ export function createPool(args: StaticArray<u8>): void {
     assert(!Storage.has("pool:" + poolKey), "Pool already exists");
     
     // Safe token transfers with validation
-    // assert(safeTransferFrom(tokenA, caller, Context.callee(), amountA), "Token A transfer failed");
-    // assert(safeTransferFrom(tokenB, caller, Context.callee(), amountB), "Token B transfer failed");
+    assert(safeTransferFrom(tokenA, caller, Context.callee(), amountA), "Token A transfer failed");
+    assert(safeTransferFrom(tokenB, caller, Context.callee(), amountB), "Token B transfer failed");
     
     // Calculate initial liquidity with minimum liquidity lock
     const liquidity = safeSqrt(amountA , amountB);

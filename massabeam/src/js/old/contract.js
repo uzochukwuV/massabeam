@@ -1,16 +1,16 @@
 import { getWallets, WalletName } from "@massalabs/wallet-provider"
-import { Args, OperationStatus , WMAS, MRC20, USDTbt, bytesToF64, bytesToStr, Mas, bytesToSerializableObjectArray,  } from "@massalabs/massa-web3"
+import { Args, OperationStatus , WMAS, MRC20, USDTbt, bytesToF64, bytesToStr, Mas, bytesToSerializableObjectArray, U64,  } from "@massalabs/massa-web3"
+
 
 // Contract addresses
 const CONTRACTS = {
-  AMM:  "AS12qGoGTfwyXorDss35T6xps79q3MT2fdg48Zk4pnkAxkFbak75b",//"AS12ZcfvgMZniY5xprqhnF6ufhiZYDEfxEgL7CED3sXiWs6TwAF4t",
+  AMM:  "AS12DhamoYfuLLCPVUUWbLNt9yVjXZuHDvrEETujqEDAJcNLneep5",//"AS12ZcfvgMZniY5xprqhnF6ufhiZYDEfxEgL7CED3sXiWs6TwAF4t",
   ENGINE: "AS12WoA6iCq17kiGA55izZMYhdrbosGRU4hVqfk5cbYgvVstUC9Md", // Same for demo
   ADVANCED: "AS1i8UNYQdmRjB9K454UJ8DwaJmBLgu3G1UTwzFtUH9Aihgu4P1n", // Same for demo
 }
 
 
 const TOKENS = [
-
   "AS1CEhhk1dqe2HpVG7AxKvVCdMVjsbSqLJPbZMmvyzV4gJShsfjV",
   "AS122GRtTijhmh48MLCmqLVqTet4r5JDzvZZCKSsJrCWTSWjyD6Kz",
 ]
@@ -23,14 +23,64 @@ let isConnected = false
 let userAddress = null
 
 
-export function getTokens(){
-  const custom =  TOKENS.map((address) => {
-    const coin = new MRC20(provider, address)
-    return coin
-  })
-  return [ ...custom]
+export async function getTokens() {
+    try {
+        if (!provider) {
+            throw new Error("Provider not initialized");
+        }
+
+        const tokenPromises = TOKENS.map(async (address) => {
+            const token = new MRC20(provider, address);
+            const symbol = await token.symbol();
+            const decimals = await token.decimals();
+            return {
+                address,
+                symbol,
+                decimals,
+                contract: token
+            };
+        });
+
+        const tokens = await Promise.all(tokenPromises);
+        console.log("Available tokens:", tokens);
+        return tokens;
+    } catch (error) {
+        console.error("Error loading tokens:", error);
+        return [];
+    }
+
+  }
+
+
+  // Get token by address
+export function getTokenByAddress(address) {
+    const tokens = getTokens();
+    const token = tokens.find(t => t.address === address);
+    return token ? token.contract : null;
 }
 
+
+// Add a function to populate token dropdowns
+export async function populateTokenDropdowns() {
+    try {
+        const tokens = await getTokens();
+        const dropdowns = document.querySelectorAll('.token-select');
+        
+        dropdowns.forEach(dropdown => {
+            dropdown.innerHTML = `
+                <option value="">Select Token</option>
+                ${tokens.map(token => `
+                    <option value="${token.address}">
+                        ${token.symbol}
+                    </option>
+                `).join('')}
+            `;
+        });
+    } catch (error) {
+        console.error("Failed to populate token dropdowns:", error);
+        showError("Failed to load tokens");
+    }
+}
 
 // Error handling utility
 function showError(message) {
@@ -171,6 +221,7 @@ export async function readContract(contractAddress, functionName, args) {
   }
 }
 
+
 // AMM Contract Functions
 export const AMMContract = {
   // Create a new liquidity pool
@@ -180,6 +231,10 @@ export const AMMContract = {
       
 
       const tokenAcontract =getTokenByAddress(tokenA);
+      console.log(await tokenAcontract.decimals() , U64.MAX)
+      
+      console.log(Mas.fromString(amountA))
+
       if(await tokenAcontract.balanceOf(provider.address) < Mas.fromString(amountA)){
         const symbol = await tokenAcontract.symbol()
         showError("Insufficient funds in " + symbol)
@@ -666,10 +721,7 @@ export function calculateDeadline(hours = 1) {
 
 
 
-// Get token by address
-export function getTokenByAddress(address) {
-  return getTokens().find((token) => token.address === address)
-}
+
 
 
 
@@ -681,7 +733,8 @@ export function getTokenBySymbol(symbol) {
 // Initialize contract system
 export async function initializeContracts() {
   try {
-    await initProvider()
+     await initProvider()
+     await populateTokenDropdowns(); // Add this line
 
     // Update gas price
     const gasPrice = await getCurrentGasPrice()

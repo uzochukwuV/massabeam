@@ -1,13 +1,17 @@
 import { Args, Result, Serializable } from "@massalabs/as-types";
 import { Address, Context, call } from "@massalabs/massa-as-sdk";
 import { TokenWrapper } from "./TokenWrapper";
+import { u256 } from 'as-bignum/assembly';
 
+/**
+ * FIXED VERSION: Updated to use u256 for all token amounts
+ */
 export class IERC20 extends TokenWrapper implements Serializable {
     constructor(origin: Address = new Address()) {
         super(origin);
     }
 
-    init(name: string, symbol: string, decimals: u8, supply: u64): void {
+    init(name: string, symbol: string, decimals: u8, supply: u256): void {
         const args = new Args().add(name).add(symbol).add(decimals).add(supply);
         call(this._origin, "constructor", args, 0);
     }
@@ -15,14 +19,23 @@ export class IERC20 extends TokenWrapper implements Serializable {
     /**
      * Returns the amount of token received by the pair
      *
-     * @param {u64} reserve - The total reserve of token
-     * @param {u64} fees - The total fees of token
+     * @param {u256} reserve - The total reserve of token
+     * @param {u256} fees - The total fees of token
      *
-     * @return {u64} - The amount received by the pair
+     * @return {u256} - The amount received by the pair
      */
-    received(reserve: u64, fees: u64): u64 {
+    received(reserve: u256, fees: u256): u256 {
         const balance = this.balanceOf(Context.callee());
-        const received = balance - (reserve + fees);
+        // @ts-ignore
+        const reservePlusFees = reserve + fees;
+
+        // Check for underflow
+        if (balance < reservePlusFees) {
+            return u256.Zero;
+        }
+
+        // @ts-ignore
+        const received = balance - reservePlusFees;
         return received;
     }
 
