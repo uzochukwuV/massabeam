@@ -32,8 +32,8 @@ const LIQUIDITY_TO_ADD = [
       name: 'BEAM/USDT',
       tokenA: 'BEAM',
       tokenB: 'USDT',
-      amountA: '10', // 1 BEAM
-      amountB: '10', // 1 USDT (1 BEAM = 1 USDT)
+      amountA: '460000000', // 1 BEAM
+      amountB: '10000', // 1 USDT (1 BEAM = 1 USDT)
       decimalsA: 8,
       decimalsB: 8,
     },
@@ -41,8 +41,8 @@ const LIQUIDITY_TO_ADD = [
       name: 'BEAM/USDC',
       tokenA: 'BEAM',
       tokenB: 'USDC',
-      amountA: '5000', // 5 BEAM
-      amountB: '500', // 1 USDC (5 BEAM = 1 USDC)
+      amountA: '50000000', // 5 BEAM
+      amountB: '5000000', // 1 USDC (5 BEAM = 1 USDC)
       decimalsA: 8,
       decimalsB: 8,
     },
@@ -50,8 +50,8 @@ const LIQUIDITY_TO_ADD = [
       name: 'USDT/USDC',
       tokenA: 'USDT',
       tokenB: 'USDC',
-      amountA: '5000', // 5 USDT
-      amountB: '500', // 1 USDC (1:1 ratio)
+      amountA: '50000000', // 500M units (proportional to existing reserves)
+      amountB: '5000000', // 50M units (proportional to existing reserves)
       decimalsA: 8,
       decimalsB: 8,
     },
@@ -150,8 +150,8 @@ async function main() {
       const deadline = BigInt(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
       const addLiquidityArgs = new Args()
-        .addString(tokenAAddress.toString())
-        .addString(tokenBAddress.toString())
+        .addString(tokenAAddress)
+        .addString(tokenBAddress)
         .addU64(BigInt(liquidity.amountA))
         .addU64(BigInt(liquidity.amountB))
         .addU64(BigInt(0)) // amountAMin

@@ -30,9 +30,9 @@ const TEST_ACCOUNTS = [
 
 // Amount to mint per token (adjust as needed)
 const MINT_AMOUNTS = {
-  USDT: Mas.fromString('100000'), // 100,000 USDT
-  USDC: Mas.fromString('100000'), // 100,000 USDC
-  BEAM: Mas.fromString('1000000'), // 1,000,000 BEAM
+  USDT: Mas.fromString('1000000000'), // 100,000 USDT
+  USDC: Mas.fromString('1000000000'), // 100,000 USDC
+  BEAM: Mas.fromString('1000000000'), // 1,000,000 BEAM
 };
 
 async function main() {

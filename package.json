@@ -13,7 +13,7 @@
         "add-liquidity": "tsx src/add-liquidity.ts",
         "swap": "tsx src/swap.ts",
         "create-pools": "tsx src/create-pools.ts",
-        "setup": "npm run deploy:full && npm run mint-tokens && npm run create-pools",
+        "setup": "npm run deploy:full && npm run mint-tokens && npm run create-pools && npm run add-liquidity && npm run swap",
         "hello": "tsx src/hello.ts",
         "prettier": "prettier '**/src/**/*.ts' --check && as-prettier --check assembly",
         "prettier:fix": "prettier '**/src/**/*.ts' --write && as-prettier --write assembly",

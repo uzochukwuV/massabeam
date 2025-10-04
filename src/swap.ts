@@ -5,6 +5,11 @@ import {
   Mas,
   SmartContract,
   JsonRpcProvider,
+  parseCallArgs,
+  bytesToArray,
+  ArrayTypes,
+  bytesToF64,
+  bytesToStr,
 } from '@massalabs/massa-web3';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -30,7 +35,8 @@ interface DeployedAddresses {
 const SWAP_CONFIG = {
   tokenIn: 'BEAM',
   tokenOut: 'USDT',
-  amountIn: '1', // 1 BEAM
+  amountIn: '10000', // 1 BEAM
+  minamountOut: "90000000",
   decimalsIn: 8,
   decimalsOut: 8, // Assuming USDT also has 8 decimals
 };
@@ -102,24 +108,84 @@ async function main() {
     console.log(`   ✅ ${SWAP_CONFIG.tokenIn} approved\n`);
     await sleep(2000);
 
-    // Step 2: Swap
-    console.log(`🔄 Swapping...`);
+    // Step 2: Read pool data to calculate expected output
+    console.log(`🔄 Reading pool data...`);
+
+    const readPoolArgs = new Args()
+      .addString(tokenInAddress)
+      .addString(tokenOutAddress);
+
+    const readPoolResult = await ammContract.read("readPool", readPoolArgs);
+    const poolData = new Args(readPoolResult.value);
+
+    const tokenAAddr = poolData.nextString() as string;
+    const tokenBAddr = poolData.nextString() as string;
+    const reserveA = poolData.nextU64() as bigint;
+    const reserveB = poolData.nextU64() as bigint;
+    const totalSupply = poolData.nextU64() as bigint;
+    const fee = poolData.nextU64() as bigint;
+
+    console.log(`📊 Pool Data:`);
+    console.log(`   Token A: ${tokenAAddr}`);
+    console.log(`   Token B: ${tokenBAddr}`);
+    console.log(`   Reserve A: ${reserveA}`);
+    console.log(`   Reserve B: ${reserveB}`);
+    console.log(`   Fee: ${fee} (${Number(fee) / 100}%)\n`);
+
+    // Determine which reserve is in/out based on token order
+    const tokenInIsA = tokenAAddr === tokenInAddress;
+    const reserveIn = tokenInIsA ? reserveA : reserveB;
+    const reserveOut = tokenInIsA ? reserveB : reserveA;
+
+    // Calculate expected output using the AMM formula
+    // Need to swap a significant amount relative to pool size
+    const amountIn = BigInt(100000000); // 100M units (larger to get meaningful output)
+
+    // Use precise calculation: (amountIn * (10000 - fee) * reserveOut) / (reserveIn * 10000 + amountIn * (10000 - fee))
+    const feeMultiplier = 10000n - fee;
+    const amountInWithFee = amountIn * feeMultiplier;
+    const numerator = amountInWithFee * reserveOut;
+    const denominator = reserveIn * 10000n + amountInWithFee;
+    const expectedAmountOut = numerator / denominator;
+
+    console.log(`🔢 Debug:`);
+    console.log(`   amountInWithFee: ${amountInWithFee}`);
+    console.log(`   numerator: ${numerator}`);
+    console.log(`   denominator: ${denominator}`);
+    console.log(`   expectedAmountOut: ${expectedAmountOut}\n`);
+
+    // Apply 1% slippage tolerance, but ensure amountOutMin is at least 1
+    const slippage = 100n; // 1% = 100 basis points
+    let amountOutMin = expectedAmountOut * (10000n - slippage) / 10000n;
+
+    // Ensure minimum is at least 1 to pass contract validation
+    if (amountOutMin === 0n && expectedAmountOut > 0n) {
+      amountOutMin = 1n;
+    }
+
+    console.log(`💱 Swap Calculation:`);
+    console.log(`   Amount In: ${amountIn}`);
+    console.log(`   Expected Amount Out: ${expectedAmountOut}`);
+    console.log(`   Min Amount Out (1% slippage): ${amountOutMin}\n`);
 
     const deadline = BigInt(Date.now() + 60 * 60 * 1000); // 1 hour from now
-    const path = [tokenInAddress, tokenOutAddress];
 
     const swapArgs = new Args()
       .addString(tokenInAddress)
       .addString(tokenOutAddress)
-      .addU64(amountIn256)
-      .addU64(BigInt(Number(amountIn256) * 0.995)) // amountOutMin
+      .addU64(amountIn)
+      .addU64(amountOutMin)
       .addU64(deadline);
+
+    console.log(`🔄 Executing swap...`);
 
     await ammContract.call('swap', swapArgs, {
       coins: Mas.fromString('0.1'),
     });
 
-    console.log(`   ✅ Swap successful!\n`);
+    console.log(`   ✅ Swap successful!`);
+    console.log(`   📤 Sent: ${amountIn} ${SWAP_CONFIG.tokenIn}`);
+    console.log(`   📥 Received: ~${expectedAmountOut} ${SWAP_CONFIG.tokenOut}\n`);
 
   } catch (error) {
     console.error(`❌ Failed to swap:`, error);

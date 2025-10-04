@@ -287,7 +287,9 @@ export const TOKEN_METADATA = {
 };
 `;
 
-  fs.writeFileSync(frontendConfigPath, frontendConfig);
+ const outputPath2 = path.join(__dirname, '..', 'contract-config.js');
+  fs.writeFileSync(outputPath2, frontendConfig);
+  // fs.writeFileSync(frontendConfigPath, frontendConfig);
   console.log(`✅ Frontend config saved to: ${frontendConfigPath}\n`);
 
   // ═══════════════════════════════════════════════════════
@@ -338,7 +340,7 @@ export const TOKEN_METADATA = {
   // Get final balance
   const finalBalance = await provider.balanceOf([account.address.toString()]);
   const spent = balance[0].balance - finalBalance[0].balance;
-  console.log('💸 Total MAS spent on deployment:', Mas.fromMas(spent), 'MAS\n');
+  console.log('💸 Total MAS spent on deployment:', spent, 'MAS\n');
 
   return deployedAddresses;
 }

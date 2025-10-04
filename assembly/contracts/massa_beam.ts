@@ -7,7 +7,7 @@ import {
 } from "@massalabs/massa-as-sdk";
 import { Args, Result, stringToBytes } from "@massalabs/as-types";
 import { IERC20 } from "./interfaces/IERC20";
-import { u256, u128Safe, u128, u256Safe } from 'as-bignum/assembly';
+import { u256, u128 } from 'as-bignum/assembly';
 
 // Core constants
 export const ONE_UNIT = 10 ** 9;
@@ -149,135 +149,121 @@ export function getPoolKey(tokenA: Address, tokenB: Address): string {
 }
 
 export function getPool(tokenA: Address, tokenB: Address): Pool | null {
-    const key = "pool:" + getPoolKey(tokenA, tokenB);
-    if (!Storage.has(key)) {
+    const keyBytes = stringToBytes("pool:" + getPoolKey(tokenA, tokenB));
+    if (!Storage.has(keyBytes)) {
         return null;
     }
-    return Pool.deserialize(stringToBytes(Storage.get(key)));
+    const poolData = Storage.get<StaticArray<u8>>(keyBytes);
+    return Pool.deserialize(poolData);
 }
 
 export function savePool(pool: Pool): void {
-    const key = "pool:" + getPoolKey(pool.tokenA, pool.tokenB);
-    Storage.set(key, pool.serialize().toString());
+    const keyBytes = stringToBytes("pool:" + getPoolKey(pool.tokenA, pool.tokenB));
+    Storage.set<StaticArray<u8>>(keyBytes, pool.serialize());
 }
 
 function safeDiv(numerator: u64, denominator: u64): u64 {
     assert(denominator > 0, "Division by zero");
-    return numerator / denominator;
+    const result = f64(numerator) / f64(denominator);
+    return u64(result);
 }
 
-function safeMul(a: u64, b: u64): u64 {
-    if (a == 0 || b == 0) return 0;
-    assert(a <= u64.MAX_VALUE / b, "Multiplication overflow");
-    return a * b;
-}
-
-
-// Enhanced AMM math with overflow protection
+// Enhanced AMM math using f64 (following Massa team's pattern)
 export function getAmountOut(amountIn: u64, reserveIn: u64, reserveOut: u64, fee: u64): u64 {
     assert(amountIn > 0, "Insufficient input amount");
     assert(reserveIn > 0 && reserveOut > 0, "Insufficient liquidity");
     assert(fee < 10000, "Fee too high");
-    
-    // Calculate fee-adjusted amount with overflow check
-    const feeMultiplier = 10000 - fee;
-    assert(feeMultiplier > 0, "Invalid fee calculation");
-    const amountInWithFee = safeMul(amountIn, feeMultiplier);
-    
-    
-    if (reserveOut > amountInWithFee) {
-        const numerator = safeMul(amountInWithFee, reserveOut);
-        const denominator = safeMul(reserveIn, 10000) + amountInWithFee;
-        assert(denominator > 0, "Division by zero");
-        return safeDiv(numerator, denominator);
-    } else {
-        // Large result case: use different calculation
-        const ratio1 = safeDiv(amountInWithFee , safeDiv(safeMul(reserveIn, 10000) , reserveOut + safeDiv(amountInWithFee , reserveOut)));
-        return ratio1;
-    }
+
+    // Convert to f64 for calculations
+    const amountInF = f64(amountIn);
+    const reserveInF = f64(reserveIn);
+    const reserveOutF = f64(reserveOut);
+    const feeF = f64(fee);
+
+    // amountInWithFee = amountIn * (10000 - fee)
+    const amountInWithFee = amountInF * (10000.0 - feeF);
+
+    // numerator = amountInWithFee * reserveOut
+    const numerator = amountInWithFee * reserveOutF;
+
+    // denominator = reserveIn * 10000 + amountInWithFee
+    const denominator = reserveInF * 10000.0 + amountInWithFee;
+
+    assert(denominator > 0, "Division by zero");
+
+    // amountOut = numerator / denominator
+    const result = numerator / denominator;
+
+    return u64(result);
 }
 
 export function getAmountIn(amountOut: u64, reserveIn: u64, reserveOut: u64, fee: u64): u64 {
     assert(amountOut > 0 && fee > 0, "Insufficient output amount");
     assert(reserveIn > 0 && reserveOut > amountOut, "Insufficient liquidity");
-    
-    // Use u128 for triple multiplication
-    const reserveIn128 = u128Safe.from(reserveIn);
-    const amountOut128 = u128Safe.from(amountOut);
-    const reserveOut128 = u128Safe.from(reserveOut);
-    const fee128 = u128Safe.from(fee);
-    const tenThousand = u128Safe.from(10000);
 
-    
-    const numerator: u128Safe = u128Safe.mul(u128Safe.mul(reserveIn128, amountOut128) , tenThousand);
-    const denominator : u128Safe = u128Safe.mul(u128Safe.sub(reserveOut128,  amountOut128), u128Safe.sub(tenThousand,fee128));
-    
-    assert(denominator > u128Safe.Zero, "Math overflow in getAmountIn");
-    
-    const result: u128Safe = u128Safe.add(u128Safe.div(numerator , denominator), u128Safe.One);
-    assert(result <= u128Safe.from(u64.MAX_VALUE), "Result too large for u64");
-    
-    return result.toU64();
+    // Convert to f64 for calculations
+    const reserveInF = f64(reserveIn);
+    const amountOutF = f64(amountOut);
+    const reserveOutF = f64(reserveOut);
+    const feeF = f64(fee);
+
+    // numerator = reserveIn * amountOut * 10000
+    const numerator = reserveInF * amountOutF * 10000.0;
+
+    // denominator = (reserveOut - amountOut) * (10000 - fee)
+    const denominator = (reserveOutF - amountOutF) * (10000.0 - feeF);
+
+    assert(denominator > 0, "Math overflow in getAmountIn");
+
+    // result = (numerator / denominator) + 1
+    const result = (numerator / denominator) + 1.0;
+
+    return u64(result);
 }
 
 export function safeSqrt(x: u64, y: u64): u64 {
     if (x == 0 || y == 0) return 0;
-    
-    // Use u128 for multiplication to prevent overflow
-    const x128 = u128.from(x);
-    const y128 = u128.from(y);
-    const product = u128.mul(x128, y128);
-    
-    // Convert to u64 for sqrt calculation (implement u128 sqrt if needed)
-    assert(product <= u128.from(u64.MAX_VALUE), "Product too large for sqrt");
-    
-    return sqrt(product.toU64());
+
+    // Use f64 for multiplication and sqrt to avoid overflow
+    const product = f64(x) * f64(y);
+    const result = Math.sqrt(product);
+
+    return u64(result);
 }
 
 // Price oracle with TWAP protection
 
-// Price oracle with overflow protection
+// Price oracle using f64 for simplicity
 export function updateCumulativePrices(pool: Pool): void {
     const currentTime = Context.timestamp();
     const timeElapsed = currentTime - pool.blockTimestampLast;
-    
+
     if (timeElapsed > 0 && pool.reserveA > 0 && pool.reserveB > 0) {
-        assert(pool.reserveA > 0, "Reserve A is zero - cannot calculate price");
-        assert(pool.reserveB > 0, "Reserve B is zero - cannot calculate price");
-        // Use u128 for price calculations to prevent overflow
-        const reserveA128 = u128Safe.from(pool.reserveA);
-        const reserveB128 = u128Safe.from(pool.reserveB);
-        const oneUnit128 = u128Safe.from(ONE_UNIT);
-        const timeElapsed128 = u128Safe.from(timeElapsed);
-        
-        // Calculate prices with overflow protection
-        const priceA = u128Safe.div(u128Safe.mul(reserveB128 , oneUnit128) ,reserveA128);
-        const priceB = u128Safe.div(u128Safe.mul(reserveA128 , oneUnit128) , reserveB128);
-        
-        const priceATimeWeighted = u128Safe.mul(priceA , timeElapsed128);
-        const priceBTimeWeighted = u128Safe.mul(priceB , timeElapsed128);
-        
-        // Check for overflow before adding to cumulative prices
-        const currentCumPriceA = u128Safe.from(pool.cumulativePriceA);
-        const currentCumPriceB = u128Safe.from(pool.cumulativePriceB);
-        
-        const newCumPriceA = u128Safe.add(currentCumPriceA , priceATimeWeighted);
-        const newCumPriceB = u128Safe.add(currentCumPriceB ,priceBTimeWeighted);
-        
-        // Handle overflow by resetting or using modular arithmetic
-        if (newCumPriceA <= u128Safe.from(u64.MAX_VALUE)) {
-            pool.cumulativePriceA = newCumPriceA.toU64();
+        // Calculate prices using f64
+        const priceA = f64(pool.reserveB) * f64(ONE_UNIT) / f64(pool.reserveA);
+        const priceB = f64(pool.reserveA) * f64(ONE_UNIT) / f64(pool.reserveB);
+
+        // Time-weighted prices
+        const priceATimeWeighted = priceA * f64(timeElapsed);
+        const priceBTimeWeighted = priceB * f64(timeElapsed);
+
+        // Update cumulative prices
+        const newCumPriceA = f64(pool.cumulativePriceA) + priceATimeWeighted;
+        const newCumPriceB = f64(pool.cumulativePriceB) + priceBTimeWeighted;
+
+        // Store with modular arithmetic if overflow (optional)
+        if (newCumPriceA <= f64(u64.MAX_VALUE)) {
+            pool.cumulativePriceA = u64(newCumPriceA);
         } else {
-            // Reset or use alternative storage for large values
-            pool.cumulativePriceA = u128Safe.rem(newCumPriceA , u128Safe.from(u64.MAX_VALUE)).toU64();
+            pool.cumulativePriceA = u64(newCumPriceA % f64(u64.MAX_VALUE));
         }
-        
-        if (newCumPriceB <= u128Safe.from(u64.MAX_VALUE)) {
-            pool.cumulativePriceB = newCumPriceB.toU64();
+
+        if (newCumPriceB <= f64(u64.MAX_VALUE)) {
+            pool.cumulativePriceB = u64(newCumPriceB);
         } else {
-            pool.cumulativePriceB = u128Safe.rem(newCumPriceB , u128Safe.from(u64.MAX_VALUE)).toU64();
+            pool.cumulativePriceB = u64(newCumPriceB % f64(u64.MAX_VALUE));
         }
-        
+
         pool.blockTimestampLast = currentTime;
     }
 }
@@ -470,39 +456,44 @@ export function addLiquidity(args: StaticArray<u8>): void {
     validDeadline(deadline);
     validateTokenPair(tokenA, tokenB);
     
-    const caller = Context.caller();
+    const caller = Context.caller()
     const pool = getPool(tokenA, tokenB);
+
+    
     assert(pool != null, "Pool does not exist");
     assert(pool!.isActive, "Pool is not active");
     
-    // Calculate optimal amounts with slippage protection
+    // Calculate optimal amounts with slippage protection using f64
     let amountA: u64, amountB: u64;
-    
+
     if (pool!.reserveA == 0 || pool!.reserveB == 0) {
         amountA = amountADesired;
         amountB = amountBDesired;
     } else {
-        const amountBOptimal = safeDiv((amountADesired * pool!.reserveB) , pool!.reserveA);
+        // amountBOptimal = amountADesired * reserveB / reserveA
+        const amountBOptimal = u64(f64(amountADesired) * f64(pool!.reserveB) / f64(pool!.reserveA));
         if (amountBOptimal <= amountBDesired) {
             assert(amountBOptimal >= amountBMin, "Insufficient B amount");
             amountA = amountADesired;
             amountB = amountBOptimal;
         } else {
-            const amountAOptimal = safeDiv((amountBDesired * pool!.reserveA) , pool!.reserveB);
+            // amountAOptimal = amountBDesired * reserveA / reserveB
+            const amountAOptimal = u64(f64(amountBDesired) * f64(pool!.reserveA) / f64(pool!.reserveB));
             assert(amountAOptimal <= amountADesired && amountAOptimal >= amountAMin, "Insufficient A amount");
             amountA = amountAOptimal;
             amountB = amountBDesired;
         }
     }
-    
+
     validateAmounts(amountA, amountB);
-    
+
     // Safe transfers
     assert(safeTransferFrom(tokenA, caller, Context.callee(), amountA), "Token A transfer failed");
     assert(safeTransferFrom(tokenB, caller, Context.callee(), amountB), "Token B transfer failed");
-    
-    // Calculate liquidity to mint
-    const liquidity = safeDiv((amountA * pool!.totalSupply) , pool!.reserveA);
+
+    // Calculate liquidity to mint using f64
+    // liquidity = amountA * totalSupply / reserveA
+    const liquidity = u64(f64(amountA) * f64(pool!.totalSupply) / f64(pool!.reserveA));
     assert(liquidity > 0, "Insufficient liquidity minted");
     
     // Update pool state
@@ -547,9 +538,9 @@ export function removeLiquidity(args: StaticArray<u8>): void {
     const userBalance = u64(parseInt(Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : "0"));
     assert(userBalance >= liquidity, "Insufficient LP balance");
     
-    // Calculate amounts with slippage protection
-    const amountA = (liquidity * pool!.reserveA) / pool!.totalSupply;
-    const amountB = (liquidity * pool!.reserveB) / pool!.totalSupply;
+    // Calculate amounts with slippage protection using f64
+    const amountA = u64(f64(liquidity) * f64(pool!.reserveA) / f64(pool!.totalSupply));
+    const amountB = u64(f64(liquidity) * f64(pool!.reserveB) / f64(pool!.totalSupply));
     
     assert(amountA >= amountAMin, "Insufficient A amount");
     assert(amountB >= amountBMin, "Insufficient B amount");
@@ -611,11 +602,12 @@ export function swap(args: StaticArray<u8>): void {
     // Update reserves and validate K
     const newReserveIn = reserveIn + amountIn;
     const newReserveOut = reserveOut - amountOut;
-    
-    // K invariant check with fee adjustment
-    const amountInWithFee = safeMul(amountIn ,(10000 - pool!.fee));
-    const newK = safeMul(newReserveIn , newReserveOut * 10000);
-    const oldK = safeMul(reserveIn , reserveOut * 10000) + safeMul(amountInWithFee , reserveOut);
+
+    // K invariant check: newK should be >= oldK after accounting for fees
+    // The fee stays in the pool, so: (reserveIn + amountIn) * (reserveOut - amountOut) >= reserveIn * reserveOut
+    // With fee: (reserveIn * 10000 + amountIn * (10000 - fee)) * (reserveOut - amountOut) >= reserveIn * reserveOut * 10000
+    const oldK = f64(reserveIn) * f64(reserveOut);
+    const newK = (f64(reserveIn) + f64(amountIn) * (10000.0 - f64(pool!.fee)) / 10000.0) * f64(reserveOut - amountOut);
     assert(newK >= oldK, "K invariant violation");
     
     // Update pool state
@@ -634,7 +626,7 @@ export function swap(args: StaticArray<u8>): void {
     const totalVolume = u64(parseInt(Storage.get("total_volume")));
     Storage.set("total_volume", (totalVolume + amountIn).toString());
     
-    const fee = (amountIn * pool!.fee) / 10000;
+    const fee = u64(f64(amountIn) * f64(pool!.fee) / 10000.0);
     const totalFees = u64(parseInt(Storage.get("total_fees")));
     Storage.set("total_fees", (totalFees + fee).toString());
     
@@ -736,7 +728,7 @@ export function readPoolTotalLiquidity(args: StaticArray<u8>):StaticArray<u8>{
         return stringToBytes("0")
     }
 
-    return stringToBytes(pool.totalSupply.toString()!)
+    return stringToBytes(pool.totalSupply.toString())
 
 }
 
