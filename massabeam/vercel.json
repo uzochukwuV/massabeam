@@ -6,10 +6,12 @@
     { "src": "app.html", "use": "@vercel/static" },
     { "src": "index.html", "use": "@vercel/static" },
     { "src": "src/js/**/*", "use": "@vercel/static" },
-    { "src": "src/**/*", "use": "@vercel/static" }
+    { "src": "src/**/*", "use": "@vercel/static" },
+    { "src": "node_modules/**/*", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/styles/(.*)", "dest": "/styles/$1" },
+    { "src": "/node_modules/(.*)", "dest": "/node_modules/$1" },
     { "src": "/app.html", "dest": "/app.html" },
     { "src": "/index.html", "dest": "/index.html" },
     { "src": "/", "dest": "/index.html" }
