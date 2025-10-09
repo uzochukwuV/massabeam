@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "install": "npm install"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@massalabs/massa-web3": "^5.2.0",
