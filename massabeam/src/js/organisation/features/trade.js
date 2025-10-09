@@ -390,8 +390,16 @@ async function calculateSwapOutput() {
     poolArgs.nextString(); // tokenB
     const reserveA = Number(poolArgs.nextU64());
     const reserveB = Number(poolArgs.nextU64());
-    poolArgs.nextU64(); // totalSupply
+    const totalSupply =poolArgs.nextU64(); // totalSupply
     const fee = Number(poolArgs.nextU64());
+
+    console.log("pool ", {
+      totalSupply,
+      reserveA,
+      reserveB,
+      fee
+    })
+
 
     console.log("Pool data:", { reserveA, reserveB, fee });
 
@@ -407,6 +415,14 @@ async function calculateSwapOutput() {
     // Convert amount to raw value (u64)
     const amountIn = parseFloat(fromAmount);
     const amountInRaw = BigInt(Math.floor(amountIn));
+
+    console.log(
+      amountInRaw,
+      BigInt(reserveIn),
+      BigInt(reserveOut),
+      BigInt(fee),
+      "Amount In"
+    )
 
     // Call contract's getAmountOut function
     const amountOutRaw = await AMMContract.getAmountOut(
@@ -499,6 +515,10 @@ window.swapTokens = function() {
 
 // Execute swap
 window.executeSwap = async function() {
+  console.log("executeSwap called");
+  console.log("Wallet connected:", AppState.user.connected);
+  console.log("Selected tokens:", selectedFromToken, selectedToToken);
+
   if (!AppState.user.connected) {
     showError("Please connect your wallet first");
     return;
@@ -510,6 +530,7 @@ window.executeSwap = async function() {
   }
 
   const fromAmount = document.getElementById("fromAmount")?.value;
+  console.log("From amount:", fromAmount);
 
   if (!fromAmount || parseFloat(fromAmount) <= 0) {
     showError("Please enter a valid amount");
@@ -519,26 +540,43 @@ window.executeSwap = async function() {
   try {
     showLoading(true);
 
-    const amountIn = parseFloat(fromAmount);
+    // Get token contracts to fetch decimals
+    const tokenInContract = await getTokenByAddress(selectedFromToken.address);
+    const tokenOutContract = await getTokenByAddress(selectedToToken.address);
+
+    const decimalsIn = await tokenInContract.decimals();
+    const decimalsOut = await tokenOutContract.decimals();
+
+    // Convert user input to raw amounts
+    const amountInFloat = parseFloat(fromAmount);
     const toAmount = document.getElementById("toAmount")?.value;
+    const amountOutFloat = parseFloat(toAmount);
     const slippage = parseFloat(document.getElementById("currentSlippage")?.textContent?.replace('%', '') || "0.5");
 
-    const amountOutMin = parseFloat(toAmount) * (1 - slippage / 100);
-    const deadline = Date.now() + (60 * 60 * 1000); // 1 hour
+    // Convert to raw u64 values (multiply by 10^decimals)
+    const amountInRaw = Math.floor(amountInFloat * (10));
+    const amountOutRaw = Math.floor(amountOutFloat * (10));
+    let amountOutMinRaw = Math.floor(amountOutRaw * (1 - slippage / 100));
+    const deadline = (60 * 60 * 1000); // 1 hour
 
-    console.log("Executing swap:", {
-      tokenIn: selectedFromToken.address,
-      tokenOut: selectedToToken.address,
-      amountIn,
-      amountOutMin,
-      deadline
-    });
+    console.log(amountInRaw, amountOutRaw, amountOutMinRaw, "holla")
+
+    // Ensure amountOutMinRaw is at least 1
+    if (amountOutMinRaw === 0 && amountOutRaw > 0) {
+      amountOutMinRaw = 1;
+    }
+
+    console.log("Executing swap:",  selectedFromToken.address,
+      selectedToToken.address,
+      amountInRaw,
+      amountOutMinRaw,
+      deadline);
 
     await AMMContract.swap(
       selectedFromToken.address,
       selectedToToken.address,
-      amountIn,
-      amountOutMin,
+      amountInRaw,
+      amountOutMinRaw,
       deadline
     );
 
@@ -578,17 +616,32 @@ function updateSwapButtonState() {
   const swapBtn = document.getElementById("swapBtn");
   const btnText = swapBtn?.querySelector('.btn-text');
 
-  if (!swapBtn || !btnText) return;
+  if (!swapBtn || !btnText) {
+    console.warn("Swap button or button text not found");
+    return;
+  }
+
+  console.log("Updating swap button state. Connected:", AppState.user.connected);
 
   if (!AppState.user.connected) {
     btnText.textContent = "Connect Wallet";
-    swapBtn.onclick = () => {
+    // Remove inline onclick and set new handler
+    swapBtn.removeAttribute('onclick');
+    swapBtn.onclick = (e) => {
+      e.preventDefault();
+      console.log("Connect wallet button clicked");
       const walletBtn = document.getElementById("walletBtn");
       if (walletBtn) walletBtn.click();
     };
   } else {
     btnText.textContent = "Swap";
-    swapBtn.onclick = executeSwap;
+    // Remove inline onclick and set new handler
+    swapBtn.removeAttribute('onclick');
+    swapBtn.onclick = (e) => {
+      e.preventDefault();
+      console.log("Swap button clicked, calling executeSwap");
+      executeSwap();
+    };
   }
 }
 

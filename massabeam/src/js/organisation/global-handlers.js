@@ -48,12 +48,7 @@ window.swapTokens = function() {
     }
 };
 
-window.executeSwap = function() {
-    const swapForm = document.getElementById("swapForm");
-    if (swapForm) {
-        swapForm.dispatchEvent(new Event('submit'));
-    }
-};
+// executeSwap is defined in features/trade.js
 
 // Orders
 window.openCreateOrderModal = function() {

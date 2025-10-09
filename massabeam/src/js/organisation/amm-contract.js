@@ -77,6 +77,11 @@ export const AMMContract = {
         throw new Error(`Token B approval failed with status: ${statusB}`);
       }
 
+      console.log("creating pool with ", {
+        amountA,
+        amountB
+      })
+
       // Call createPool with u64 amounts (raw values without decimals)
       const args = new Args()
         .addString(tokenA)
@@ -174,15 +179,24 @@ export const AMMContract = {
       const decimalsIn = await tokenInContract.decimals();
       const decimalsOut = await tokenOutContract.decimals();
 
-      // Convert amounts to u256
-      const amountIn256 = toU256(amountIn, Number(decimalsIn));
-      const amountOutMin256 = toU256(amountOutMin, Number(decimalsOut));
+      // Contract expects raw u64 amounts (not u256)
+      // amountIn and amountOutMin should already be in raw units
+      const amountInRaw = BigInt(Math.floor(amountIn));
+      const amountOutMinRaw = BigInt(Math.floor(amountOutMin));
+
+      console.log("Swap args:", {
+        tokenIn,
+        tokenOut,
+        amountInRaw: amountInRaw.toString(),
+        amountOutMinRaw: amountOutMinRaw.toString(),
+        deadline
+      });
 
       const args = new Args()
         .addString(tokenIn)
         .addString(tokenOut)
-        .addU256(amountIn256)       // ✅ Changed to u256
-        .addU256(amountOutMin256)   // ✅ Changed to u256
+        .addU64(amountInRaw)
+        .addU64(amountOutMinRaw)
         .addU64(BigInt(deadline))
         .serialize();
 
@@ -219,18 +233,37 @@ export const AMMContract = {
   // Get amount out for swap
   async getAmountOut(amountIn, reserveIn, reserveOut, fee) {
     try {
+      console.log("getAmountOut called with:", {
+        amountIn: amountIn.toString(),
+        reserveIn: reserveIn.toString(),
+        reserveOut: reserveOut.toString(),
+        fee: fee.toString()
+      });
+
       const args = new Args()
             .addU64(amountIn)
             .addU64(reserveIn)
             .addU64(reserveOut)
             .addU64(fee)
-      const result = await readContract(CONTRACTS.AMM, "readGetAmountOut", args.serialize())
+
+      console.log("Calling readGetAmountOut...");
+      const result = await readContract(CONTRACTS.AMM, "readGetAmountOut", args.serialize());
+
+      console.log("Raw result from contract:", result);
       const amountOutStr = bytesToStr(result);
+      console.log("Result as string:", amountOutStr);
+
+      if (!amountOutStr || amountOutStr === "" || amountOutStr === "0") {
+        console.warn("getAmountOut returned empty or zero");
+        return 0n;
+      }
+
       const amountOut = BigInt(amountOutStr);
-      console.log("amount out is ", amountOut)
+      console.log("amount out is ", amountOut.toString())
       return amountOut
     } catch (error) {
       console.error("Failed to get amount out:", error)
+      console.error("Error details:", error.message, error.stack);
       return 0n
     }
   },
