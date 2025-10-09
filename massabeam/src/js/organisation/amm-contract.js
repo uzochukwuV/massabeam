@@ -1,4 +1,4 @@
-import { Args, Mas, bytesToStr, OperationStatus, bytesToU64, bytesToU256 } from "@massalabs/massa-web3";
+import { Args, Mas, bytesToStr, OperationStatus, bytesToF64 } from "@massalabs/massa-web3";
 import { callContract, readContract } from "./contract-helpers.js";
 import { showError, showSuccess } from "./ui.js";
 import { getTokenByAddress } from "./services/token-service.js";
@@ -215,7 +215,7 @@ export const AMMContract = {
     }
   },
 
-  
+
 
   // Get amount out for swap
   async getAmountOut(amountIn, reserveIn, reserveOut, fee) {
@@ -234,7 +234,7 @@ export const AMMContract = {
   },
 
   async getPools() {
-      
+
       if (!provider) {
           throw new Error("Provider not initialized");
       }
@@ -246,7 +246,7 @@ export const AMMContract = {
   },
 
   async getPoolCount() {
-      
+
       if (!provider) {
           throw new Error("Provider not initialized");
       }
@@ -258,9 +258,9 @@ export const AMMContract = {
   },
 
   async getTotalVolume() {
-      
+
       if (!provider) {
-          throw new Error("Provider not initialized"); 
+          throw new Error("Provider not initialized");
       }
       const args = new Args()
       const volume =  await readContract(CONTRACTS.AMM, "readTotalVolume", args.serialize())
@@ -270,9 +270,9 @@ export const AMMContract = {
   },
 
   async getProtocolFeeRate() {
-      
+
       if (!provider) {
-          throw new Error("Provider not initialized"); 
+          throw new Error("Provider not initialized");
       }
       const args = new Args()
 
@@ -294,10 +294,444 @@ export async function getProtocolStats() {
     console.log("Raw protocol stats:", { tvl, poolCount, readProtocolFeeRate })
 
     return {
-        tvl: Number(bytesToU64(tvl)),
-        poolCount: Number(bytesToU64(poolCount)),
-        readProtocolFeeRate: Number(bytesToU64(readProtocolFeeRate))
+        tvl: Number(bytesToF64(tvl)),
+        poolCount: Number(bytesToF64(poolCount)),
+        readProtocolFeeRate: Number(bytesToF64(readProtocolFeeRate))
     }
 }
 
+// ============================================================================
+// ADVANCED FEATURES (DCA, Limit Orders, Yield Farming, TWAP)
+// ============================================================================
+
+export const AdvancedFeatures = {
+  // ============================================================================
+  // DCA (Dollar-Cost Averaging) Functions
+  // ============================================================================
+
+  /**
+   * Create a DCA strategy
+   * @param {string} tokenIn - Address of token to sell
+   * @param {string} tokenOut - Address of token to buy
+   * @param {string} amountPerPeriod - Amount to invest per period (raw amount)
+   * @param {number} intervalSeconds - Seconds between each purchase
+   * @param {number} totalPeriods - Total number of periods to execute
+   * @param {Object} options - Optional parameters (minPriceThreshold, maxPriceThreshold, stopLoss, takeProfit, maxSlippage)
+   */
+  async createDCA(tokenIn, tokenOut, amountPerPeriod, intervalSeconds, totalPeriods, options = {}) {
+    try {
+      console.log("Creating DCA strategy:", { tokenIn, tokenOut, amountPerPeriod, intervalSeconds, totalPeriods, options });
+
+      provider = await getProvider();
+      const tokenInContract = await getTokenByAddress(tokenIn);
+      const decimalsIn = await tokenInContract.decimals();
+
+      // Convert amount to u256 for approval
+      const totalAmount256 = toU256((BigInt(amountPerPeriod) * BigInt(totalPeriods)).toString(), Number(decimalsIn));
+
+      // Approve total amount
+      const opApprove = await tokenInContract.increaseAllowance(CONTRACTS.AMM, totalAmount256);
+      const statusApprove = await opApprove.waitSpeculativeExecution();
+      if (statusApprove !== OperationStatus.SpeculativeSuccess) {
+        throw new Error(`Token approval failed with status: ${statusApprove}`);
+      }
+
+      // Build DCA args
+      const args = new Args()
+        .addString(tokenIn)
+        .addString(tokenOut)
+        .addU64(BigInt(amountPerPeriod))
+        .addU64(BigInt(intervalSeconds))
+        .addU64(BigInt(totalPeriods))
+        .addU64(BigInt(options.minPriceThreshold || 0))
+        .addU64(BigInt(options.maxPriceThreshold || 0))
+        .addU64(BigInt(options.stopLoss || 0))
+        .addU64(BigInt(options.takeProfit || 0))
+        .addU64(BigInt(options.maxSlippage || 100)); // Default 1% slippage
+
+      const operation = await callContract(CONTRACTS.AMM, "createDCA", args.serialize());
+
+      showSuccess("DCA strategy created successfully!");
+      return operation;
+    } catch (error) {
+      showError(`Failed to create DCA strategy: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Cancel a DCA strategy
+   * @param {number} strategyId - ID of the strategy to cancel
+   */
+  async cancelDCA(strategyId) {
+    try {
+      const args = new Args().addU64(BigInt(strategyId));
+      const operation = await callContract(CONTRACTS.AMM, "cancelDCA", args.serialize());
+      showSuccess("DCA strategy cancelled!");
+      return operation;
+    } catch (error) {
+      showError(`Failed to cancel DCA: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Get DCA strategy details
+   * @param {number} strategyId - ID of the strategy
+   */
+  async getDCA(strategyId) {
+    try {
+      const args = new Args().addU64(BigInt(strategyId));
+      const result = await readContract(CONTRACTS.AMM, "getDCA", args.serialize());
+
+      // Deserialize the result
+      const data = new Args(result);
+      return {
+        id: data.nextU64(),
+        user: data.nextString(),
+        tokenIn: data.nextString(),
+        tokenOut: data.nextString(),
+        amountPerPeriod: data.nextU64(),
+        intervalSeconds: data.nextU64(),
+        totalPeriods: data.nextU64(),
+        currentPeriod: data.nextU64(),
+        lastExecution: data.nextU64(),
+        isActive: data.nextBool(),
+        minPriceThreshold: data.nextU64(),
+        maxPriceThreshold: data.nextU64(),
+        stopLoss: data.nextU64(),
+        takeProfit: data.nextU64(),
+        accumulatedTokens: data.nextU64(),
+        totalSpent: data.nextU64(),
+        averagePrice: data.nextU64(),
+        maxSlippage: data.nextU64(),
+        useTWAP: data.nextBool()
+      };
+    } catch (error) {
+      console.error("Failed to get DCA strategy:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Get user's DCA strategies
+   * @param {string} userAddress - User's wallet address
+   */
+  async getUserDCAs(userAddress) {
+    try {
+      const args = new Args().addString(userAddress);
+      const result = await readContract(CONTRACTS.AMM, "getUserDCAs", args.serialize());
+
+      const data = new Args(result);
+      const ids = data.nextFixedSizeArray();
+      return ids || [];
+    } catch (error) {
+      console.error("Failed to get user DCAs:", error);
+      return [];
+    }
+  },
+
+  // ============================================================================
+  // Limit Order Functions
+  // ============================================================================
+
+  /**
+   * Create a limit order
+   * @param {string} tokenIn - Address of token to sell
+   * @param {string} tokenOut - Address of token to buy
+   * @param {string} amountIn - Amount to sell (raw amount)
+   * @param {string} targetPrice - Target price (18 decimals)
+   * @param {string} minAmountOut - Minimum amount to receive
+   * @param {number} expiry - Order expiration timestamp
+   * @param {boolean} partialFillAllowed - Allow partial fills
+   */
+  async createLimitOrder(tokenIn, tokenOut, amountIn, targetPrice, minAmountOut, expiry, partialFillAllowed = false) {
+    try {
+      console.log("Creating limit order:", { tokenIn, tokenOut, amountIn, targetPrice, minAmountOut, expiry });
+
+      provider = await getProvider();
+      const tokenInContract = await getTokenByAddress(tokenIn);
+      const decimalsIn = await tokenInContract.decimals();
+
+      // Convert amount to u256 for approval
+      const amountIn256 = toU256(amountIn, Number(decimalsIn));
+
+      // Approve token
+      const opApprove = await tokenInContract.increaseAllowance(CONTRACTS.AMM, amountIn256);
+      const statusApprove = await opApprove.waitSpeculativeExecution();
+      if (statusApprove !== OperationStatus.SpeculativeSuccess) {
+        throw new Error(`Token approval failed with status: ${statusApprove}`);
+      }
+
+      // Build limit order args
+      const args = new Args()
+        .addString(tokenIn)
+        .addString(tokenOut)
+        .addU64(BigInt(amountIn))
+        .addU64(BigInt(targetPrice))
+        .addU64(BigInt(minAmountOut))
+        .addU64(BigInt(expiry))
+        .addBool(partialFillAllowed);
+
+      const operation = await callContract(CONTRACTS.AMM, "createLimitOrder", args.serialize());
+
+      showSuccess("Limit order created successfully!");
+      return operation;
+    } catch (error) {
+      showError(`Failed to create limit order: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Cancel a limit order
+   * @param {number} orderId - ID of the order to cancel
+   */
+  async cancelLimitOrder(orderId) {
+    try {
+      const args = new Args().addU64(BigInt(orderId));
+      const operation = await callContract(CONTRACTS.AMM, "cancelLimitOrder", args.serialize());
+      showSuccess("Limit order cancelled!");
+      return operation;
+    } catch (error) {
+      showError(`Failed to cancel limit order: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Get limit order details
+   * @param {number} orderId - ID of the order
+   */
+  async getLimitOrder(orderId) {
+    try {
+      const args = new Args().addU64(BigInt(orderId));
+      const result = await readContract(CONTRACTS.AMM, "getLimitOrder", args.serialize());
+
+      const data = new Args(result);
+      return {
+        id: data.nextU64(),
+        user: data.nextString(),
+        tokenIn: data.nextString(),
+        tokenOut: data.nextString(),
+        amountIn: data.nextU64(),
+        targetPrice: data.nextU64(),
+        minAmountOut: data.nextU64(),
+        expiry: data.nextU64(),
+        isActive: data.nextBool(),
+        filledAmount: data.nextU64(),
+        partialFillAllowed: data.nextBool(),
+        createdAt: data.nextU64(),
+        minBlockDelay: data.nextU64(),
+        maxPriceImpact: data.nextU64(),
+        useTWAP: data.nextBool()
+      };
+    } catch (error) {
+      console.error("Failed to get limit order:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Get user's limit orders
+   * @param {string} userAddress - User's wallet address
+   */
+  async getUserOrders(userAddress) {
+    try {
+      const args = new Args().addString(userAddress);
+      const result = await readContract(CONTRACTS.AMM, "getUserOrders", args.serialize());
+
+      const data = new Args(result);
+      const ids = data.nextFixedSizeArray();
+      return ids || [];
+    } catch (error) {
+      console.error("Failed to get user orders:", error);
+      return [];
+    }
+  },
+
+  // ============================================================================
+  // TWAP Price Oracle Functions
+  // ============================================================================
+
+  /**
+   * Get TWAP (Time-Weighted Average Price)
+   * @param {string} tokenA - First token address
+   * @param {string} tokenB - Second token address
+   */
+  async getTWAPPrice(tokenA, tokenB) {
+    try {
+      const args = new Args()
+        .addString(tokenA)
+        .addString(tokenB);
+
+      const result = await readContract(CONTRACTS.AMM, "getTWAPPrice", args.serialize());
+      return Number(bytesToF64(result));
+    } catch (error) {
+      console.error("Failed to get TWAP price:", error);
+      return 0;
+    }
+  },
+
+  /**
+   * Update TWAP accumulator (keeper function)
+   * @param {string} tokenA - First token address
+   * @param {string} tokenB - Second token address
+   */
+  async updateTWAP(tokenA, tokenB) {
+    try {
+      const args = new Args()
+        .addString(tokenA)
+        .addString(tokenB);
+
+      const operation = await callContract(CONTRACTS.AMM, "updateTWAP", args.serialize());
+      return operation;
+    } catch (error) {
+      console.error("Failed to update TWAP:", error);
+      throw error;
+    }
+  },
+
+  // ============================================================================
+  // Yield Farming Functions
+  // ============================================================================
+
+  /**
+   * Get yield pool details
+   * @param {number} poolId - ID of the yield pool
+   */
+  async getYieldPool(poolId) {
+    try {
+      const args = new Args().addU64(BigInt(poolId));
+      const result = await readContract(CONTRACTS.AMM, "getYieldPool", args.serialize());
+
+      const data = new Args(result);
+      return {
+        id: data.nextU64(),
+        tokenA: data.nextString(),
+        tokenB: data.nextString(),
+        rewardToken: data.nextString(),
+        totalStaked: data.nextU64(),
+        rewardRate: data.nextU64(),
+        lastUpdateTime: data.nextU64(),
+        rewardPerTokenStored: data.nextU64(),
+        isActive: data.nextBool(),
+        performanceFee: data.nextU64(),
+        lockupPeriod: data.nextU64(),
+        maxLeverage: data.nextU64(),
+        totalBorrowed: data.nextU64(),
+        insuranceFund: data.nextU64()
+      };
+    } catch (error) {
+      console.error("Failed to get yield pool:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Stake tokens in yield pool
+   * @param {number} poolId - ID of the yield pool
+   * @param {string} amountA - Amount of token A to stake
+   * @param {string} amountB - Amount of token B to stake
+   */
+  async stakeInYieldPool(poolId, amountA, amountB) {
+    try {
+      const args = new Args()
+        .addU64(BigInt(poolId))
+        .addU64(BigInt(amountA))
+        .addU64(BigInt(amountB));
+
+      const operation = await callContract(CONTRACTS.AMM, "stakeInYieldPool", args.serialize());
+      showSuccess("Tokens staked successfully!");
+      return operation;
+    } catch (error) {
+      showError(`Failed to stake: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Unstake tokens from yield pool
+   * @param {number} poolId - ID of the yield pool
+   * @param {string} lpAmount - Amount of LP tokens to unstake
+   */
+  async unstakeFromYieldPool(poolId, lpAmount) {
+    try {
+      const args = new Args()
+        .addU64(BigInt(poolId))
+        .addU64(BigInt(lpAmount));
+
+      const operation = await callContract(CONTRACTS.AMM, "unstakeFromYieldPool", args.serialize());
+      showSuccess("Tokens unstaked successfully!");
+      return operation;
+    } catch (error) {
+      showError(`Failed to unstake: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Claim yield rewards
+   * @param {number} poolId - ID of the yield pool
+   */
+  async claimYieldRewards(poolId) {
+    try {
+      const args = new Args().addU64(BigInt(poolId));
+
+      const operation = await callContract(CONTRACTS.AMM, "claimYieldRewards", args.serialize());
+      showSuccess("Rewards claimed successfully!");
+      return operation;
+    } catch (error) {
+      showError(`Failed to claim rewards: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Get user's stake in a yield pool
+   * @param {string} userAddress - User's wallet address
+   * @param {number} poolId - ID of the yield pool
+   */
+  async getUserStake(userAddress, poolId) {
+    try {
+      const args = new Args()
+        .addString(userAddress)
+        .addU64(BigInt(poolId));
+
+      const result = await readContract(CONTRACTS.AMM, "getUserStake", args.serialize());
+
+      const data = new Args(result);
+      return {
+        user: data.nextString(),
+        poolId: data.nextU64(),
+        amount: data.nextU64(),
+        rewardDebt: data.nextU64(),
+        stakedAt: data.nextU64(),
+        lastClaimTime: data.nextU64()
+      };
+    } catch (error) {
+      console.error("Failed to get user stake:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Get pending rewards for a user in a yield pool
+   * @param {string} userAddress - User's wallet address
+   * @param {number} poolId - ID of the yield pool
+   */
+  async getPendingRewards(userAddress, poolId) {
+    try {
+      const args = new Args()
+        .addString(userAddress)
+        .addU64(BigInt(poolId));
+
+      const result = await readContract(CONTRACTS.AMM, "getPendingRewards", args.serialize());
+      return Number(bytesToF64(result));
+    } catch (error) {
+      console.error("Failed to get pending rewards:", error);
+      return 0;
+    }
+  }
+};
 

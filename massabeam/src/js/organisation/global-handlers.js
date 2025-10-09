@@ -22,6 +22,9 @@ window.switchSection = function(section) {
 // Liquidity
 window.openCreatePoolModal = openCreatePoolModal;
 window.refreshPools = refreshPools;
+window.closeCreatePoolSection = function() {
+    switchToSection("liquidity");
+};
 
 // Trade
 window.openTradeSettings = function() {

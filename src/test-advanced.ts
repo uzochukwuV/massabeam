@@ -40,15 +40,15 @@ async function main() {
   console.log('🧪 MassaBeam Advanced Contract Testing');
   console.log('═══════════════════════════════════════════════════════\n');
 
-  // Load deployment info
-  const deploymentInfoPath = path.join(__dirname, '..', 'massa_beam_advanced-deployment.json');
-  if (!fs.existsSync(deploymentInfoPath)) {
-    throw new Error('❌ massa_beam_advanced-deployment.json not found! Run deploy-advanced.ts first.');
-  }
+  // // Load deployment info
+  // const deploymentInfoPath = path.join(__dirname, '..', 'massa_beam_advanced-deployment.json');
+  // if (!fs.existsSync(deploymentInfoPath)) {
+  //   throw new Error('❌ massa_beam_advanced-deployment.json not found! Run deploy-advanced.ts first.');
+  // }
 
-  const deploymentInfo: DeploymentInfo = JSON.parse(
-    fs.readFileSync(deploymentInfoPath, 'utf-8')
-  );
+  // const deploymentInfo: DeploymentInfo = JSON.parse(
+  //   fs.readFileSync(deploymentInfoPath, 'utf-8')
+  // );
 
   // Load token addresses
   const addressesPath = path.join(__dirname, '..', 'deployed-addresses.json');
@@ -68,10 +68,10 @@ async function main() {
   const balance = await provider.balanceOf([account.address.toString()]);
   console.log('💰 Account balance:', balance[0].balance, 'MAS\n');
 
-  console.log('📍 Advanced Contract:', deploymentInfo.contractAddress);
-  console.log('📅 Deployed:', deploymentInfo.deployedAt, '\n');
+  console.log('📍 Advanced Contract:', deployedAddresses.contracts.massaBeamDCA);
+  // console.log('📅 Deployed:', deploymentInfo.deployedAt, '\n');
 
-  const contract = new SmartContract(provider, deploymentInfo.contractAddress);
+  const contract = new SmartContract(provider, deployedAddresses.contracts.massaBeamDCA);
 
   // Test 1: Create DCA Strategy
   console.log('═══════════════════════════════════════════════════════');
@@ -102,7 +102,7 @@ async function main() {
   await tokenContract.call(
     'increaseAllowance',
     new Args()
-      .addString(deploymentInfo.contractAddress)
+      .addString(deployedAddresses.contracts.massaBeamDCA)
       .addU256(totalAmount),
     { coins: Mas.fromString('0.01') }
   );
@@ -138,7 +138,7 @@ async function main() {
 
     const dcaData = await contract.read('getDCA', getDCAArgs);
     console.log('   ✅ DCA data retrieved');
-    console.log('   📦 Data length:', dcaData.length, 'bytes\n');
+    console.log('   📦 Data length:', dcaData.value.length, 'bytes\n');
   } catch (error) {
     console.error('❌ Failed to create DCA:', error, '\n');
   }
@@ -164,7 +164,7 @@ async function main() {
   await tokenContract.call(
     'increaseAllowance',
     new Args()
-      .addString(deploymentInfo.contractAddress)
+      .addString(deployedAddresses.contracts.massaBeamDCA)
       .addU256(amountIn),
     { coins: Mas.fromString('0.01') }
   );
@@ -197,7 +197,7 @@ async function main() {
 
     const orderData = await contract.read('getLimitOrder', getOrderArgs);
     console.log('   ✅ Order data retrieved');
-    console.log('   📦 Data length:', orderData.length, 'bytes\n');
+    console.log('   📦 Data length:', orderData.value.length, 'bytes\n');
   } catch (error) {
     console.error('❌ Failed to create limit order:', error, '\n');
   }

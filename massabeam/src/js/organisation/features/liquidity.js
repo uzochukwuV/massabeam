@@ -10,6 +10,9 @@ export async function loadLiquityData() {
     try {
         showLoading(true);
 
+        // Initialize add liquidity form
+        await initializeAddLiquidityForm();
+
         // Fetch user's pools (mock/demo)
         const userPoolsList = document.getElementById("userPoolsList");
         if (userPoolsList) {
@@ -80,6 +83,112 @@ export async function loadLiquityData() {
     } finally {
         showLoading(false);
     }
+}
+
+// Initialize Add Liquidity Form
+async function initializeAddLiquidityForm() {
+    const tokenASelect = document.getElementById("liquidityTokenA");
+    const tokenBSelect = document.getElementById("liquidityTokenB");
+
+    if (!tokenASelect || !tokenBSelect) return;
+
+    // Populate token dropdowns
+    const options = TOKENS_LIST.map(token =>
+        `<option value="${token.address}">${token.symbol} - ${token.name}</option>`
+    ).join("");
+
+    tokenASelect.innerHTML = `<option value="">Select Token A</option>` + options;
+    tokenBSelect.innerHTML = `<option value="">Select Token B</option>` + options;
+
+    // Reset balances and summary
+    document.getElementById("liquidityTokenABalance").textContent = "0.00";
+    document.getElementById("liquidityTokenBBalance").textContent = "0.00";
+    document.getElementById("liquidityShare").textContent = "-";
+    document.getElementById("expectedLPTokens").textContent = "-";
+    document.getElementById("liquidityFee").textContent = "~0.001 MAS";
+
+    // Update balance when token A changes
+    tokenASelect.addEventListener("change", async (e) => {
+        const selectedAddress = e.target.value;
+        if (!selectedAddress) {
+            document.getElementById("liquidityTokenABalance").textContent = "0.00";
+            return;
+        }
+
+        try {
+            const provider = getProvider();
+            if (!provider) return;
+
+            const tokenContract = await getTokenByAddress(selectedAddress);
+            const balance = await tokenContract.balanceOf(provider.address);
+            const decimals = await tokenContract.decimals();
+
+            const balanceFormatted = Number(balance.toString()) / (10 ** Number(decimals));
+            document.getElementById("liquidityTokenABalance").textContent = balanceFormatted.toFixed(2);
+        } catch (error) {
+            console.error("Error fetching Token A balance:", error);
+            document.getElementById("liquidityTokenABalance").textContent = "Error";
+        }
+    });
+
+    // Update balance when token B changes
+    tokenBSelect.addEventListener("change", async (e) => {
+        const selectedAddress = e.target.value;
+        if (!selectedAddress) {
+            document.getElementById("liquidityTokenBBalance").textContent = "0.00";
+            return;
+        }
+
+        try {
+            const provider = getProvider();
+            if (!provider) return;
+
+            const tokenContract = await getTokenByAddress(selectedAddress);
+            const balance = await tokenContract.balanceOf(provider.address);
+            const decimals = await tokenContract.decimals();
+
+            const balanceFormatted = Number(balance.toString()) / (10 ** Number(decimals));
+            document.getElementById("liquidityTokenBBalance").textContent = balanceFormatted.toFixed(2);
+        } catch (error) {
+            console.error("Error fetching Token B balance:", error);
+            document.getElementById("liquidityTokenBBalance").textContent = "Error";
+        }
+    });
+
+    // Attach event listeners for real-time updates
+    const amountAInput = document.getElementById("liquidityAmountA");
+    const amountBInput = document.getElementById("liquidityAmountB");
+
+    if (amountAInput && amountBInput) {
+        amountAInput.addEventListener("input", updateAddLiquiditySummary);
+        amountBInput.addEventListener("input", updateAddLiquiditySummary);
+    }
+}
+
+// Update Add Liquidity Summary
+function updateAddLiquiditySummary() {
+    const tokenAAddress = document.getElementById("liquidityTokenA")?.value || "";
+    const tokenBAddress = document.getElementById("liquidityTokenB")?.value || "";
+    const amountA = parseFloat(document.getElementById("liquidityAmountA")?.value || "0");
+    const amountB = parseFloat(document.getElementById("liquidityAmountB")?.value || "0");
+
+    // Find token symbols
+    const tokenASymbol = TOKENS_LIST.find(t => t.address === tokenAAddress)?.symbol || "?";
+    const tokenBSymbol = TOKENS_LIST.find(t => t.address === tokenBAddress)?.symbol || "?";
+
+    // Calculate expected LP tokens (simple geometric mean)
+    if (amountA > 0 && amountB > 0) {
+        const lpTokens = Math.sqrt(amountA * amountB);
+        document.getElementById("expectedLPTokens").textContent = lpTokens.toFixed(6);
+
+        // Mock pool share calculation (would need actual pool reserves)
+        document.getElementById("liquidityShare").textContent = "< 0.01%";
+    } else {
+        document.getElementById("expectedLPTokens").textContent = "-";
+        document.getElementById("liquidityShare").textContent = "-";
+    }
+
+    document.getElementById("liquidityFee").textContent = "~0.001 MAS";
 }
 
 // Load create pool section data (populate token dropdowns, etc.)
@@ -209,7 +318,7 @@ export async function loadCreatePoolData() {
                     showLoading(true);
 
                     // Deadline is 1 hour from now (in milliseconds)
-                    const deadline = Date.now() + (60 * 60 * 1000);
+                    const deadline = (60 * 60 * 1000);
 
                     console.log("Creating pool:", {
                         tokenA,
@@ -300,7 +409,7 @@ async function handleAddLiquidity(event) {
         const amountA = document.getElementById('liquidityAmountA')?.value;
         const amountB = document.getElementById('liquidityAmountB')?.value;
         const slippage = "0.5"; // or get from UI
-        const deadline = Date.now() + 60 * 60 * 1000; // 1 hour from now
+        const deadline =  60 * 60 * 1000; // 1 hour from now
 
         if (!tokenA || !tokenB || !amountA || !amountB) {
             showError("Please fill in all liquidity fields.");
