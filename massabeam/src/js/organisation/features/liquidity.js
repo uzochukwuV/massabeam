@@ -397,39 +397,90 @@ async function handleAddLiquidity(event) {
     event.preventDefault();
 
     if (!AppState.user.connected) {
-        await handleWalletConnection();
+        showError("Please connect your wallet first");
         return;
     }
 
     try {
         showLoading(true);
 
+        // Get form values
         const tokenA = document.getElementById('liquidityTokenA')?.value;
         const tokenB = document.getElementById('liquidityTokenB')?.value;
         const amountA = document.getElementById('liquidityAmountA')?.value;
         const amountB = document.getElementById('liquidityAmountB')?.value;
-        const slippage = "0.5"; // or get from UI
-        const deadline =  60 * 60 * 1000; // 1 hour from now
 
-        if (!tokenA || !tokenB || !amountA || !amountB) {
-            showError("Please fill in all liquidity fields.");
+        // Validation
+        if (!tokenA || !tokenB) {
+            showError("Please select both tokens");
             showLoading(false);
             return;
         }
 
+        if (tokenA === tokenB) {
+            showError("Cannot add liquidity with same token");
+            showLoading(false);
+            return;
+        }
+
+        if (!amountA || !amountB || parseFloat(amountA) <= 0 || parseFloat(amountB) <= 0) {
+            showError("Please enter valid amounts");
+            showLoading(false);
+            return;
+        }
+
+        // Get slippage from UI (check active button or custom input)
+        const activeSlippageBtn = document.querySelector('.slippage-btn.active');
+        const customSlippageInput = document.querySelector('.slippage-input');
+        let slippage = activeSlippageBtn ?
+            parseFloat(activeSlippageBtn.dataset.slippage) :
+            parseFloat(customSlippageInput?.value || "0.5");
+
+        // Convert amounts
         const amountADesired = parseFloat(amountA);
         const amountBDesired = parseFloat(amountB);
-        const amountAMin = amountADesired * (1 - parseFloat(slippage) / 100);
-        const amountBMin = amountBDesired * (1 - parseFloat(slippage) / 100);
 
-        await AMMContract.addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin, deadline);
+        // Calculate minimum amounts with slippage protection
+        const amountAMin = amountADesired * (1 - slippage / 100);
+        const amountBMin = amountBDesired * (1 - slippage / 100);
 
-        showSuccess("Liquidity added!");
+        // Deadline is 1 hour from now
+        const deadline = Date.now() + (60 * 60 * 1000);
+
+        console.log("Adding liquidity:", {
+            tokenA,
+            tokenB,
+            amountADesired,
+            amountBDesired,
+            amountAMin,
+            amountBMin,
+            slippage,
+            deadline
+        });
+
+        // Call contract
+        await AMMContract.addLiquidity(
+            tokenA,
+            tokenB,
+            amountADesired,
+            amountBDesired,
+            amountAMin,
+            amountBMin,
+            deadline
+        );
+
+        showSuccess("Liquidity added successfully! 🎉");
+
+        // Reset form
+        document.getElementById('addLiquidityForm').reset();
+        updateAddLiquiditySummary();
+
+        // Reload liquidity data
         await loadLiquityData();
 
     } catch (error) {
         console.error("Add liquidity failed:", error);
-        showError("Add liquidity failed. Please try again.");
+        showError(`Failed to add liquidity: ${error.message}`);
     } finally {
         showLoading(false);
     }

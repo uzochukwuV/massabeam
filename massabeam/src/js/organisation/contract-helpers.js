@@ -42,7 +42,7 @@ export async function readContract(contractAddress, functionName, args) {
       maxGas: 1_000_000_000n,
       coins: Mas.fromString("0.1"), 
     });
-    return result;
+    return result.value;
   } catch (error) {
     console.error(`Contract read failed: ${functionName}`, error);
     throw error;

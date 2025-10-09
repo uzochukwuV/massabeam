@@ -137,7 +137,9 @@ export function updateProtocolStats(stats) {
 }
 
 export function updateDashboard(state) {
-    
+    // Dashboard is now updated through dashboard.js loadDashboardData()
+    // This function is kept for compatibility
+    console.log("Dashboard update triggered via state change");
 }
 
 // Initialize charts

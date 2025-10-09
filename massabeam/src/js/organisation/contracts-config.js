@@ -1,23 +1,24 @@
-// Auto-generated on 2025-10-02T03:50:36.218Z
+// Auto-generated on 2025-10-09T10:17:20.327Z
 // DO NOT EDIT MANUALLY
 
 export const DEPLOYED_CONTRACTS = {
   // Token Addresses
   TOKENS: {
-    USDT: "AS1ikJhoMJzjVtPsnJnGzJEkhwNwtGtYm5M3yjQ3eUXr13LStvgk",
-    USDC: "AS12hRvqzLa433DRW1G73GNSUyCeN757FvR1YjFhT1w2ThT14DVK2",
-    BEAM: "AS1pWre3neYRNhdHDyeFthsBBYY6FmjrCovqtZzkSGQ8UAz8pxyP",
+    USDT: "AS1JNGJzBan2ubEV1LBfmNnYgiqJcja675dauDmqJzE4ZPiEaRky",
+    USDC: "AS16b6NYJdpaUm83PYYzyNRjiKmAYCopbXmGj85aaEpWmsj73Vg9",
+    BEAM: "AS12kL6FkQvaGBN5Fie8CU2E2GCJSmKjybniTHc74LTtCenKKxvNa",
   },
 
   // Protocol Contracts
-  AMM: "AS1JdUxvhSaSGAKPyCaKwMqFwBDF9UJ5Ui9fBSCUMtJLuRC9toK6",
-  DCA: "AS128MtQYM8acxirSJh2VZcHWuJsQhicUHUe2kdM3Ga4dWkwhSuGb",
-  ENGINE: "AS1Hnumx9yGxrmMmp9WTvBF1HSv97YXcc28pBiUgatWykr9pdFtS",
+  AMM: "AS1zg8U51J9E7nFmXq6A8ZAaAHYUJ3WXxEENXARfhfdxjZ23SW9J",
+  DCA: "AS12oiYDer3gipgbpHSe7XHhahiyHxm8mPBMTmrELNJpuUHwEDH3u",
+  ENGINE: "AS1TCDsxJweLk24tswbQrLQ5mjxzY9M5RvMmsa5LAMVRc7eyxf4c",
 
   // Deployment Info
   DEPLOYER: "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
-  DEPLOYED_AT: "2025-10-02T11:57:37.932Z",
+  DEPLOYED_AT: "2025-10-09T16:16:01.361Z",
 };
+
 
 // Token Metadata
 export const TOKEN_METADATA = {

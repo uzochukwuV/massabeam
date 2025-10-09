@@ -763,3 +763,46 @@ export function readInitialized():StaticArray<u8>{
 export function readPoolList():StaticArray<u8>{
     return stringToBytes(Storage.get("pool_list"));
 }
+
+export function readGetAmountOut(args: StaticArray<u8>): StaticArray<u8> {
+    const argument = new Args(args);
+    const amountIn = argument.nextU64().unwrap();
+    const reserveIn = argument.nextU64().unwrap();
+    const reserveOut = argument.nextU64().unwrap();
+    const fee = argument.nextU64().unwrap();
+
+    const amountOut = getAmountOut(amountIn, reserveIn, reserveOut, fee);
+
+    return stringToBytes(amountOut.toString());
+}
+
+export function readGetAmountIn(args: StaticArray<u8>): StaticArray<u8> {
+    const argument = new Args(args);
+    const amountOut = argument.nextU64().unwrap();
+    const reserveIn = argument.nextU64().unwrap();
+    const reserveOut = argument.nextU64().unwrap();
+    const fee = argument.nextU64().unwrap();
+
+    const amountIn = getAmountIn(amountOut, reserveIn, reserveOut, fee);
+
+    return stringToBytes(amountIn.toString());
+}
+
+export function readSafeSqrt(args: StaticArray<u8>): StaticArray<u8> {
+    const argument = new Args(args);
+    const x = argument.nextU64().unwrap();
+    const y = argument.nextU64().unwrap();
+
+    const result = safeSqrt(x, y);
+
+    return stringToBytes(result.toString());
+}
+
+export function readSqrt(args: StaticArray<u8>): StaticArray<u8> {
+    const argument = new Args(args);
+    const x = argument.nextU64().unwrap();
+
+    const result = sqrt(x);
+
+    return stringToBytes(result.toString());
+}

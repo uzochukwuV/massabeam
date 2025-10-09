@@ -1330,18 +1330,18 @@ export function getUserStake(args: StaticArray<u8>): StaticArray<u8> {
     return stakeData;
 }
 
-export function getPendingRewards(args: StaticArray<u8>): u64 {
+export function getPendingRewards(args: StaticArray<u8>): StaticArray<u8> {
     const argument = new Args(args);
     const user = new Address(argument.nextString().unwrap());
     const poolId = argument.nextU64().unwrap();
 
     const poolData = Storage.get<StaticArray<u8>>(getYieldPoolKey(poolId));
-    if (poolData.length == 0) return 0;
+    if (poolData.length == 0) return stringToBytes("0");
 
     const pool = YieldPool.deserialize(poolData);
 
     const stakeData = Storage.get<StaticArray<u8>>(getUserStakeKey(user, poolId));
-    if (stakeData.length == 0) return 0;
+    if (stakeData.length == 0) return stringToBytes("0");
 
     const stake = UserStake.deserialize(stakeData);
 
@@ -1357,7 +1357,19 @@ export function getPendingRewards(args: StaticArray<u8>): u64 {
 
     // Subtract performance fee
     const fee = u64(f64(pendingReward) * f64(pool.performanceFee) / 10000.0);
-    return pendingReward - fee;
+    const finalReward = pendingReward - fee;
+
+    return stringToBytes(finalReward.toString());
+}
+
+export function readGetTWAPPrice(args: StaticArray<u8>): StaticArray<u8> {
+    const argument = new Args(args);
+    const tokenA = new Address(argument.nextString().unwrap());
+    const tokenB = new Address(argument.nextString().unwrap());
+
+    const price = getTWAPPrice(tokenA, tokenB);
+
+    return stringToBytes(price.toString());
 }
 
 // ============================================================================

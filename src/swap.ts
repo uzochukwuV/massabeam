@@ -141,18 +141,41 @@ async function main() {
     // Need to swap a significant amount relative to pool size
     const amountIn = BigInt(100000000); // 100M units (larger to get meaningful output)
 
-    // Use precise calculation: (amountIn * (10000 - fee) * reserveOut) / (reserveIn * 10000 + amountIn * (10000 - fee))
+    // Manual calculation using the AMM formula for comparison
+    // Formula: (amountIn * (10000 - fee) * reserveOut) / (reserveIn * 10000 + amountIn * (10000 - fee))
     const feeMultiplier = 10000n - fee;
     const amountInWithFee = amountIn * feeMultiplier;
     const numerator = amountInWithFee * reserveOut;
     const denominator = reserveIn * 10000n + amountInWithFee;
-    const expectedAmountOut = numerator / denominator;
+    const expectedAmountOutManual = numerator / denominator;
 
-    console.log(`🔢 Debug:`);
+    console.log(`🔢 Manual Calculation Debug:`);
     console.log(`   amountInWithFee: ${amountInWithFee}`);
     console.log(`   numerator: ${numerator}`);
     console.log(`   denominator: ${denominator}`);
-    console.log(`   expectedAmountOut: ${expectedAmountOut}\n`);
+    console.log(`   expectedAmountOut (manual): ${expectedAmountOutManual}\n`);
+
+    // Step 3: Call contract's readGetAmountOut function for verification
+    console.log(`🔍 Calling contract's readGetAmountOut for verification...`);
+
+    const getAmountOutArgs = new Args()
+      .addU64(amountIn)
+      .addU64(reserveIn)
+      .addU64(reserveOut)
+      .addU64(fee);
+
+    const getAmountOutResult = await ammContract.read("readGetAmountOut", getAmountOutArgs);
+    const contractAmountOut = BigInt(bytesToStr(getAmountOutResult.value));
+    console.log(`   ✅ readGetAmountOut result: ${contractAmountOut}\n`);
+
+    console.log(`📊 Contract vs Manual Calculation:`);
+    console.log(`   Contract getAmountOut: ${contractAmountOut}`);
+    console.log(`   Manual calculation:    ${expectedAmountOutManual}`);
+    console.log(`   Difference:            ${contractAmountOut - expectedAmountOutManual}`);
+    console.log(`   Match: ${contractAmountOut === expectedAmountOutManual ? '✅ YES' : '❌ NO'}\n`);
+
+    // Use the contract's result as the expected output
+    const expectedAmountOut = contractAmountOut;
 
     // Apply 1% slippage tolerance, but ensure amountOutMin is at least 1
     const slippage = 100n; // 1% = 100 basis points
@@ -177,15 +200,73 @@ async function main() {
       .addU64(amountOutMin)
       .addU64(deadline);
 
+    // Get token balances before swap
+    console.log(`📊 Balances Before Swap:`);
+    const tokenInContractBefore = new SmartContract(provider, tokenInAddress);
+    const tokenOutContractBefore = new SmartContract(provider, tokenOutAddress);
+
+    const balanceInBeforeResult = await tokenInContractBefore.read(
+      'balanceOf',
+      new Args().addString(account.address.toString())
+    );
+    const balanceOutBeforeResult = await tokenOutContractBefore.read(
+      'balanceOf',
+      new Args().addString(account.address.toString())
+    );
+
+    const balanceInBefore = BigInt(bytesToStr(balanceInBeforeResult.value));
+    const balanceOutBefore =BigInt(bytesToStr(balanceOutBeforeResult.value)) ;
+
+    console.log(`   ${SWAP_CONFIG.tokenIn}: ${balanceInBefore}`);
+    console.log(`   ${SWAP_CONFIG.tokenOut}: ${balanceOutBefore}\n`);
+
     console.log(`🔄 Executing swap...`);
 
     await ammContract.call('swap', swapArgs, {
       coins: Mas.fromString('0.1'),
     });
 
-    console.log(`   ✅ Swap successful!`);
-    console.log(`   📤 Sent: ${amountIn} ${SWAP_CONFIG.tokenIn}`);
-    console.log(`   📥 Received: ~${expectedAmountOut} ${SWAP_CONFIG.tokenOut}\n`);
+    console.log(`   ✅ Swap successful!\n`);
+
+    // Wait for balance update
+    await sleep(3000);
+
+    // Get token balances after swap
+    console.log(`📊 Balances After Swap:`);
+    const tokenInContractAfter = new SmartContract(provider, tokenInAddress);
+    const tokenOutContractAfter = new SmartContract(provider, tokenOutAddress);
+
+    const balanceInAfterResult = await tokenInContractAfter.read(
+      'balanceOf',
+      new Args().addString(account.address.toString())
+    );
+    const balanceOutAfterResult = await tokenOutContractAfter.read(
+      'balanceOf',
+      new Args().addString(account.address.toString())
+    );
+
+    const balanceInAfter = BigInt(bytesToStr(balanceInAfterResult.value)) ;
+    const balanceOutAfter = BigInt(bytesToStr(balanceOutAfterResult.value));
+
+    console.log(`   ${SWAP_CONFIG.tokenIn}: ${balanceInAfter}`);
+    console.log(`   ${SWAP_CONFIG.tokenOut}: ${balanceOutAfter}\n`);
+
+    // Calculate actual amounts
+    const actualAmountIn = balanceInBefore - balanceInAfter;
+    const actualAmountOut = balanceOutAfter - balanceOutBefore;
+
+    console.log(`📈 Swap Results:`);
+    console.log(`   📤 Sent: ${actualAmountIn} ${SWAP_CONFIG.tokenIn}`);
+    console.log(`   📥 Received: ${actualAmountOut} ${SWAP_CONFIG.tokenOut}`);
+    console.log(`   💡 Expected: ${expectedAmountOut} ${SWAP_CONFIG.tokenOut}`);
+    console.log(`   📊 Difference: ${actualAmountOut - expectedAmountOut}`);
+    console.log(`   ✅ Match: ${actualAmountOut >= amountOutMin ? 'YES (>= minOut)' : 'NO'}\n`);
+
+    // Calculate effective rate
+    if (actualAmountIn > 0n) {
+      const rate = (Number(actualAmountOut) / Number(actualAmountIn)).toFixed(6);
+      console.log(`   📊 Effective Rate: 1 ${SWAP_CONFIG.tokenIn} = ${rate} ${SWAP_CONFIG.tokenOut}\n`);
+    }
 
   } catch (error) {
     console.error(`❌ Failed to swap:`, error);

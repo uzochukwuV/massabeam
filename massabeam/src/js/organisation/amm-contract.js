@@ -1,4 +1,4 @@
-import { Args, Mas, bytesToStr, OperationStatus, bytesToF64 } from "@massalabs/massa-web3";
+import { Args, Mas, bytesToStr, OperationStatus } from "@massalabs/massa-web3";
 import { callContract, readContract } from "./contract-helpers.js";
 import { showError, showSuccess } from "./ui.js";
 import { getTokenByAddress } from "./services/token-service.js";
@@ -204,10 +204,9 @@ export const AMMContract = {
           .addString(tokenB)
           .serialize()
 
-        console.log(args)
+        
       const result = await readContract(CONTRACTS.AMM, "readPool", args)
-      console.log(result)
-      console.log(bytesToStr(result))
+      
       return bytesToStr(result)
     } catch (error) {
       console.error("Failed to get pool info:", error)
@@ -225,11 +224,61 @@ export const AMMContract = {
             .addU64(reserveIn)
             .addU64(reserveOut)
             .addU64(fee)
-      const result = await readContract(CONTRACTS.AMM, "getAmountOut", args.serialize())
-      return result
+      const result = await readContract(CONTRACTS.AMM, "readGetAmountOut", args.serialize())
+      const amountOutStr = bytesToStr(result);
+      const amountOut = BigInt(amountOutStr);
+      console.log("amount out is ", amountOut)
+      return amountOut
     } catch (error) {
       console.error("Failed to get amount out:", error)
-      return 0
+      return 0n
+    }
+  },
+
+  async getAmountIn(amountOut, reserveIn, reserveOut, fee) {
+    try {
+      const args = new Args()
+            .addU64(amountOut)
+            .addU64(reserveIn)
+            .addU64(reserveOut)
+            .addU64(fee)
+      const result = await readContract(CONTRACTS.AMM, "readGetAmountIn", args.serialize())
+      const amountInStr = bytesToStr(result);
+      const amountIn = BigInt(amountInStr);
+      console.log("amount in is ", amountIn)
+      return amountIn
+    } catch (error) {
+      console.error("Failed to get amount in:", error)
+      return 0n
+    }
+  },
+
+  async safeSqrt(x, y) {
+    try {
+      const args = new Args()
+            .addU64(x)
+            .addU64(y)
+      const result = await readContract(CONTRACTS.AMM, "readSafeSqrt", args.serialize())
+      const sqrtStr = bytesToStr(result);
+      const sqrtResult = BigInt(sqrtStr);
+      return sqrtResult
+    } catch (error) {
+      console.error("Failed to calculate safe sqrt:", error)
+      return 0n
+    }
+  },
+
+  async sqrt(x) {
+    try {
+      const args = new Args()
+            .addU64(x)
+      const result = await readContract(CONTRACTS.AMM, "readSqrt", args.serialize())
+      const sqrtStr = bytesToStr(result);
+      const sqrtResult = BigInt(sqrtStr);
+      return sqrtResult
+    } catch (error) {
+      console.error("Failed to calculate sqrt:", error)
+      return 0n
     }
   },
 
@@ -240,7 +289,7 @@ export const AMMContract = {
       }
       const args = new Args()
       const pools =  await readContract(CONTRACTS.AMM, "readPoolList", args.serialize())
-      console.log("getPools:", pools);
+      
 
       return pools;
   },
@@ -264,7 +313,7 @@ export const AMMContract = {
       }
       const args = new Args()
       const volume =  await readContract(CONTRACTS.AMM, "readTotalVolume", args.serialize())
-      console.log("getTotalVolume :", volume);
+      
 
       return volume;
   },
@@ -277,8 +326,7 @@ export const AMMContract = {
       const args = new Args()
 
       const readProtocolFeeRate =  await readContract(CONTRACTS.AMM, "readProtocolFeeRate", args.serialize())
-      console.log("readProtocolFeeRate:", readProtocolFeeRate);
-
+      
       return readProtocolFeeRate;
   },
 
@@ -291,12 +339,11 @@ export async function getProtocolStats() {
     const poolCount = await AMMContract.getPoolCount()
     const readProtocolFeeRate = await AMMContract.getProtocolFeeRate()
 
-    console.log("Raw protocol stats:", { tvl, poolCount, readProtocolFeeRate })
 
     return {
-        tvl: Number(bytesToF64(tvl)),
-        poolCount: Number(bytesToF64(poolCount)),
-        readProtocolFeeRate: Number(bytesToF64(readProtocolFeeRate))
+        tvl: Number(bytesToStr(tvl)),
+        poolCount: Number(bytesToStr(poolCount)),
+        readProtocolFeeRate: Number(bytesToStr(readProtocolFeeRate))
     }
 }
 
@@ -565,11 +612,12 @@ export const AdvancedFeatures = {
         .addString(tokenA)
         .addString(tokenB);
 
-      const result = await readContract(CONTRACTS.AMM, "getTWAPPrice", args.serialize());
-      return Number(bytesToF64(result));
+      const result = await readContract(CONTRACTS.AMM, "readGetTWAPPrice", args.serialize());
+      const priceStr = bytesToStr(result);
+      return BigInt(priceStr);
     } catch (error) {
       console.error("Failed to get TWAP price:", error);
-      return 0;
+      return 0n;
     }
   },
 
@@ -727,10 +775,11 @@ export const AdvancedFeatures = {
         .addU64(BigInt(poolId));
 
       const result = await readContract(CONTRACTS.AMM, "getPendingRewards", args.serialize());
-      return Number(bytesToF64(result));
+      const rewardsStr = bytesToStr(result);
+      return BigInt(rewardsStr);
     } catch (error) {
       console.error("Failed to get pending rewards:", error);
-      return 0;
+      return 0n;
     }
   }
 };

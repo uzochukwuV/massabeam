@@ -202,7 +202,7 @@ function startPeriodicUpdates() {
         clearInterval(periodicUpdateInterval);
     }
 
-    const UPDATE_INTERVAL_MS = 30000;
+    const UPDATE_INTERVAL_MS = 300000;
 
     async function periodicUpdate() {
         try {

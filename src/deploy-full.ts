@@ -158,13 +158,13 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════\n');
 
   try {
-    const dcaByteCode = getScByteCode('build', 'massa_beam_dca.wasm');
+    const dcaByteCode = getScByteCode('build', 'massa_beam_advanced.wasm');
 
     // DCA contract constructor - needs AMM contract address
     const dcaConstructorArgs = new Args()
       .addString(deployedAddresses.contracts.massaBeam);
 
-    console.log('🔄 Deploying massa_beam_dca.wasm...');
+    console.log('🔄 Deploying massa_beam_advanced.wasm...');
     console.log(`   🔗 Linking to AMM: ${deployedAddresses.contracts.massaBeam}`);
 
     const dcaContract = await SmartContract.deploy(
