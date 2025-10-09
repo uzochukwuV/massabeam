@@ -176,7 +176,7 @@ async function main() {
 
     deployedAddresses.contracts.massaBeamDCA = dcaContract.address.toString();
 
-    console.log(`   ✅ MassaBeam DCA deployed at: ${dcaContract.address}\n`);
+    console.log(` MassaBeam DCA deployed at: ${dcaContract.address}\n`);
 
     // Wait before next deployment
     await sleep(2000);

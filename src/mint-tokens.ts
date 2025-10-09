@@ -27,7 +27,8 @@ const TEST_ACCOUNTS = [
   // Example: 'AU12abc...xyz',
   "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma"
 ];
-
+1000000000
+460000000
 // Amount to mint per token (adjust as needed)
 const MINT_AMOUNTS = {
   USDT: Mas.fromString('1000000000'), // 100,000 USDT

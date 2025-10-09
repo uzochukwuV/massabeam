@@ -32,8 +32,8 @@ const POOLS = [
     name: 'BEAM/USDT',
     tokenA: 'BEAM',
     tokenB: 'USDT',
-    amountA: '460000000', // 1 BEAM
-    amountB: '1000000', // 1 USDT (1 BEAM = 1 USDT)
+    amountA: '900000000', // 1 BEAM
+    amountB: '600000000', // 1 USDT (1 BEAM = 1 USDT)
     decimalsA: 8,
     decimalsB: 8,
   },
@@ -41,8 +41,8 @@ const POOLS = [
     name: 'BEAM/USDC',
     tokenA: 'BEAM',
     tokenB: 'USDC',
-    amountA: '500000000', // 5 BEAM
-    amountB: '50000000', // 1 USDC (5 BEAM = 1 USDC)
+    amountA: '5000000000', // 5 BEAM
+    amountB: '900000000', // 1 USDC (5 BEAM = 1 USDC)
     decimalsA: 8,
     decimalsB: 8,
   },

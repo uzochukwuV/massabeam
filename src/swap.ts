@@ -35,8 +35,8 @@ interface DeployedAddresses {
 const SWAP_CONFIG = {
   tokenIn: 'BEAM',
   tokenOut: 'USDT',
-  amountIn: '10000', // 1 BEAM
-  minamountOut: "90000000",
+  amountIn: '9000000', // 1 BEAM
+  minamountOut: "5000000",
   decimalsIn: 8,
   decimalsOut: 8, // Assuming USDT also has 8 decimals
 };
@@ -168,7 +168,7 @@ async function main() {
     console.log(`   Expected Amount Out: ${expectedAmountOut}`);
     console.log(`   Min Amount Out (1% slippage): ${amountOutMin}\n`);
 
-    const deadline = BigInt(Date.now() + 60 * 60 * 1000); // 1 hour from now
+    const deadline = BigInt( 60 * 60 * 1000); // 1 hour from now
 
     const swapArgs = new Args()
       .addString(tokenInAddress)

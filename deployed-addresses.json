@@ -1,14 +1,14 @@
 {
   "tokens": {
-    "USDT": "AS1JotoLa8CX8yCDjZPmnWgQ3sk14ANVd9EgNLmZ99i9CbbSDrZT",
-    "USDC": "AS12VM9CpyhvYee9RkAXgXtLEUnL3pGKu6LUWL2CVu278wN5fBvYu",
-    "BEAM": "AS124VH8R7jWmT7Peq7AG3tJC7W9XiVzezkamxtL2wcCb4ZApoY53"
+    "USDT": "AS12rdHiq9JLLsDQjRqHD73NbJsvGdozgn67q5Rv1pXWjcVLaqvau",
+    "USDC": "AS1wE7FhPSXDsm55iBH5V2WC4c2drVLKHKzsR45Dpt8oU1symnpB",
+    "BEAM": "AS12CDt4QptKQ3jLZyV5wFaZ5c28TVgPqWiHPhqRMY29VcckxQoc2"
   },
   "contracts": {
-    "massaBeam": "AS12XgvYVRAW9fYWVVHMtpkDYyCckyEx5GimZnhR3cb2HD6XqFmdf",
-    "massaBeamDCA": "AS125U3zhwjJFcbA4b38xADNbKXwJU1CzW9yQvfMC9LUVrQW5Ar1R",
-    "massaBeamEngine": "AS12VwBnsaCkGpX7SSJY21dkmN7rrF7cYMchHrAcoWUiGV5r6vWnr"
+    "massaBeam": "AS1NWuiJDQX7bsa1DB4hbVQT1k1zS9hQZdmEJyL79zkdzhYDXM9E",
+    "massaBeamDCA": "AS12KapURGob7gRWg4QbjW3ednHmpeQ3RsAEXfnzk9tS5vSxKpYge",
+    "massaBeamEngine": "AS12kRhUuAV7rDMmH8WpF4iTkzKoK2nUy7SbeM1oFveEukky7cWcr"
   },
   "deployer": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
-  "timestamp": "2025-10-04T19:45:37.755Z"
+  "timestamp": "2025-10-09T10:17:20.327Z"
 }

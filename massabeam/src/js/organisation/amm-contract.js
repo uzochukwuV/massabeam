@@ -1,4 +1,4 @@
-import { Args, Mas, bytesToStr, OperationStatus, bytesToF64, bytesToSerializableObjectArray, bytesToF32, formatReadOnlyCallResponse, U128, U256, U32 } from "@massalabs/massa-web3";
+import { Args, Mas, bytesToStr, OperationStatus, bytesToU64, bytesToU256 } from "@massalabs/massa-web3";
 import { callContract, readContract } from "./contract-helpers.js";
 import { showError, showSuccess } from "./ui.js";
 import { getTokenByAddress } from "./services/token-service.js";
@@ -11,6 +11,14 @@ const CONTRACTS = {
 }
 
 let provider = null;
+
+// Helper function to convert bigint to number safely
+function bigintToNumber(value) {
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+  return value;
+}
 
 // AMM Contract Functions
 export const AMMContract = {
@@ -69,12 +77,12 @@ export const AMMContract = {
         throw new Error(`Token B approval failed with status: ${statusB}`);
       }
 
-      // Call createPool with u256 amounts
+      // Call createPool with u64 amounts (raw values without decimals)
       const args = new Args()
         .addString(tokenA)
         .addString(tokenB)
-        .addU256(amountA256)  // ✅ Changed from addU64 to addU256
-        .addU256(amountB256)  // ✅ Changed from addU64 to addU256
+        .addU64(BigInt(amountA))  // Raw amount
+        .addU64(BigInt(amountB))  // Raw amount
         .addU64(BigInt(deadline));
 
       console.log("Calling createPool with args:", args.serialize());
@@ -107,10 +115,10 @@ export const AMMContract = {
       const args = new Args()
         .addString(tokenA)
         .addString(tokenB)
-        .addU256(amountADesired256)  // ✅ Changed to u256
-        .addU256(amountBDesired256)  // ✅ Changed to u256
-        .addU256(amountAMin256)      // ✅ Changed to u256
-        .addU256(amountBMin256)      // ✅ Changed to u256
+        .addU64(BigInt(amountADesired))  // Raw amount
+        .addU64(BigInt(amountBDesired))  // Raw amount
+        .addU64(BigInt(amountAMin))      // Raw amount
+        .addU64(BigInt(amountBMin))      // Raw amount
         .addU64(BigInt(deadline))
         .serialize();
 
@@ -278,14 +286,18 @@ export const AMMContract = {
 
 export async function getProtocolStats() {
     provider = await getProvider()
-    
+
     const tvl = await AMMContract.getTotalVolume()
     const poolCount = await AMMContract.getPoolCount()
     const readProtocolFeeRate = await AMMContract.getProtocolFeeRate()
 
-    console.log( U256.fromBytes(poolCount), bytesToF32(readProtocolFeeRate))
-    
-    return {tvl: bytesToF64(tvl), poolCount: bytesToF64(poolCount), readProtocolFeeRate: bytesToF64(readProtocolFeeRate)}
+    console.log("Raw protocol stats:", { tvl, poolCount, readProtocolFeeRate })
+
+    return {
+        tvl: Number(bytesToU64(tvl)),
+        poolCount: Number(bytesToU64(poolCount)),
+        readProtocolFeeRate: Number(bytesToU64(readProtocolFeeRate))
+    }
 }
 
 

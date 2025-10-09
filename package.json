@@ -11,6 +11,7 @@
         "deploy:full": "npm run build && tsx src/deploy-full.ts",
         "mint-tokens": "tsx src/mint-tokens.ts",
         "add-liquidity": "tsx src/add-liquidity.ts",
+        "remove-liquidity": "tsx src/remove-liquidity.ts",
         "swap": "tsx src/swap.ts",
         "create-pools": "tsx src/create-pools.ts",
         "setup": "npm run deploy:full && npm run mint-tokens && npm run create-pools && npm run add-liquidity && npm run swap",

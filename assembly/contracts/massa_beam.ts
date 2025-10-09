@@ -453,7 +453,7 @@ export function addLiquidity(args: StaticArray<u8>): void {
     const amountBMin = argument.nextU64().unwrap();
     const deadline = argument.nextU64().unwrap();
     
-    validDeadline(deadline);
+    validDeadline(deadline + Context.timestamp());
     validateTokenPair(tokenA, tokenB);
     
     const caller = Context.caller()
@@ -524,7 +524,7 @@ export function removeLiquidity(args: StaticArray<u8>): void {
     const amountBMin = argument.nextU64().unwrap();
     const deadline = argument.nextU64().unwrap();
     
-    validDeadline(deadline);
+    validDeadline(deadline +Context.timestamp());
     validateTokenPair(tokenA, tokenB);
     assert(liquidity > 0, "Insufficient liquidity");
     
@@ -575,7 +575,7 @@ export function swap(args: StaticArray<u8>): void {
     const amountOutMin = argument.nextU64().unwrap();
     const deadline = argument.nextU64().unwrap();
     
-    validDeadline(deadline);
+    validDeadline(deadline + Context.timestamp());
     validateTokenPair(tokenIn, tokenOut);
     assert(amountIn > 0, "Invalid input amount");
     assert(amountOutMin > 0, "Invalid minimum output");
@@ -691,8 +691,6 @@ export function revokeRole(args: StaticArray<u8>): void {
     generateEvent(`Role revoked: ${role} from ${account.toString()}`);
 }
 
-
-// read functions 
 
 export function readPool(args: StaticArray<u8>): StaticArray<u8>{
     const argument = new Args(args);

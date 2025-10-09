@@ -26,36 +26,19 @@ interface DeployedAddresses {
   };
 }
 
-// Liquidity configuration
-const LIQUIDITY_TO_ADD = [
-    {
-      name: 'BEAM/USDT',
-      tokenA: 'BEAM',
-      tokenB: 'USDT',
-      amountA: '90000000', // 1 BEAM
-      amountB: '60000000', // 1 USDT (1 BEAM = 1 USDT)
-      decimalsA: 8,
-      decimalsB: 8,
-    },
-    {
-      name: 'BEAM/USDC',
-      tokenA: 'BEAM',
-      tokenB: 'USDC',
-      amountA: '500000000', // 5 BEAM
-      amountB: '90000000', // 1 USDC (5 BEAM = 1 USDC)
-      decimalsA: 8,
-      decimalsB: 8,
-    },
-    {
-      name: 'USDT/USDC',
-      tokenA: 'USDT',
-      tokenB: 'USDC',
-      amountA: '500000000', // 500M units (proportional to existing reserves)
-      amountB: '50000000', // 50M units (proportional to existing reserves)
-      decimalsA: 8,
-      decimalsB: 8,
-    },
-  ];
+// Liquidity removal configuration
+const LIQUIDITY_TO_REMOVE = [
+  {
+    name: 'BEAM/USDT',
+    tokenA: 'BEAM',
+    tokenB: 'USDT',
+    liquidityTokens: '1000', // Amount of LP tokens to burn
+    amountAMin: '0', // Minimum amount of token A to receive
+    amountBMin: '0', // Minimum amount of token B to receive
+    decimals: 18, // LP tokens typically have 18 decimals
+  },
+  // Add more pools as needed
+];
 
 function toU256(amount: string, decimals: number): bigint {
   const multiplier = BigInt(10 ** decimals);
@@ -66,7 +49,7 @@ function toU256(amount: string, decimals: number): bigint {
 
 async function main() {
   console.log('═══════════════════════════════════════════════════════');
-  console.log('💧 MassaBeam Add Liquidity Script');
+  console.log('💧 MassaBeam Remove Liquidity Script');
   console.log('═══════════════════════════════════════════════════════\n');
 
   // Load deployed addresses
@@ -93,11 +76,11 @@ async function main() {
   );
 
   console.log('🎯 AMM Contract:', deployedAddresses.contracts.massaBeam);
-  console.log(`💧 Adding liquidity to ${LIQUIDITY_TO_ADD.length} pools...\n`);
+  console.log(`💧 Removing liquidity from ${LIQUIDITY_TO_REMOVE.length} pools...\n`);
 
-  for (const liquidity of LIQUIDITY_TO_ADD) {
+  for (const liquidity of LIQUIDITY_TO_REMOVE) {
     console.log('═══════════════════════════════════════════════════════');
-    console.log(`💧 Adding liquidity to: ${liquidity.name}`);
+    console.log(`💧 Removing liquidity from: ${liquidity.name}`);
     console.log('═══════════════════════════════════════════════════════\n');
 
     const tokenAAddress = deployedAddresses.tokens[liquidity.tokenA];
@@ -110,68 +93,55 @@ async function main() {
 
     try {
       // Convert amounts to u256
-      const amountA256 = toU256(liquidity.amountA, liquidity.decimalsA);
-      const amountB256 = toU256(liquidity.amountB, liquidity.decimalsB);
+      const liquidityTokens256 = toU256(liquidity.liquidityTokens, liquidity.decimals);
+      const amountAMin256 = toU256(liquidity.amountAMin, liquidity.decimals);
+      const amountBMin256 = toU256(liquidity.amountBMin, liquidity.decimals);
 
       console.log(`📍 Token A (${liquidity.tokenA}): ${tokenAAddress}`);
       console.log(`📍 Token B (${liquidity.tokenB}): ${tokenBAddress}`);
-      console.log(`💧 Amount A: ${liquidity.amountA} ${liquidity.tokenA}`);
-      console.log(`💧 Amount B: ${liquidity.amountB} ${liquidity.tokenB}\n`);
+      console.log(`💧 LP Tokens to burn: ${liquidity.liquidityTokens}`);
+      console.log(`💧 Minimum ${liquidity.tokenA}: ${liquidity.amountAMin}`);
+      console.log(`💧 Minimum ${liquidity.tokenB}: ${liquidity.amountBMin}\n`);
 
-      // Step 1: Approve Token A
-      console.log(`🔓 Approving ${liquidity.tokenA}...`);
-      const tokenAContract = new SmartContract(provider, tokenAAddress);
+      // Step 1: Get pool info to check LP balance
+      console.log(`📊 Checking pool information...`);
 
-      await tokenAContract.call(
-        'increaseAllowance',
-        new Args().addString(deployedAddresses.contracts.massaBeam).addU256(amountA256),
-        { coins: Mas.fromString('0.01') }
-      );
+      const getPoolArgs = new Args()
+        .addString(tokenAAddress)
+        .addString(tokenBAddress);
 
-      console.log(`   ✅ ${liquidity.tokenA} approved\n`);
-      await sleep(2000);
+      const poolInfo = await ammContract.read('readPool', getPoolArgs);
+      console.log(`   ✅ Pool found\n`);
+      await sleep(1000);
 
-      // Step 2: Approve Token B
-      console.log(`🔓 Approving ${liquidity.tokenB}...`);
-      const tokenBContract = new SmartContract(provider, tokenBAddress);
+      // Step 2: Remove Liquidity
+      console.log(`💧 Removing liquidity...`);
 
-      await tokenBContract.call(
-        'increaseAllowance',
-        new Args().addString(deployedAddresses.contracts.massaBeam).addU256(amountB256),
-        { coins: Mas.fromString('0.01') }
-      );
+      const deadline = BigInt(60 * 60 * 1000); // 1 hour from now
 
-      console.log(`   ✅ ${liquidity.tokenB} approved\n`);
-      await sleep(2000);
-
-      // Step 3: Add Liquidity
-      console.log(`💧 Adding liquidity...`);
-
-      const deadline = BigInt( 60 * 60 * 1000); // 1 hour from now
-
-      const addLiquidityArgs = new Args()
+      const removeLiquidityArgs = new Args()
         .addString(tokenAAddress)
         .addString(tokenBAddress)
-        .addU64(BigInt(liquidity.amountA))
-        .addU64(BigInt(liquidity.amountB))
-        .addU64(BigInt(0)) // amountAMin
-        .addU64(BigInt(0)) // amountBMin
+        .addU256(liquidityTokens256)
+        .addU256(amountAMin256)
+        .addU256(amountBMin256)
         .addU64(deadline);
 
-      await ammContract.call('addLiquidity', addLiquidityArgs, {
+      const result = await ammContract.call('removeLiquidity', removeLiquidityArgs, {
         coins: Mas.fromString('0.1'),
       });
 
-      console.log(`   ✅ Liquidity added successfully!\n`);
+      console.log(`   ✅ Liquidity removed successfully!`);
+      console.log(`   📋 Operation ID: ${result}\n`);
       await sleep(3000);
     } catch (error) {
-      console.error(`❌ Failed to add liquidity to ${liquidity.name} pool:`, error);
+      console.error(`❌ Failed to remove liquidity from ${liquidity.name} pool:`, error);
       console.log('');
     }
   }
 
   console.log('═══════════════════════════════════════════════════════');
-  console.log('✨ Add liquidity completed!');
+  console.log('✨ Remove liquidity completed!');
   console.log('═══════════════════════════════════════════════════════\n');
 }
 
@@ -181,10 +151,10 @@ function sleep(ms: number): Promise<void> {
 
 main()
   .then(() => {
-    console.log('✅ Add liquidity script completed successfully!');
+    console.log('✅ Remove liquidity script completed successfully!');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('❌ Add liquidity failed:', error);
+    console.error('❌ Remove liquidity failed:', error);
     process.exit(1);
   });
