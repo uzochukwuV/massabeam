@@ -4,6 +4,7 @@ import { getTokenByAddress } from "../services/token-service.js";
 import { getProvider } from "../wallet.js";
 import { AMMContract } from "../amm-contract.js";
 import { TOKENS_LIST } from "../contracts-config.js";
+import { getBestQuote, executeSmartSwap, compareQuotes, formatQuote } from "../smartrouter-contract.js";
 
 let selectedFromToken = null;
 let selectedToToken = null;

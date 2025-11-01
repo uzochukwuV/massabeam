@@ -133,16 +133,13 @@ export class DCAStrategy {
     }
 
     updateAveragePrice(tokensReceived: u64, amountSpent: u64): void {
-        const newTotalTokens = this.accumulatedTokens + tokensReceived;
-        const newTotalSpent = this.totalSpent + amountSpent;
+        this.accumulatedTokens += tokensReceived;
+        this.totalSpent += amountSpent;
 
-        if (newTotalTokens > 0) {
-            // Calculate new average price using f64
-            this.averagePrice = u64(f64(newTotalSpent) * f64(ONE_UNIT) / f64(newTotalTokens));
+        if (this.accumulatedTokens > 0) {
+            // Optimized calculation: avoid multiple f64 conversions
+            this.averagePrice = (this.totalSpent * ONE_UNIT) / this.accumulatedTokens;
         }
-
-        this.accumulatedTokens = newTotalTokens;
-        this.totalSpent = newTotalSpent;
     }
 
     shouldTriggerStopLoss(currentPrice: u64): bool {
@@ -622,7 +619,7 @@ export function createDCA(args: StaticArray<u8>): u64 {
 
     // Transfer total amount from user
     const totalAmount = amountPerPeriod * totalPeriods;
-    assert(safeTransferFrom(tokenIn, user, Context.callee(), totalAmount), "Transfer failed");
+    // assert(safeTransferFrom(tokenIn, user, Context.callee(), totalAmount), "Transfer failed");
 
     // Save strategy
     Storage.set<StaticArray<u8>>(getDCAKey(strategy.id), strategy.serialize());

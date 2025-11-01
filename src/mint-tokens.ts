@@ -55,6 +55,11 @@ async function main() {
   const account = await Account.fromEnv();
   const provider = JsonRpcProvider.buildnet(account);
 
+  const f = await provider.getOperationStatus("O126TAmvXce5rCnkieNNftyi6qQniVLXs2hc4gRTC57ZHBpp3uPa");
+
+  const g = await provider.client.getOperation("O126TAmvXce5rCnkieNNftyi6qQniVLXs2hc4gRTC57ZHBpp3uPa")
+
+  console.log(g, "")
   console.log('📌 Using account:', account.address.toString());
   const balance = await provider.balanceOf([account.address.toString()]);
   console.log('💰 Account balance:', Mas.toString(balance[0].balance), 'MAS\n');

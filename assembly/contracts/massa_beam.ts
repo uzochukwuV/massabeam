@@ -9,6 +9,8 @@ import { Args, Result, stringToBytes } from "@massalabs/as-types";
 import { IERC20 } from "./interfaces/IERC20";
 import { u256, u128 } from 'as-bignum/assembly';
 
+// Constants for storage keys
+const POOL_KEY_PREFIX = "POOL:";
 // Core constants
 export const ONE_UNIT = 10 ** 9;
 export const MIN_LIQUIDITY: u64 = 1000; // Minimum liquidity lock

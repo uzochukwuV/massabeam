@@ -10,6 +10,9 @@ import {
   ArrayTypes,
   bytesToF64,
   bytesToStr,
+  bytesToF32,
+  bytesToSerializableObjectArray,
+  bytes,
 } from '@massalabs/massa-web3';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -33,7 +36,7 @@ interface DeployedAddresses {
 
 // Swap configuration
 const SWAP_CONFIG = {
-  tokenIn: 'BEAM',
+  tokenIn: 'USDC',
   tokenOut: 'USDT',
   amountIn: '9000000', // 1 BEAM
   minamountOut: "5000000",
@@ -213,18 +216,19 @@ async function main() {
       'balanceOf',
       new Args().addString(account.address.toString())
     );
-
-    const balanceInBefore = BigInt(bytesToStr(balanceInBeforeResult.value));
-    const balanceOutBefore =BigInt(bytesToStr(balanceOutBeforeResult.value)) ;
-
-    console.log(`   ${SWAP_CONFIG.tokenIn}: ${balanceInBefore}`);
-    console.log(`   ${SWAP_CONFIG.tokenOut}: ${balanceOutBefore}\n`);
-
+    
+    
     console.log(`🔄 Executing swap...`);
 
     await ammContract.call('swap', swapArgs, {
       coins: Mas.fromString('0.1'),
     });
+
+    console.log(bytesToStr(balanceInBeforeResult.value), bytesToStr(balanceOutBeforeResult.value), balanceInBeforeResult);
+    const balanceInBefore = BigInt(bytesToStr(balanceInBeforeResult.value));
+    const balanceOutBefore =BigInt(bytesToStr(balanceOutBeforeResult.value)) ;
+    console.log(`   ${SWAP_CONFIG.tokenIn}: ${balanceInBefore}`);
+    console.log(`   ${SWAP_CONFIG.tokenOut}: ${balanceOutBefore}\n`);
 
     console.log(`   ✅ Swap successful!\n`);
 
