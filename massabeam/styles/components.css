@@ -1277,3 +1277,151 @@
     padding: var(--space-lg);
   }
 }
+
+/* Liquidity Tabs */
+.liquidity-tabs {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+  border-bottom: 1px solid var(--surface-light);
+}
+
+.liquidity-tabs .tab-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-bottom: 2px solid transparent;
+}
+
+.liquidity-tabs .tab-btn.active,
+.liquidity-tabs .tab-btn:hover {
+  color: var(--text-primary);
+  border-bottom-color: var(--primary-blue);
+}
+
+/* Remove Liquidity Card */
+.remove-liquidity-card {
+  background: var(--gradient-surface);
+  border: 1px solid var(--surface-light);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-md);
+}
+
+.remove-liquidity-card.hidden {
+  display: none;
+}
+
+.add-liquidity-card.hidden {
+  display: none;
+}
+
+/* Range Slider for Remove Liquidity */
+.range-slider {
+  width: 100%;
+  height: 8px;
+  background: var(--surface-light);
+  border-radius: var(--radius-lg);
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--primary-blue);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  background: var(--accent-purple);
+  transform: scale(1.2);
+}
+
+.range-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--primary-blue);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+}
+
+.range-slider::-moz-range-thumb:hover {
+  background: var(--accent-purple);
+  transform: scale(1.2);
+}
+
+.range-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-md);
+}
+
+.range-value {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--primary-blue);
+  font-family: var(--font-family-mono);
+}
+
+.quick-percent-btns {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.percent-btn {
+  background: var(--surface-light);
+  color: var(--text-secondary);
+  border: 1px solid var(--surface-light);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.percent-btn:hover {
+  background: var(--primary-blue);
+  color: white;
+  border-color: var(--primary-blue);
+}
+
+/* Token Select as dropdown */
+.token-select {
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface-dark);
+  border: 1px solid var(--surface-dark);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 140px;
+  outline: none;
+}
+
+.token-select:hover,
+.token-select:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(0, 210, 255, 0.1);
+}
+
+.token-select option {
+  background: var(--surface-dark);
+  color: var(--text-primary);
+  padding: var(--space-md);
+}

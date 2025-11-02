@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MassaBeam - AMM & DEX Ecosystem</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/amm.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #00d4ff;
+            --primary-dark: #0099cc;
+            --secondary: #ff006e;
+            --background: #0a0e27;
+            --surface: #1a1f3a;
+            --surface-light: #252d4a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b9c3;
+            --border: #2d3748;
+            --success: #00d97e;
+            --warning: #ffa500;
+            --error: #ff4757;
+            --shadow: 0 10px 40px rgba(0, 212, 255, 0.15);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--background) 0%, #1a0033 100%);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        .brand-text {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: var(--background);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-secondary {
+            background: var(--surface-light);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: var(--background);
+        }
+
+        .wallet-status {
+            padding: 10px 15px;
+            background: var(--surface);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-tab {
+            padding: 15px 20px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .nav-tab:hover {
+            color: var(--primary);
+        }
+
+        /* Main Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .card-description {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        /* Token Selector */
+        .token-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        .token-select {
+            flex: 1;
+            padding: 12px 15px;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .token-swap-btn {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: var(--background);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .token-swap-btn:hover {
+            transform: rotate(180deg) scale(1.1);
+        }
+
+        /* Display Values */
+        .display-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .display-row:last-child {
+            border-bottom: none;
+        }
+
+        .display-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .display-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .display-value.highlight {
+            color: var(--primary);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-item {
+            background: var(--background);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-top: 5px;
+        }
+
+        /* Messages */
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .message-success {
+            background: rgba(0, 217, 126, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .message-error {
+            background: rgba(255, 71, 87, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .message-warning {
+            background: rgba(255, 165, 0, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+
+        .message-info {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .message-icon {
+            font-size: 16px;
+        }
+
+        /* Loading */
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Tables */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .table thead {
+            border-bottom: 2px solid var(--border);
+        }
+
+        .table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table tbody tr:hover {
+            background: var(--background);
+        }
+
+        .table-action-btn {
+            padding: 6px 12px;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .table-action-btn:hover {
+            background: var(--primary);
+            color: var(--background);
+        }
+
+        /* Section Visibility */
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+            .header-controls {
+                width: 100%;
+            }
+
+            .nav-tabs {
+                overflow-x: auto;
+            }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .empty-message {
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .empty-action-btn {
+            padding: 10px 20px;
+            background: var(--primary);
+            color: var(--background);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .empty-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <div class="logo">MB</div>
+                <div class="brand-text">MassaBeam</div>
+            </div>
+            <div class="header-controls">
+                <div class="wallet-status">
+                    <div class="status-dot"></div>
+                    <span id="walletStatusText">Connect Wallet</span>
+                </div>
+                <button class="btn btn-primary" id="connectWalletBtn">Connect</button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-tab="swap">💱 Swap</button>
+            <button class="nav-tab" data-tab="liquidity">💧 Liquidity</button>
+            <button class="nav-tab" data-tab="pools">📊 Pools</button>
+            <button class="nav-tab" data-tab="analytics">📈 Analytics</button>
+        </div>
+
+        <!-- Swap Section -->
+        <section id="swap" class="section active">
+            <div class="content-grid">
+                <!-- Swap Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Swap Tokens</div>
+                        <div class="card-description">Exchange tokens with best price</div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">From Token</div>
+                        <select id="swapTokenIn" class="token-select">
+                            <option value="">Select Token</option>
+                        </select>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">
+                            Balance: <span id="swapFromBalance">0</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">Amount</div>
+                        <input type="number" id="swapAmount" class="form-input" placeholder="0.0" min="0" step="any">
+                    </div>
+
+                    <div style="text-align: center; margin: 20px 0;">
+                        <button class="token-swap-btn" id="swapTokensBtn">⇅</button>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">To Token</div>
+                        <select id="swapTokenOut" class="token-select">
+                            <option value="">Select Token</option>
+                        </select>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">
+                            Balance: <span id="swapToBalance">0</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">Minimum Received</div>
+                        <input type="number" id="swapMinOutput" class="form-input" placeholder="0.0" readonly>
+                    </div>
+
+                    <button class="btn btn-primary" id="executeSwapBtn" style="width: 100%; margin-top: 20px;">
+                        Execute Swap
+                    </button>
+                </div>
+
+                <!-- Quote Info Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Quote Information</div>
+                        <div class="card-description">Real-time price and impact</div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="display-row">
+                            <span class="display-label">Exchange Rate</span>
+                            <span class="display-value highlight" id="exchangeRate">-</span>
+                        </div>
+                        <div class="display-row">
+                            <span class="display-label">Price Impact</span>
+                            <span class="display-value" id="priceImpact">-</span>
+                        </div>
+                        <div class="display-row">
+                            <span class="display-label">Network Fee</span>
+                            <span class="display-value" id="networkFee">-</span>
+                        </div>
+                        <div class="display-row">
+                            <span class="display-label">Minimum Output</span>
+                            <span class="display-value highlight" id="minOutput">-</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <div class="card-title" style="margin-bottom: 15px;">Pool Stats</div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">Pool Liquidity</div>
+                                <div class="stat-value" id="poolLiquidity">$0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Pool Fee</div>
+                                <div class="stat-value" id="poolFee">0.3%</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">24h Volume</div>
+                                <div class="stat-value" id="poolVolume">$0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Total TVL</div>
+                                <div class="stat-value" id="totalTVL">$0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="swapMessages"></div>
+        </section>
+
+        <!-- Liquidity Section -->
+        <section id="liquidity" class="section">
+            <div class="content-grid">
+                <!-- Add Liquidity -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Add Liquidity</div>
+                        <div class="card-description">Provide liquidity and earn fees</div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">Token A</div>
+                        <select id="liquidityTokenA" class="token-select">
+                            <option value="">Select Token</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">Amount A</div>
+                        <input type="number" id="liquidityAmountA" class="form-input" placeholder="0.0" min="0" step="any">
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">Token B</div>
+                        <select id="liquidityTokenB" class="token-select">
+                            <option value="">Select Token</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label">Amount B</div>
+                        <input type="number" id="liquidityAmountB" class="form-input" placeholder="0.0" min="0" step="any">
+                    </div>
+
+                    <button class="btn btn-primary" id="addLiquidityBtn" style="width: 100%; margin-top: 20px;">
+                        Add Liquidity
+                    </button>
+                </div>
+
+                <!-- Liquidity Info -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Liquidity Summary</div>
+                    </div>
+
+                    <div class="display-row">
+                        <span class="display-label">LP Tokens to Mint</span>
+                        <span class="display-value highlight" id="lpTokensToMint">-</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">Your Share of Pool</span>
+                        <span class="display-value" id="yourPoolShare">-</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">Estimated 24h Fee</span>
+                        <span class="display-value" id="estimated24hFee">-</span>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <div class="card-title" style="margin-bottom: 15px;">Your Positions</div>
+                        <div id="userPositions" style="color: var(--text-secondary); font-size: 13px;">
+                            <div class="empty-state">
+                                <div class="empty-icon">💧</div>
+                                <div class="empty-message">No liquidity positions</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="liquidityMessages"></div>
+        </section>
+
+        <!-- Pools Section -->
+        <section id="pools" class="section">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Available Pools</div>
+                    <div class="card-description">Browse and analyze all active pools</div>
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Pair</th>
+                                <th>Liquidity</th>
+                                <th>24h Volume</th>
+                                <th>Fee</th>
+                                <th>TVL Rank</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="poolsTableBody">
+                            <tr>
+                                <td colspan="6">
+                                    <div class="empty-state">
+                                        <div class="empty-icon">🏊</div>
+                                        <div class="empty-message">No pools found</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section id="analytics" class="section">
+            <div class="content-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Protocol Statistics</div>
+                    </div>
+
+                    <div class="display-row">
+                        <span class="display-label">Total TVL</span>
+                        <span class="display-value highlight" id="analyticsTVL">$0</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">Total Volume</span>
+                        <span class="display-value" id="analyticsVolume">$0</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">Total Pools</span>
+                        <span class="display-value" id="analyticsPoolCount">0</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">Contract Status</span>
+                        <span class="display-value" id="contractStatus" style="color: var(--success);">Active</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Your Activity</div>
+                    </div>
+
+                    <div class="display-row">
+                        <span class="display-label">Total Swaps</span>
+                        <span class="display-value" id="userSwapsCount">0</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">LP Positions</span>
+                        <span class="display-value" id="userPositionsCount">0</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">Total Fees Earned</span>
+                        <span class="display-value highlight" id="userFeesEarned">$0</span>
+                    </div>
+                    <div class="display-row">
+                        <span class="display-label">Last Activity</span>
+                        <span class="display-value" id="lastActivity">-</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Scripts -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@massalabs/wallet-provider": "https://unpkg.com/@massalabs/wallet-provider@latest/dist/index.js",
+            "@massalabs/massa-web3": "https://unpkg.com/@massalabs/massa-web3@latest/dist/index.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        // Import contract interaction functions
+        import AMMContract, {
+            getProtocolStats,
+            getExchangeRate,
+            estimateSlippage
+        } from './src/app/main.js';
+
+        // ====================================================================
+        // TAB NAVIGATION
+        // ====================================================================
+
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+
+                // Hide all sections
+                document.querySelectorAll('.section').forEach(section => {
+                    section.classList.remove('active');
+                });
+
+                // Show selected section
+                document.getElementById(tabName).classList.add('active');
+
+                // Update active tab
+                document.querySelectorAll('.nav-tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                tab.classList.add('active');
+
+                // Load section data
+                loadSectionData(tabName);
+            });
+        });
+
+        // ====================================================================
+        // SWAP FUNCTIONALITY
+        // ====================================================================
+
+        document.getElementById('executeSwapBtn')?.addEventListener('click', async () => {
+            const tokenIn = document.getElementById('swapTokenIn').value;
+            const tokenOut = document.getElementById('swapTokenOut').value;
+            const amount = document.getElementById('swapAmount').value;
+
+            if (!tokenIn || !tokenOut || !amount) {
+                showMessage('swapMessages', 'Please fill in all fields', 'warning');
+                return;
+            }
+
+            try {
+                const result = await AMMContract.swap(tokenIn, tokenOut, amount, 0, Math.floor(Date.now() / 1000) + 300);
+                showMessage('swapMessages', 'Swap executed successfully!', 'success');
+                document.getElementById('swapAmount').value = '';
+            } catch (error) {
+                showMessage('swapMessages', `Swap failed: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('swapTokensBtn')?.addEventListener('click', () => {
+            const tokenIn = document.getElementById('swapTokenIn');
+            const tokenOut = document.getElementById('swapTokenOut');
+            [tokenIn.value, tokenOut.value] = [tokenOut.value, tokenIn.value];
+        });
+
+        // ====================================================================
+        // LIQUIDITY FUNCTIONALITY
+        // ====================================================================
+
+        document.getElementById('addLiquidityBtn')?.addEventListener('click', async () => {
+            const tokenA = document.getElementById('liquidityTokenA').value;
+            const tokenB = document.getElementById('liquidityTokenB').value;
+            const amountA = document.getElementById('liquidityAmountA').value;
+            const amountB = document.getElementById('liquidityAmountB').value;
+
+            if (!tokenA || !tokenB || !amountA || !amountB) {
+                showMessage('liquidityMessages', 'Please fill in all fields', 'warning');
+                return;
+            }
+
+            try {
+                const result = await AMMContract.addLiquidity(
+                    tokenA, tokenB, amountA, amountB, amountA * 0.99, amountB * 0.99,
+                    Math.floor(Date.now() / 1000) + 300
+                );
+                showMessage('liquidityMessages', 'Liquidity added successfully!', 'success');
+                document.getElementById('liquidityAmountA').value = '';
+                document.getElementById('liquidityAmountB').value = '';
+            } catch (error) {
+                showMessage('liquidityMessages', `Failed to add liquidity: ${error.message}`, 'error');
+            }
+        });
+
+        // ====================================================================
+        // ANALYTICS
+        // ====================================================================
+
+        async function loadAnalytics() {
+            try {
+                const stats = await getProtocolStats();
+                if (stats) {
+                    document.getElementById('analyticsTVL').textContent = `$${(stats.tvl / 1e18).toFixed(2)}`;
+                    document.getElementById('analyticsVolume').textContent = `$${(stats.tvl / 1e18).toFixed(2)}`;
+                    document.getElementById('analyticsPoolCount').textContent = stats.poolCount;
+                }
+            } catch (error) {
+                console.error('Failed to load analytics:', error);
+            }
+        }
+
+        // ====================================================================
+        // UTILITIES
+        // ====================================================================
+
+        function showMessage(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            const div = document.createElement('div');
+            div.className = `message message-${type}`;
+            div.innerHTML = `
+                <span class="message-icon">${getMessageIcon(type)}</span>
+                <span>${message}</span>
+            `;
+            container.appendChild(div);
+
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        function getMessageIcon(type) {
+            const icons = {
+                success: '✓',
+                error: '✕',
+                warning: '!',
+                info: 'ℹ'
+            };
+            return icons[type] || '•';
+        }
+
+        async function loadSectionData(section) {
+            if (section === 'analytics') {
+                await loadAnalytics();
+            }
+        }
+
+        // Initial load
+        loadAnalytics();
+    </script>
+</body>
+</html>

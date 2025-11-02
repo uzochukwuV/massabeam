@@ -10,17 +10,27 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+     <script type="importmap">
+{
+    "imports": {
+        "@massalabs/massa-web3": "https://unpkg.com/@massalabs/massa-web3@latest/dist/index.js",
+        "@massalabs/wallet-provider": "https://unpkg.com/@massalabs/wallet-provider@latest/dist/index.js",
+        "@dusalabs/sdk": "https://unpkg.com/@dusalabs/sdk@latest/dist/index.js"
+    }
+}
+</script>
 </head>
 <body>
     <div class="app-container">
         <!-- Error Message -->
         <div id="errorMessage" class="error-message"></div>
         
-        <!-- Loading Overlay -->
+        <!-- Loading Overlay
         <div id="loadingOverlay" class="loading-overlay">
             <div class="loading-spinner"></div>
             <div class="loading-text">Connecting to Massa Network...</div>
-        </div>
+        </div> -->
 
         <!-- Header -->
         <header class="app-header">
@@ -53,11 +63,11 @@
         <nav class="app-nav">
             <div class="nav-container">
                 <div class="nav-items">
-                    <button class="nav-item active" data-section="dashboard">
+                    <button class="nav-item " data-section="dashboard">
                         <span class="nav-icon">📊</span>
                         <span class="nav-text">Dashboard</span>
                     </button>
-                    <button class="nav-item" data-section="trade">
+                    <button class="nav-item active" data-section="trade">
                         <span class="nav-icon">⚡</span>
                         <span class="nav-text">Trade</span>
                     </button>
@@ -93,7 +103,7 @@
         <!-- Main Content -->
         <main class="app-main">
             <!-- Dashboard Section -->
-            <section id="dashboard" class="section active">
+            <section id="dashboard" class="section">
                 <div class="section-header">
                     <h1 class="section-title">Dashboard</h1>
                     <div class="section-actions">
@@ -211,7 +221,7 @@
             </section>
 
             <!-- Trade Section -->
-            <section id="trade" class="section">
+            <section id="trade" class="section active">
                 <div class="section-header">
                     <h1 class="section-title">Trade</h1>
                     <div class="section-actions">
@@ -240,10 +250,9 @@
                                     </div>
                                     <div class="input-container">
                                         <input type="number" id="fromAmount" placeholder="0.0" class="amount-input">
-                                        <button class="token-select" id="fromTokenSelect">
-                                            <span class="token-symbol">Select Token</span>
-                                            <span class="dropdown-arrow">▼</span>
-                                        </button>
+                                        <select class="token-select" id="swapTokenIn">
+                                            <option value="">Select Token</option>
+                                        </select>
                                     </div>
                                     <div class="input-footer">
                                         <span class="usd-value" id="fromUsdValue">$0.00</span>
@@ -264,10 +273,9 @@
                                     </div>
                                     <div class="input-container">
                                         <input type="number" id="toAmount" placeholder="0.0" class="amount-input" readonly>
-                                        <button class="token-select" id="toTokenSelect">
-                                            <span class="token-symbol">Select Token</span>
-                                            <span class="dropdown-arrow">▼</span>
-                                        </button>
+                                        <select class="token-select" id="swapTokenOut">
+                                            <option value="">Select Token</option>
+                                        </select>
                                     </div>
                                     <div class="input-footer">
                                         <span class="usd-value" id="toUsdValue">$0.00</span>
@@ -876,8 +884,15 @@
                 </div>
 
                 <div class="liquidity-container">
+                    <!-- Liquidity Tabs -->
+                    <div class="liquidity-tabs">
+                        <button class="tab-btn active" data-tab="add" onclick="switchLiquidityTab('add')">Add Liquidity</button>
+                        <button class="tab-btn" data-tab="remove" onclick="switchLiquidityTab('remove')">Remove Liquidity</button>
+                    </div>
+
                     <div class="liquidity-panel">
-                        <div class="add-liquidity-card">
+                        <!-- Add Liquidity Card -->
+                        <div class="add-liquidity-card" id="addLiquidityCard">
                             <div class="card-header">
                                 <h3 class="card-title">Add Liquidity</h3>
                             </div>
@@ -931,8 +946,70 @@
                                         <span class="summary-value" id="liquidityFee">~0.001 MAS</span>
                                     </div>
                                 </div>
-                                <button type="submit" class="primary-btn full-width" id="addLiquidityBtn">
+                                <button type="submit" class="primary-btn full-width" id="addLiquidityBtn" onclick="addLiquidity()">
                                     <span>Add Liquidity</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Remove Liquidity Card -->
+                        <div class="remove-liquidity-card hidden" id="removeLiquidityCard">
+                            <div class="card-header">
+                                <h3 class="card-title">Remove Liquidity</h3>
+                            </div>
+                            <form class="liquidity-form" id="removeLiquidityForm">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Select Pool</label>
+                                        <select class="form-select" id="removeLiquidityPool">
+                                            <option value="">Select Pool</option>
+                                        </select>
+                                        <div class="input-hint">LP Balance: <span id="lpTokenBalance">0</span></div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Amount to Remove (%)</label>
+                                    <input type="range" id="removeLiquidityPercent" min="0" max="100" value="50" class="range-slider">
+                                    <div class="range-display">
+                                        <span class="range-value" id="removeLiquidityPercentDisplay">50%</span>
+                                        <div class="quick-percent-btns">
+                                            <button type="button" class="percent-btn" onclick="setRemovePercent(25)">25%</button>
+                                            <button type="button" class="percent-btn" onclick="setRemovePercent(50)">50%</button>
+                                            <button type="button" class="percent-btn" onclick="setRemovePercent(75)">75%</button>
+                                            <button type="button" class="percent-btn" onclick="setRemovePercent(100)">MAX</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">LP Tokens to Remove</label>
+                                    <input type="number" id="removeLiquidityAmount" placeholder="0.0" class="form-input" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Slippage Tolerance</label>
+                                    <div class="slippage-selector">
+                                        <button type="button" class="slippage-btn active" data-slippage="0.1">0.1%</button>
+                                        <button type="button" class="slippage-btn" data-slippage="0.5">0.5%</button>
+                                        <button type="button" class="slippage-btn" data-slippage="1.0">1.0%</button>
+                                        <input type="number" class="slippage-input" placeholder="Custom" step="0.1" min="0.1" max="50">
+                                    </div>
+                                </div>
+                                <div class="liquidity-summary">
+                                    <div class="summary-row">
+                                        <span class="summary-label">You Will Receive (Min)</span>
+                                        <span class="summary-value" id="removeReceiveTokenA">0 TOKEN A</span>
+                                    </div>
+                                    <div class="summary-row">
+                                        <span class="summary-label"></span>
+                                        <span class="summary-value" id="removeReceiveTokenB">0 TOKEN B</span>
+                                    </div>
+                                    <div class="summary-row">
+                                        <span class="summary-label">Network Fee</span>
+                                        <span class="summary-value" id="removeLiquidityFee">~0.001 MAS</span>
+                                    </div>
+                                </div>
+                                <button type="submit" class="primary-btn full-width" id="removeLiquidityBtn" onclick="removeLiquidity()">
+                                    <span>Remove Liquidity</span>
                                     <div class="btn-glow"></div>
                                 </button>
                             </form>
@@ -1048,7 +1125,7 @@
                                 <span class="summary-value" id="createPoolFee">~0.001 MAS</span>
                             </div>
                         </div>
-                        <button type="submit" class="primary-btn full-width" id="createPoolBtn">
+                        <button type="submit" class="primary-btn full-width" id="createPoolBtn" onclick="createPool()">
                             <span>Create Pool</span>
                             <div class="btn-glow"></div>
                         </button>
@@ -1076,16 +1153,8 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <!-- Using new organized structure -->
-     <script type="importmap">
-    {
-        "imports": {
-            "@massalabs/wallet-provider": "/node_modules/@massalabs/wallet-provider/dist/index.js",
-            "@massalabs/massa-web3": "/node_modules/@massalabs/massa-web3/dist/index.js"
-        }
-    }
-    </script>
-    <script type="module" src="./src/js/organisation/app.js"></script>
+   
+
+<script type="module" src="./src/app/app-init.js"></script>
 </body>
 </html>
