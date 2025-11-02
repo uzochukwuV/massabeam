@@ -6,7 +6,7 @@ import {
     Storage,
 } from "@massalabs/massa-as-sdk";
 import { Args, Result, stringToBytes } from "@massalabs/as-types";
-import { IERC20 } from "./interfaces/IERC20";
+import { IERC20 } from "../interfaces/IERC20";
 import { u256, u128 } from 'as-bignum/assembly';
 
 // Constants for storage keys

@@ -1,22 +1,12 @@
 {
-  "tokens": {
-    "USDT": "AS12G3MkaQfDnd2MPGaRLywmM1YeW5vVXzew44LEPw4DWws4JNhHR",
-    "USDC": "AS12WCnemJ74H4W4qvAxQf1dawKumqCpaX9FYrdqzYxMg1taPwHUW",
-    "BEAM": "AS12mFnrkTmzfWxr2BdzBGbP2jzDjVaXgW7gKJ3GDCNDeLY8e8kf1"
-  },
   "contracts": {
-    "massaBeam": "AS16qm8GdcYX6KcRxXrMvd5dYb6qoxBXaUeNw8N8DGue92buDGJn",
-    "massaBeamDCA": "AS18x4Vyn8Dzqq5wuj5sWYa7Zr6VstqgVDQYPDSwMNgmwWMwFiwD",
-    "massaBeamEngine": "AS1Ln3YH3uVuoEyhb4f77zTQKV2uD29B5vNBKrs3h4myx4G9SE63",
-    "smartRouter": "AS15UJzw98zzZcdYEYyocGmG9EGbp754LBvV2tjNHRMGkiaeptMc",
-    "limitOrders": "AS12vCbBN8euroxW6Sum2q3jHKQHXpJWhsV4WhC4qJEJThNqXvJSV"
+    "massaBeam": "AS1hRjXF9cpLGqF1jXebHofnQj4L8KsRCWjJucRR47u2ChfgcCdt",
+    "smartSwap": "AS1ipXFSVG1K9xNxLM7mwDhhPyoYmJtQwm47Yvf5FBZdZKXTUcD7"
   },
-  "deployer": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
-  "timestamp": "2025-10-28T14:31:00.764Z",
-  "dussa": {
-    "router": "AS1XqtvX3rz2RWbnqLfaYVKEjM3VS5pny9yKDdXcmJ5C1vrcLEFd",
-    "quoter": "AS1Wse7vxWvB1iP1DwNQTQQctwU1fQ1jrq5JgdSPZH132UYrYrXF",
-    "factory": "AS125Y3UWiMoEx3w71jf7iq1RwkxXdwkEVdoucBTAmvyzGh2KUqXS",
-    "wmas": "AS12FW5Rs5YN2zdpEnqwj4iHUUPt9R4Eqjq2qtpJFNKW3mn33RuLU"
+  "deployment": {
+    "timestamp": "2025-11-02T00:54:01.062Z",
+    "network": "buildnet",
+    "account": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
+    "txHash": "N/A"
   }
 }

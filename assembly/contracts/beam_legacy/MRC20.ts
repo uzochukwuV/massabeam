@@ -7,13 +7,13 @@ import {
 } from '@massalabs/massa-as-sdk';
 import { Args, stringToBytes, u256ToBytes } from '@massalabs/as-types';
 import { _balance, _setBalance, _approve, _allowance } from './MRC20-internals';
-export { setOwner, onlyOwner, ownerAddress, isOwner } from './utils/ownership';
-import { setOwner } from './utils/ownership';
+export { setOwner, onlyOwner, ownerAddress, isOwner } from '../utils/ownership';
+import { setOwner } from '../utils/ownership';
 // export {OWNER_KEY} from './utils/ownership-internal';
 import { u256 } from 'as-bignum/assembly';
-export { mint } from './mintable/mint';
-import { _mint } from './mintable/mint-internal';
-import { OWNER_KEY } from './utils/ownership-internal';
+export { mint } from '../mintable/mint';
+import { _mint } from '../mintable/mint-internal';
+import { OWNER_KEY } from '../utils/ownership-internal';
 
 
 

@@ -23,12 +23,12 @@ import { Args } from "@massalabs/as-types";
 import { u256 } from "as-bignum/assembly/integer/u256";
 
 // Import Dussa interfaces
-import { IRouter as IDussaRouter } from "./interfaces/IRouter";
-import { IQuoter as IDussaQuoter } from "./interfaces/IQuoter";
-import { IERC20 } from "./interfaces/IERC20";
+import { IRouter as IDussaRouter } from "../interfaces/IRouter";
+import { IQuoter as IDussaQuoter } from "../interfaces/IQuoter";
+import { IERC20 } from "../interfaces/IERC20";
 
 // Import MassaBeam interface and types
-import { IMassaBeamAMM } from "./interfaces/IMassaBeamAMM";
+import { IMassaBeamAMM } from "../interfaces/IMassaBeamAMM";
 import { getPool, Pool } from "./massa_beam";
 
 // Configuration - will be set in constructor

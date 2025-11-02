@@ -14,7 +14,7 @@ import {
     findCheapestSlot
 } from "@massalabs/massa-as-sdk";
 import { Args, stringToBytes } from "@massalabs/as-types";
-import { IERC20 } from "./interfaces/IERC20";
+import { IERC20 } from "../interfaces/IERC20";
 import {
     ONE_UNIT,
     getPool,

@@ -21,4 +21,4 @@ export {
   ownerAddress as owner
 } from './MRC20';
 
-export { setOwner, onlyOwner, isOwner } from './utils/ownership';
+export { setOwner, onlyOwner, isOwner } from '../utils/ownership';

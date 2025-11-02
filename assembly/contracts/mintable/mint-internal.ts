@@ -1,7 +1,7 @@
 import { Args, bytesToU256, u256ToBytes } from '@massalabs/as-types';
-import { _balance, _setBalance } from '../MRC20-internals';
+import { _balance, _setBalance } from '../beam_legacy/MRC20-internals';
 import { Address, Storage, generateEvent } from '@massalabs/massa-as-sdk';
-import { TOTAL_SUPPLY_KEY, totalSupply } from '../MRC20';
+import { TOTAL_SUPPLY_KEY, totalSupply } from '../beam_legacy/MRC20';
 import { u256 } from 'as-bignum/assembly';
 
 /**
