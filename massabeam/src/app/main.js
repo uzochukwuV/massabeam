@@ -16,6 +16,11 @@
  */
 
 import { Args, bytesToStr, MRC20 } from "@massalabs/massa-web3";
+import {
+  Account,
+  SmartContract,
+  JsonRpcProvider,
+} from '@massalabs/massa-web3';
 import {DAI, USDC, WETH, USDT, WBTC, WETH_B} from "@dusalabs/sdk"
 export const DEPLOYED_CONTRACTS = {
   // Token Addresses
@@ -26,7 +31,7 @@ export const DEPLOYED_CONTRACTS = {
   },
 
   // Protocol Contracts
-  AMM: "AS1x8K4VnKatHuP1uUHzxcAVCHoFtytm6KoxuxKcBrjrb8h2Lbq4",
+  AMM: "AS1hRjXF9cpLGqF1jXebHofnQj4L8KsRCWjJucRR47u2ChfgcCdt",
   DCA: "AS12Z8eKEdKv6mJiBFrh53gWFLY3K5LnKnxuFymCCXEBpk3rMD7Ua",
   ENGINE: "AS1QXNZ6MB9GV3zmtSLgEKFAXs3Sxcp4qnCtupLXku942QgxBn4P",
 
@@ -51,7 +56,7 @@ import { OperationStatus, Mas,formatReadOnlyCallResponse } from "@massalabs/mass
 
 import { getWallets, WalletName } from "@massalabs/wallet-provider";
 
-const tokenList = [DAI, USDC, WETH, USDT, WBTC, WETH_B ]
+const tokenList = [DAI[0], USDC[0], WETH[0], USDT[0], WBTC[0], WETH_B[0] ]
 
 function getTokenAddress(params) {
     return tokenList.find(token => token.address === params);
@@ -242,6 +247,7 @@ export async function readContract(contractAddress, functionName, args) {
       maxGas: 1_000_000_000n,
       coins: Mas.fromString("0.1"), 
     });
+    console.log("Contract read result:", result);
     return result.value;
   } catch (error) {
     console.error(`Contract read failed: ${functionName}`, error);
@@ -252,11 +258,15 @@ export async function readContract(contractAddress, functionName, args) {
 
 const CONTRACTS = {
   AMM: DEPLOYED_CONTRACTS.AMM,
+  LIMIT_ORDERS: DEPLOYED_CONTRACTS.LIMIT_ORDERS || 'AS12YOUR_LIMIT_ORDERS_CONTRACT_ADDRESS_HERE', // TODO: Add deployed address
 };
 
 
 function getTokenByAddress(params) {
-    const token = tokenList.findLast(token => token.address === params);
+    
+    const token = tokenList.find(token => token.address === params);
+
+    console.log( token);
     return  new MRC20(provider, token.address);
 }
 
@@ -597,10 +607,42 @@ export const AMMContract = {
         .addString(tokenB)
         .serialize();
 
-      const result = await readContract(CONTRACTS.AMM, "readPool", args);
-      const poolData = bytesToStr(result);
+      const result = await await readContract(CONTRACTS.AMM, "readPool", args);
+     
+      const result2 = await readContract(CONTRACTS.AMM, "readPoolTotalLiquidity", args);
+      console.log("Raw pool data:", bytesToStr(result2));
+      console.log(result)
+      const poolInfo = new Args(result)
+      const tokenAMain = poolInfo.nextString()
+      const tokenBMain = poolInfo.nextString()
 
-      console.log("Pool data:", poolData);
+      
+
+        const reserveA = poolInfo.nextU64()
+        const reserveB = poolInfo.nextU64()
+        const totalSupply = poolInfo.nextU64()
+        const fee = poolInfo.nextU64()
+        const lastUpdateTime = poolInfo.nextU64()
+        const isActive = poolInfo.nextBool()
+        const cumulativePriceA = poolInfo.nextU64()
+        const cumulativePriceB = poolInfo.nextU64()
+        const blockTimestampLast = poolInfo.nextU64()
+
+      const poolData = {
+        tokenA: tokenAMain,
+        tokenB: tokenBMain,
+
+        reserveA: Number(reserveA.toString()),
+        reserveB: Number(reserveB.toString()),
+        totalSupply: Number(totalSupply.toString()),
+        fee: Number(fee.toString()),
+        lastUpdateTime: lastUpdateTime.toString(),
+        isActive,
+        cumulativePriceA: cumulativePriceA.toString(),
+        cumulativePriceB: cumulativePriceB.toString(),
+        blockTimestampLast: blockTimestampLast.toString(),
+      };
+      console.log("Parsed pool data:", poolData);
       return poolData;
     } catch (error) {
       console.error("Failed to get pool:", error);
@@ -1073,27 +1115,27 @@ export async function getProtocolStats() {
  *
  * @param {string} tokenA - First token address
  * @param {string} tokenB - Second token address
- * @param {string|number} amountA - Amount of token A (default: 1 with 18 decimals)
+ * @param {string|number} amountA - Amount of token A (default: 1 with 8 decimals for Massa u64)
  * @returns {Promise<Object|null>} Exchange rate info or null if pool doesn't exist
  *
  * @example
- * const rate = await getExchangeRate('AU1...', 'AU2...', '1000000000000000000');
+ * const rate = await getExchangeRate('AU1...', 'AU2...', '100000000'); // 1 token with 8 decimals
  * console.log(`1 TokenA = ${rate.rate} TokenB`);
  */
-export async function getExchangeRate(tokenA, tokenB, amountA = '1000000000000000000') {
+export async function getExchangeRate(tokenA, tokenB, amountA = '100000000') {
   try {
     const pool = await AMMContract.getPool(tokenA, tokenB);
     if (!pool) {
       throw new Error('Pool not found');
     }
 
-    // Parse pool data
+    // Parse pool data (already parsed correctly in getPool)
     const poolData = typeof pool === 'string' ? JSON.parse(pool) : pool;
 
     const amountOut = await AMMContract.getAmountOut(
       amountA,
-      poolData.reserveA || poolData.reserveIn,
-      poolData.reserveB || poolData.reserveOut,
+      poolData.reserveA,
+      poolData.reserveB,
       poolData.fee || 3000
     );
 
@@ -1116,11 +1158,11 @@ export async function getExchangeRate(tokenA, tokenB, amountA = '100000000000000
  *
  * @param {string} tokenIn - Token to sell
    * @param {string} tokenOut - Token to buy
-   * @param {string|number} amountIn - Amount to sell
+   * @param {string|number} amountIn - Amount to sell (in smallest unit, 8 decimals)
    * @returns {Promise<Object|null>} Slippage estimate or null
    *
    * @example
-   * const slippage = await estimateSlippage('AU1...', 'AU2...', '1000000000000000000');
+   * const slippage = await estimateSlippage('AU1...', 'AU2...', '100000000'); // 1 token with 8 decimals
    * console.log(`Price impact: ${slippage.priceImpact}%`);
    */
 export async function estimateSlippage(tokenIn, tokenOut, amountIn) {
@@ -1132,22 +1174,24 @@ export async function estimateSlippage(tokenIn, tokenOut, amountIn) {
 
     const poolData = typeof pool === 'string' ? JSON.parse(pool) : pool;
 
-    // Get prices
+    // Get base price for 1 token (8 decimals = 100000000)
+    const oneToken = '100000000';
     const basePrice = await AMMContract.getAmountOut(
-      '1000000000000000000',
-      poolData.reserveIn || poolData.reserveA,
-      poolData.reserveOut || poolData.reserveB,
+      oneToken,
+      poolData.reserveA,
+      poolData.reserveB,
       poolData.fee || 3000
     );
 
     const actualOutput = await AMMContract.getAmountOut(
       amountIn,
-      poolData.reserveIn || poolData.reserveA,
-      poolData.reserveOut || poolData.reserveB,
+      poolData.reserveA,
+      poolData.reserveB,
       poolData.fee || 3000
     );
 
-    const expectedOutput = (toBI(amountIn) * basePrice) / BigInt('1000000000000000000');
+    // Calculate expected output based on base price
+    const expectedOutput = (toBI(amountIn) * toBI(basePrice)) / toBI(oneToken);
     const priceImpact = ((Number(expectedOutput) - Number(actualOutput)) / Number(expectedOutput)) * 100;
 
     return {
@@ -1162,5 +1206,243 @@ export async function estimateSlippage(tokenIn, tokenOut, amountIn) {
     return null;
   }
 }
+
+// ============================================================================
+// LIMIT ORDERS CONTRACT
+// ============================================================================
+
+/**
+ * Limit Orders Contract Integration
+ *
+ * Provides time-based and price-based order execution with:
+ * - Autonomous execution when conditions are met
+ * - MEV protection with configurable delays
+ * - Partial fill support
+ * - Order lifecycle management (active, filled, cancelled, expired)
+ */
+export const LimitOrdersContract = {
+  /**
+   * Create a new limit order
+   *
+   * @param {string} tokenIn - Token to sell
+   * @param {string} tokenOut - Token to buy
+   * @param {string|number} amountIn - Amount to sell (8 decimals)
+   * @param {string|number} minAmountOut - Minimum output (8 decimals)
+   * @param {string|number} limitPrice - Target price (18 decimals)
+   * @param {number} expiryTime - Unix timestamp in milliseconds
+   * @param {number} maxSlippage - Slippage tolerance in basis points (default 100 = 1%)
+   * @param {boolean} partialFill - Allow partial fills (default false)
+   * @returns {Promise<number>} Order ID
+   */
+  async createOrder(tokenIn, tokenOut, amountIn, minAmountOut, limitPrice, expiryTime, maxSlippage = 100, partialFill = false) {
+    try {
+      console.log("Creating limit order:", {
+        tokenIn,
+        tokenOut,
+        amountIn,
+        minAmountOut,
+        limitPrice,
+        expiryTime,
+        maxSlippage,
+        partialFill
+      });
+
+      const args = new Args()
+        .addString(tokenIn)
+        .addString(tokenOut)
+        .addU64(toBI(amountIn))
+        .addU64(toBI(minAmountOut))
+        .addU64(toBI(limitPrice))
+        .addU64(BigInt(expiryTime))
+        .addU64(BigInt(maxSlippage))
+        .addBool(partialFill);
+
+      const result = await callContract(CONTRACTS.LIMIT_ORDERS, 'createLimitOrder', args.serialize());
+
+      // Parse order ID from result
+      const orderIdStr = bytesToStr(result);
+      const orderId = parseInt(orderIdStr);
+
+      console.log("Order created with ID:", orderId);
+      showSuccess(`Order created successfully! ID: ${orderId}`);
+
+      return orderId;
+    } catch (error) {
+      console.error("Failed to create limit order:", error);
+      showError(`Failed to create order: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Cancel an active order
+   *
+   * @param {number} orderId - ID of order to cancel
+   * @returns {Promise<boolean>} Success
+   */
+  async cancelOrder(orderId) {
+    try {
+      console.log("Cancelling order:", orderId);
+
+      const args = new Args().addU64(BigInt(orderId));
+      await callContract(CONTRACTS.LIMIT_ORDERS, 'cancelLimitOrder', args.serialize());
+
+      showSuccess(`Order ${orderId} cancelled successfully!`);
+      return true;
+    } catch (error) {
+      console.error("Failed to cancel order:", error);
+      showError(`Failed to cancel order: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Execute a limit order (keeper function)
+   *
+   * @param {number} orderId - Order to execute
+   * @param {string|number} currentPrice - Current price (18 decimals)
+   * @returns {Promise<boolean>} Success
+   */
+  async executeOrder(orderId, currentPrice) {
+    try {
+      console.log("Executing order:", { orderId, currentPrice });
+
+      const args = new Args()
+        .addU64(BigInt(orderId))
+        .addU64(toBI(currentPrice));
+
+      await callContract(CONTRACTS.LIMIT_ORDERS, 'executeLimitOrder', args.serialize());
+
+      showSuccess(`Order ${orderId} executed successfully!`);
+      return true;
+    } catch (error) {
+      console.error("Failed to execute order:", error);
+      showError(`Failed to execute order: ${error.message}`);
+      throw error;
+    }
+  },
+
+  /**
+   * Get order details
+   *
+   * @param {number} orderId - Order ID
+   * @returns {Promise<Object|null>} Order details
+   */
+  async getOrderDetails(orderId) {
+    try {
+      const args = new Args().addU64(BigInt(orderId));
+      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'getOrderDetails', args.serialize());
+
+      if (!result || result.length === 0) {
+        return null;
+      }
+
+      // Parse order data
+      const orderArgs = new Args(result);
+
+      const order = {
+        id: Number(orderArgs.nextU64().unwrap()),
+        user: orderArgs.nextString().unwrap(),
+        tokenIn: orderArgs.nextString().unwrap(),
+        tokenOut: orderArgs.nextString().unwrap(),
+        amountIn: Number(orderArgs.nextU64().unwrap()),
+        minAmountOut: Number(orderArgs.nextU64().unwrap()),
+        limitPrice: Number(orderArgs.nextU64().unwrap()),
+        expiryTime: Number(orderArgs.nextU64().unwrap()),
+        createdTime: Number(orderArgs.nextU64().unwrap()),
+        status: orderArgs.nextU8().unwrap(),
+        executedAmount: Number(orderArgs.nextU64().unwrap()),
+        remainingAmount: Number(orderArgs.nextU64().unwrap()),
+        maxSlippage: Number(orderArgs.nextU64().unwrap()),
+        partialFillAllowed: orderArgs.nextBool().unwrap(),
+        useTWAP: orderArgs.nextBool().unwrap(),
+        minExecutionDelay: Number(orderArgs.nextU64().unwrap()),
+        maxPriceImpact: Number(orderArgs.nextU64().unwrap()),
+        executionWindow: Number(orderArgs.nextU64().unwrap())
+      };
+
+      console.log("Order details:", order);
+      return order;
+    } catch (error) {
+      console.error("Failed to get order details:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Get all orders for a user
+   *
+   * @param {string} userAddress - User address
+   * @returns {Promise<number[]>} Array of order IDs
+   */
+  async getUserOrders(userAddress) {
+    try {
+      const args = new Args().addString(userAddress);
+      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'getUserOrders', args.serialize());
+
+      if (!result || result.length === 0) {
+        return [];
+      }
+
+      // Parse array of order IDs
+      const orderArgs = new Args(result);
+      const orderIds = orderArgs.nextFixedSizeArray().unwrapOrDefault();
+
+      console.log("User orders:", orderIds);
+      return orderIds.map(id => Number(id));
+    } catch (error) {
+      console.error("Failed to get user orders:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Check if order is eligible for execution
+   *
+   * @param {number} orderId - Order ID
+   * @returns {Promise<boolean>} Eligibility
+   */
+  async isOrderEligible(orderId) {
+    try {
+      const args = new Args().addU64(BigInt(orderId));
+      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'isOrderEligible', args.serialize());
+
+      const resultArgs = new Args(result);
+      const eligible = resultArgs.nextBool().unwrap();
+
+      return eligible;
+    } catch (error) {
+      console.error("Failed to check order eligibility:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Get total order count
+   *
+   * @returns {Promise<number>} Total orders
+   */
+  async getOrderCount() {
+    try {
+      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'getOrderCount');
+      const countStr = bytesToStr(result);
+      return parseInt(countStr) || 0;
+    } catch (error) {
+      console.error("Failed to get order count:", error);
+      return 0;
+    }
+  }
+};
+
+// Order status constants
+export const ORDER_STATUS = {
+  ACTIVE: 0,
+  FILLED: 1,
+  CANCELLED: 2,
+  EXPIRED: 3
+};
+
+export const ORDER_STATUS_NAMES = ['Active', 'Filled', 'Cancelled', 'Expired'];
+export const ORDER_STATUS_COLORS = ['blue', 'green', 'gray', 'red'];
 
 export default AMMContract;

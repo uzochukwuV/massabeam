@@ -182,6 +182,12 @@ async function swapExactInput(
 
     // Execute swap
     logInfo('Executing swap...');
+    const pool = await contract.read('readPool', new Args().addString(swap.tokenA.address).addString(swap.tokenB.address));
+    console.log(pool)
+    const poolInfo = new Args(pool.value)
+    console.log(poolInfo.nextString())
+    console.log(poolInfo.nextString())
+
 
     const swapArgs = new Args()
       .addString(swap.tokenA.address)
