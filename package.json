@@ -12,6 +12,8 @@
         "deploy:smartrouter": "npm run build && tsx src/deploy-smartrouter.ts",
         "mint-tokens": "tsx src/mint-tokens.ts",
         "limit": "tsx src/test-limit-orders.ts",
+        "test-flash-arb": "tsx src/test-flash-arbitrage.ts",
+        "test-recurring": "tsx src/test-recurring-orders.ts",
         "add-liquidity": "tsx src/add-liquidity.ts",
         "remove-liquidity": "tsx src/remove-liquidity.ts",
         "swap": "tsx src/swap.ts",
