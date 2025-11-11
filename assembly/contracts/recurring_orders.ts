@@ -654,7 +654,7 @@ export function advance(_: StaticArray<u8>): void {
   // Check and execute eligible orders
   for (let i = startOrderId; i <= endOrderId; i++) {
     const order = getRecurringOrder(i);
-    if (order == null) {
+    if (order == null || order.status != ORDER_STATUS_ACTIVE) {
       continue;
     }
 
@@ -665,10 +665,18 @@ export function advance(_: StaticArray<u8>): void {
       continue; // Pool unavailable
     }
 
+    // Grid orders: Always check all levels
+    if (order.orderType == ORDER_TYPE_GRID) {
+      executeRecurringOrder(order);
+      executedCount += 1;
+      continue;
+    }
+
     // Check if should execute on price
     if (order.executionMode == EXECUTION_MODE_TRIGGERED && order.canExecuteOnPrice(currentPrice)) {
       executeRecurringOrder(order);
       executedCount += 1;
+      continue;
     }
 
     // Check if should execute on time
@@ -695,13 +703,19 @@ export function advance(_: StaticArray<u8>): void {
  */
 function executeRecurringOrder(order: RecurringOrder): void {
   const massaBeamAddress = new Address(Storage.get(MASSABEAM_ADDRESS_KEY));
+  const massaBeam = new IMassaBeamAMM(massaBeamAddress);
 
-  // Approve token transfer
+  // Handle grid trading
+  if (order.orderType == ORDER_TYPE_GRID) {
+    executeGridOrder(order, massaBeam);
+    return;
+  }
+
+  // Standard order execution
   const tokenInContract = new IERC20(order.tokenIn);
   tokenInContract.increaseAllowance(massaBeamAddress, u256.fromU64(order.amountPerExecution));
 
   // Execute swap
-  const massaBeam = new IMassaBeamAMM(massaBeamAddress);
   massaBeam.swap(
     order.tokenIn,
     order.tokenOut,
@@ -722,14 +736,91 @@ function executeRecurringOrder(order: RecurringOrder): void {
 
   saveRecurringOrder(order);
 
-  generateEvent('RecurringOrder:Executed');
+  generateEvent(`RecurringOrder:Executed:${order.id.toString()}`);
 }
 
 /**
- * Wrapper for callNextSlot
+ * Execute grid order (check all grid levels)
+ */
+function executeGridOrder(order: RecurringOrder, massaBeam: IMassaBeamAMM): void {
+  const currentPrice = getCurrentPoolPrice(order.tokenIn, order.tokenOut);
+  if (currentPrice == 0) return;
+
+  const priceChangeBps = calculatePriceChangeBps(order.entryPrice, currentPrice);
+
+  // Check each grid level
+  for (let i = 0; i < order.gridLevels.length; i++) {
+    // Skip if already executed
+    if (order.gridExecuted[i]) continue;
+
+    const levelBps = i64(order.gridLevels[i]);
+
+    // Check if this level should be executed
+    // Buy grids trigger on negative price changes (price drop)
+    // Sell grids trigger on positive price changes (price increase)
+    let shouldExecute = false;
+
+    if (priceChangeBps <= -levelBps) {
+      // Price dropped enough for buy grid level
+      shouldExecute = true;
+    } else if (priceChangeBps >= levelBps) {
+      // Price increased enough for sell grid level
+      shouldExecute = true;
+    }
+
+    if (shouldExecute) {
+      // Execute this grid level
+      const amount = order.gridAmounts[i];
+
+      const tokenInContract = new IERC20(order.tokenIn);
+      tokenInContract.increaseAllowance(
+        new Address(Storage.get(MASSABEAM_ADDRESS_KEY)),
+        u256.fromU64(amount),
+      );
+
+      massaBeam.swap(
+        order.tokenIn,
+        order.tokenOut,
+        amount,
+        order.minAmountOut,
+        Context.timestamp() + 3600,
+        order.user,
+      );
+
+      // Mark level as executed
+      order.gridExecuted[i] = true;
+      order.executionCount += 1;
+      order.lastExecutedTime = Context.timestamp();
+
+      generateEvent(`RecurringOrder:GridLevelExecuted:${order.id.toString()}:${i.toString()}`);
+    }
+  }
+
+  // Check if all grid levels executed
+  let allExecuted = true;
+  for (let i = 0; i < order.gridExecuted.length; i++) {
+    if (!order.gridExecuted[i]) {
+      allExecuted = false;
+      break;
+    }
+  }
+
+  if (allExecuted) {
+    order.status = ORDER_STATUS_COMPLETED;
+  }
+
+  saveRecurringOrder(order);
+}
+
+/**
+ * Wrapper for callNextSlot (Massa ASC feature)
  */
 function callNextSlot(contractAddress: Address, functionName: string, gasBudget: u64): void {
-  generateEvent('RecurringOrder:NextSlotScheduled');
+  // In production, this would use Massa's callNextSlot feature
+  // For now, we log the event
+  generateEvent(`RecurringOrder:NextSlotScheduled:${functionName}:${gasBudget.toString()}`);
+  // TODO: Uncomment when deploying to Massa:
+  // call(contractAddress, functionName, new Args().serialize(), gasBudget);
 }
 
 // ============================================================================
@@ -769,4 +860,297 @@ export function getCurrentPrice(args: StaticArray<u8>): StaticArray<u8> {
 
   const price = getCurrentPoolPrice(tokenIn, tokenOut);
   return new Args().add(price).serialize();
+}
+
+// ============================================================================
+// GRID TRADING
+// ============================================================================
+
+/**
+ * Create a Grid Trading order
+ *
+ * Grid trading: Place multiple buy/sell orders at different price levels
+ * Example: Buy at -2%, -4%, -6% AND sell at +2%, +4%, +6%
+ *
+ * @param tokenIn - Token to sell/buy
+ * @param tokenOut - Token to receive
+ * @param gridLevels - Array of percentage levels in basis points (e.g., [200, 400, 600])
+ * @param gridAmounts - Amount for each level
+ * @param isBuyGrid - true for buy grid, false for sell grid
+ */
+export function createGridOrder(args: StaticArray<u8>): u64 {
+  whenNotPaused();
+
+  const argument = new Args(args);
+  const tokenIn = new Address(argument.nextString().unwrap());
+  const tokenOut = new Address(argument.nextString().unwrap());
+  const numLevels = argument.nextU8().unwrap();
+
+  const gridLevels: u64[] = [];
+  const gridAmounts: u64[] = [];
+  const gridExecuted: bool[] = [];
+
+  // Parse grid levels and amounts
+  for (let i: u8 = 0; i < numLevels; i++) {
+    gridLevels.push(argument.nextU64().unwrap());
+    gridAmounts.push(argument.nextU64().unwrap());
+    gridExecuted.push(false);
+  }
+
+  const minAmountOut = argument.nextU64().unwrap();
+
+  const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
+  assert(entryPrice > 0, 'Pool not found or no liquidity');
+
+  const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
+  const orderId = orderCount + 1;
+
+  const order = new RecurringOrder(
+    orderId,
+    Context.caller(),
+    ORDER_TYPE_GRID,
+    EXECUTION_MODE_TRIGGERED,
+    tokenIn,
+    tokenOut,
+    entryPrice,
+    0, // Not used for grid
+    0, // Set per level
+    minAmountOut,
+    0,
+    0, // Unlimited executions for grid
+  );
+
+  // Set grid parameters
+  order.gridLevels = gridLevels;
+  order.gridAmounts = gridAmounts;
+  order.gridExecuted = gridExecuted;
+
+  // Calculate total amount needed
+  let totalAmount: u64 = 0;
+  for (let i = 0; i < gridAmounts.length; i++) {
+    totalAmount += gridAmounts[i];
+  }
+
+  // Transfer tokens
+  const tokenContract = new IERC20(tokenIn);
+  tokenContract.transferFrom(
+    Context.caller(),
+    Context.callee(),
+    u256.fromU64(totalAmount),
+  );
+
+  saveRecurringOrder(order);
+  Storage.set(RECURRING_ORDER_COUNT_KEY, orderId.toString());
+
+  generateEvent(`RecurringOrder:GridCreated:${numLevels}levels`);
+
+  return orderId;
+}
+
+// ============================================================================
+// ORDER MANAGEMENT
+// ============================================================================
+
+/**
+ * Pause an active order
+ */
+export function pauseOrder(args: StaticArray<u8>): bool {
+  whenNotPaused();
+
+  const argument = new Args(args);
+  const orderId = argument.nextU64().unwrap();
+
+  const order = getRecurringOrder(orderId);
+  assert(order != null, 'Order not found');
+
+  const caller = Context.caller();
+  const isOwner = order!.user.toString() == caller.toString();
+  const isAdmin = hasRole(ADMIN_ROLE, caller);
+  assert(isOwner || isAdmin, 'Not authorized');
+
+  assert(order!.status == ORDER_STATUS_ACTIVE, 'Order not active');
+
+  order!.status = ORDER_STATUS_PAUSED;
+  saveRecurringOrder(order!);
+
+  generateEvent(`RecurringOrder:Paused:${orderId.toString()}`);
+
+  return true;
+}
+
+/**
+ * Resume a paused order
+ */
+export function resumeOrder(args: StaticArray<u8>): bool {
+  whenNotPaused();
+
+  const argument = new Args(args);
+  const orderId = argument.nextU64().unwrap();
+
+  const order = getRecurringOrder(orderId);
+  assert(order != null, 'Order not found');
+
+  const caller = Context.caller();
+  const isOwner = order!.user.toString() == caller.toString();
+  const isAdmin = hasRole(ADMIN_ROLE, caller);
+  assert(isOwner || isAdmin, 'Not authorized');
+
+  assert(order!.status == ORDER_STATUS_PAUSED, 'Order not paused');
+
+  order!.status = ORDER_STATUS_ACTIVE;
+  saveRecurringOrder(order!);
+
+  generateEvent(`RecurringOrder:Resumed:${orderId.toString()}`);
+
+  return true;
+}
+
+/**
+ * Get all orders for a user
+ */
+export function getUserOrders(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const userAddress = new Address(argument.nextString().unwrap());
+
+  const totalOrders = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
+  const userOrders: u64[] = [];
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getRecurringOrder(i);
+    if (order != null && order.user.toString() == userAddress.toString()) {
+      userOrders.push(i);
+    }
+  }
+
+  const result = new Args();
+  result.add(u64(userOrders.length));
+  for (let i = 0; i < userOrders.length; i++) {
+    result.add(userOrders[i]);
+  }
+
+  return result.serialize();
+}
+
+// ============================================================================
+// ROLE MANAGEMENT
+// ============================================================================
+
+/**
+ * Grant role to address
+ */
+export function grantRole(args: StaticArray<u8>): void {
+  requireRole(ADMIN_ROLE);
+
+  const argument = new Args(args);
+  const role = argument.nextString().unwrap();
+  const account = new Address(argument.nextString().unwrap());
+
+  const key = stringToBytes(role + ':' + account.toString());
+  Storage.set(key, stringToBytes('true'));
+
+  generateEvent(`RecurringOrder:RoleGranted:${role}`);
+}
+
+/**
+ * Revoke role from address
+ */
+export function revokeRole(args: StaticArray<u8>): void {
+  requireRole(ADMIN_ROLE);
+
+  const argument = new Args(args);
+  const role = argument.nextString().unwrap();
+  const account = new Address(argument.nextString().unwrap());
+
+  const key = stringToBytes(role + ':' + account.toString());
+  Storage.del(key);
+
+  generateEvent(`RecurringOrder:RoleRevoked:${role}`);
+}
+
+/**
+ * Check if address has role
+ */
+export function checkRole(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const role = argument.nextString().unwrap();
+  const account = new Address(argument.nextString().unwrap());
+
+  const has = hasRole(role, account);
+  return new Args().add(has).serialize();
+}
+
+// ============================================================================
+// PAUSE/UNPAUSE CONTRACT
+// ============================================================================
+
+/**
+ * Pause contract (emergency stop)
+ */
+export function pause(_: StaticArray<u8>): void {
+  requireRole(PAUSER_ROLE);
+  Storage.set(PAUSED_KEY, 'true');
+  generateEvent('RecurringOrder:ContractPaused');
+}
+
+/**
+ * Unpause contract
+ */
+export function unpause(_: StaticArray<u8>): void {
+  requireRole(ADMIN_ROLE);
+  Storage.del(PAUSED_KEY);
+  generateEvent('RecurringOrder:ContractUnpaused');
+}
+
+/**
+ * Check if contract is paused
+ */
+export function isPaused(): StaticArray<u8> {
+  const paused = Storage.has(PAUSED_KEY);
+  return new Args().add(paused).serialize();
+}
+
+// ============================================================================
+// STATISTICS
+// ============================================================================
+
+/**
+ * Get contract statistics
+ */
+export function getStatistics(_: StaticArray<u8>): StaticArray<u8> {
+  const totalOrders = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
+
+  let activeOrders: u64 = 0;
+  let completedOrders: u64 = 0;
+  let pausedOrders: u64 = 0;
+  let cancelledOrders: u64 = 0;
+  let totalExecutions: u64 = 0;
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getRecurringOrder(i);
+    if (order != null) {
+      totalExecutions += order.executionCount;
+
+      if (order.status == ORDER_STATUS_ACTIVE) activeOrders++;
+      else if (order.status == ORDER_STATUS_COMPLETED) completedOrders++;
+      else if (order.status == ORDER_STATUS_PAUSED) pausedOrders++;
+      else if (order.status == ORDER_STATUS_CANCELLED) cancelledOrders++;
+    }
+  }
+
+  const isBotRunning = Storage.has(stringToBytes(BOT_ENABLED_KEY));
+  const botCounter = isBotRunning
+    ? u64(parseInt(Storage.get(BOT_COUNTER_KEY)))
+    : 0;
+
+  const result = new Args();
+  result.add(totalOrders);
+  result.add(activeOrders);
+  result.add(completedOrders);
+  result.add(pausedOrders);
+  result.add(cancelledOrders);
+  result.add(totalExecutions);
+  result.add(isBotRunning);
+  result.add(botCounter);
+
+  return result.serialize();
 }
