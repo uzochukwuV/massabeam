@@ -73,4 +73,12 @@ export class IMassaBeamAMM {
         const resultArgs = new Args(result);
         return resultArgs.nextU64().unwrap();
     }
+
+    /**
+     * Execute a flash loan
+     * @param args - Serialized arguments (receiver, token, amount, data)
+     */
+    flashLoan(args: StaticArray<u8>): void {
+        call(this._origin, "flashLoan", new Args().add(args), 0);
+    }
 }
