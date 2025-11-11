@@ -24,6 +24,7 @@ import {
 } from '@massalabs/massa-as-sdk';
 import { Args, stringToBytes } from '@massalabs/as-types';
 import { IERC20 } from './interfaces/IERC20';
+import { IFlashLoanCallback } from './interfaces/IFlashLoanCallback';
 import { u256 } from 'as-bignum/assembly';
 
 // ============================================================================
@@ -35,6 +36,10 @@ export const MIN_FEE_RATE: u64 = 1; // 0.01%
 export const MAX_FEE_RATE: u64 = 10000; // 100%
 export const DEFAULT_FEE_RATE: u64 = 3000; // 0.3%
 export const BASIS_POINTS: u64 = 10000;
+
+// Flash loan configuration
+export const FLASH_LOAN_FEE_RATE: u64 = 9; // 0.09% (9 basis points)
+export const MAX_FLASH_LOAN_AMOUNT: u64 = 1000000000 * 10 ** 18; // 1B tokens max
 
 // Liquidity configuration
 export const MIN_LIQUIDITY: u64 = 1000; // Prevents division by zero
@@ -732,6 +737,102 @@ export function swap(args: StaticArray<u8>): void {
 
   endNonReentrant();
   generateEvent(`Swap: ${amountIn} ${tokenIn.toString()} → ${amountOut} ${tokenOut.toString()}`);
+}
+
+// ============================================================================
+// FLASH LOAN FUNCTIONS
+// ============================================================================
+
+/**
+ * Execute flash loan - borrow tokens without collateral
+ *
+ * Flash loans allow users to borrow large amounts of tokens without collateral,
+ * as long as they repay the loan + fee within the same transaction.
+ *
+ * Use cases:
+ * - Arbitrage: Buy cheap on one DEX, sell high on another
+ * - Collateral swap: Refinance position without closing
+ * - Liquidations: Liquidate positions for profit
+ * - Self-liquidation: Avoid liquidation penalties
+ *
+ * @param args Serialized arguments:
+ *   - receiver: Address to receive the flash loan
+ *   - token: Token to borrow
+ *   - amount: Amount to borrow
+ *   - data: Arbitrary data to pass to receiver's callback
+ */
+export function flashLoan(args: StaticArray<u8>): void {
+  whenNotPaused();
+  nonReentrant();
+
+  const argument = new Args(args);
+  const receiver = new Address(argument.nextString().unwrap());
+  const token = new Address(argument.nextString().unwrap());
+  const amount = argument.nextU64().unwrap();
+  const data = argument.nextBytes().unwrapOrDefault();
+
+  // Validation
+  assert(amount > 0, 'Flash loan amount must be positive');
+  assert(amount <= MAX_FLASH_LOAN_AMOUNT, 'Flash loan amount exceeds maximum');
+
+  const caller = Context.caller();
+  const tokenContract = new IERC20(token);
+
+  // Check contract has sufficient balance
+  const contractBalance = tokenContract.balanceOf(Context.callee());
+  assert(
+    contractBalance >= u256.fromU64(amount),
+    'Insufficient contract balance for flash loan',
+  );
+
+  // Calculate fee (0.09% = 9 basis points)
+  const fee = u64(f64(amount) * f64(FLASH_LOAN_FEE_RATE) / f64(BASIS_POINTS));
+  assert(fee > 0, 'Flash loan fee must be positive');
+
+  // Record balance before loan
+  const balanceBefore = tokenContract.balanceOf(Context.callee());
+
+  // Transfer tokens to receiver
+  assert(safeTransfer(token, receiver, amount), 'Flash loan transfer failed');
+
+  generateEvent(`FlashLoan: ${amount} tokens loaned to ${receiver.toString()} (fee: ${fee})`);
+
+  // Execute callback on receiver
+  const callback = new IFlashLoanCallback(receiver);
+  callback.onFlashLoan(caller, token, u256.fromU64(amount), u256.fromU64(fee), data);
+
+  // Verify repayment + fee
+  const balanceAfter = tokenContract.balanceOf(Context.callee());
+  const expectedBalance = balanceBefore.toU64() + fee;
+
+  assert(
+    balanceAfter.toU64() >= expectedBalance,
+    `Flash loan not repaid: expected ${expectedBalance}, got ${balanceAfter.toU64()}`,
+  );
+
+  // Update flash loan statistics
+  const flashLoanVolume = u64(parseInt(Storage.has('flash_loan_volume') ? Storage.get('flash_loan_volume') : '0'));
+  const flashLoanCount = u64(parseInt(Storage.has('flash_loan_count') ? Storage.get('flash_loan_count') : '0'));
+  const flashLoanFees = u64(parseInt(Storage.has('flash_loan_fees') ? Storage.get('flash_loan_fees') : '0'));
+
+  Storage.set('flash_loan_volume', (flashLoanVolume + amount).toString());
+  Storage.set('flash_loan_count', (flashLoanCount + 1).toString());
+  Storage.set('flash_loan_fees', (flashLoanFees + fee).toString());
+
+  endNonReentrant();
+  generateEvent(`FlashLoan: Repaid successfully with fee ${fee}`);
+}
+
+/**
+ * Read flash loan statistics
+ */
+export function readFlashLoanStats(): StaticArray<u8> {
+  const volume = Storage.has('flash_loan_volume') ? Storage.get('flash_loan_volume') : '0';
+  const count = Storage.has('flash_loan_count') ? Storage.get('flash_loan_count') : '0';
+  const fees = Storage.has('flash_loan_fees') ? Storage.get('flash_loan_fees') : '0';
+
+  const result = new Args().add(volume).add(count).add(fees);
+  return result.serialize();
 }
 
 // ============================================================================
