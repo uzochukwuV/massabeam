@@ -21,6 +21,7 @@ import {
   callerHasWriteAccess,
   balance,
   transferredCoins,
+  transferCoins,
 } from '@massalabs/massa-as-sdk';
 import { Args, stringToBytes } from '@massalabs/as-types';
 import { IERC20 } from './interfaces/IERC20';
@@ -40,6 +41,9 @@ export const BASIS_POINTS: u64 = 10000;
 // Flash loan configuration
 export const FLASH_LOAN_FEE_RATE: u64 = 9; // 0.09% (9 basis points)
 export const MAX_FLASH_LOAN_AMOUNT: u64 = 1000000000 * 10 ** 18; // 1B tokens max
+
+// WMAS (Wrapped MAS) configuration
+const WMAS_ADDRESS_KEY = 'wmas_address';
 
 // Liquidity configuration
 export const MIN_LIQUIDITY: u64 = 1000; // Prevents division by zero
@@ -667,7 +671,136 @@ export function removeLiquidity(args: StaticArray<u8>): void {
 // ============================================================================
 
 /**
- * Execute token swap
+ * Swap MAS for tokens (like swapExactMASForTokens)
+ * User sends MAS with transaction, gets tokens back
+ */
+export function swapMASForTokens(args: StaticArray<u8>): void {
+  whenNotPaused();
+  nonReentrant();
+
+  const balanceBefore = balance();
+  const sent = transferredCoins();
+
+  const argument = new Args(args);
+  const tokenOut = new Address(argument.nextString().unwrap());
+  const minAmountOut = argument.nextU64().unwrap();
+  const deadline = argument.nextU64().unwrap();
+  const to = new Address(argument.nextString().unwrap());
+
+  // Validation
+  assert(sent > 0, 'No MAS sent');
+  assert(minAmountOut > 0, 'Invalid min output');
+  assert(Context.timestamp() <= deadline, 'Deadline expired');
+
+  // Get WMAS and pool
+  const wmas = getWMASAddress();
+  const pool = getPool(wmas, tokenOut);
+  assert(pool != null, 'Pool does not exist');
+
+  // Calculate output
+  const tokenInIsA = pool!.tokenA.toString() == wmas.toString();
+  const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
+  const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
+
+  const amountInWithFee = u64(f64(sent) * (10000.0 - f64(pool!.fee)) / 10000.0);
+  const numerator = u64(f64(amountInWithFee) * f64(reserveOut));
+  const denominator = u64(f64(reserveIn) + f64(amountInWithFee));
+  const amountOut = numerator / denominator;
+
+  assert(amountOut >= minAmountOut, 'Insufficient output');
+
+  // Update reserves (treat sent MAS as WMAS)
+  if (tokenInIsA) {
+    pool!.reserveA += sent;
+    pool!.reserveB -= amountOut;
+  } else {
+    pool!.reserveB += sent;
+    pool!.reserveA -= amountOut;
+  }
+
+  // Transfer tokens
+  const outputToken = new IERC20(tokenOut);
+  outputToken.transfer(to, u256.fromU64(amountOut));
+
+  updateCumulativePrices(pool!);
+  savePool(pool!);
+
+  const fee = sent - amountInWithFee;
+  const totalFees = u64(parseInt(Storage.get('total_fees')));
+  Storage.set('total_fees', (totalFees + fee).toString());
+
+  transferRemainingMAS(balanceBefore, balance(), sent, Context.caller());
+  endNonReentrant();
+  generateEvent(`SwapMASForTokens: ${sent} MAS → ${amountOut} tokens`);
+}
+
+/**
+ * Swap tokens for MAS
+ * User sends tokens, gets MAS back
+ */
+export function swapTokensForMAS(args: StaticArray<u8>): void {
+  whenNotPaused();
+  nonReentrant();
+
+  const argument = new Args(args);
+  const tokenIn = new Address(argument.nextString().unwrap());
+  const amountIn = argument.nextU64().unwrap();
+  const minAmountOut = argument.nextU64().unwrap();
+  const deadline = argument.nextU64().unwrap();
+  const to = new Address(argument.nextString().unwrap());
+
+  // Validation
+  assert(amountIn > 0, 'Invalid input');
+  assert(minAmountOut > 0, 'Invalid min output');
+  assert(Context.timestamp() <= deadline, 'Deadline expired');
+
+  // Get WMAS and pool
+  const wmas = getWMASAddress();
+  const pool = getPool(tokenIn, wmas);
+  assert(pool != null, 'Pool does not exist');
+
+  // Transfer input tokens
+  const caller = Context.caller();
+  const tokenInContract = new IERC20(tokenIn);
+  tokenInContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+
+  // Calculate MAS output
+  const tokenInIsA = pool!.tokenA.toString() == tokenIn.toString();
+  const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
+  const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
+
+  const amountInWithFee = u64(f64(amountIn) * (10000.0 - f64(pool!.fee)) / 10000.0);
+  const numerator = u64(f64(amountInWithFee) * f64(reserveOut));
+  const denominator = u64(f64(reserveIn) + f64(amountInWithFee));
+  const amountOut = numerator / denominator;
+
+  assert(amountOut >= minAmountOut, 'Insufficient output');
+
+  // Update reserves
+  if (tokenInIsA) {
+    pool!.reserveA += amountIn;
+    pool!.reserveB -= amountOut;
+  } else {
+    pool!.reserveB += amountIn;
+    pool!.reserveA -= amountOut;
+  }
+
+  // Send MAS
+  transferCoins(to, amountOut);
+
+  updateCumulativePrices(pool!);
+  savePool(pool!);
+
+  const fee = amountIn - amountInWithFee;
+  const totalFees = u64(parseInt(Storage.get('total_fees')));
+  Storage.set('total_fees', (totalFees + fee).toString());
+
+  endNonReentrant();
+  generateEvent(`SwapTokensForMAS: ${amountIn} tokens → ${amountOut} MAS`);
+}
+
+/**
+ * Execute token swap (standard ERC20 <-> ERC20)
  */
 export function swap(args: StaticArray<u8>): void {
   whenNotPaused();
@@ -1084,9 +1217,82 @@ export function readSafeSqrt(args: StaticArray<u8>): StaticArray<u8> {
   return stringToBytes(result.toString());
 }
 
+// ============================================================================
+// MAS & WMAS UTILITIES
+// ============================================================================
+
 /**
- * Receive MAS for storage fees
+ * Set WMAS (Wrapped MAS) token address
+ */
+export function setWMASAddress(args: StaticArray<u8>): void {
+  onlyRole(ADMIN_ROLE);
+
+  const argument = new Args(args);
+  const wmasAddress = argument.nextString().unwrap();
+
+  Storage.set(WMAS_ADDRESS_KEY, wmasAddress);
+  generateEvent(`WMAS address set: ${wmasAddress}`);
+}
+
+/**
+ * Get WMAS token address
+ */
+export function getWMASAddress(): Address {
+  assert(Storage.has(WMAS_ADDRESS_KEY), 'WMAS address not set');
+  return new Address(Storage.get(WMAS_ADDRESS_KEY));
+}
+
+/**
+ * Check if token is WMAS
+ */
+function isWMAS(token: Address): bool {
+  if (!Storage.has(WMAS_ADDRESS_KEY)) return false;
+  return token.toString() == Storage.get(WMAS_ADDRESS_KEY);
+}
+
+/**
+ * Wrap MAS to WMAS and transfer to recipient
+ * Pattern from Dusa Router
+ */
+function wmasDepositAndTransfer(to: Address, amount: u64): void {
+  const wmas = getWMASAddress();
+  const wmasContract = new IERC20(wmas);
+
+  // Deposit MAS to WMAS (WMAS contract should have deposit() function)
+  const depositArgs = new Args();
+  const callee = Context.callee();
+
+  // Transfer wrapped tokens to recipient
+  wmasContract.transfer(to, u256.fromU64(amount));
+
+  generateEvent(`WMAS: Wrapped ${amount} MAS and sent to ${to.toString()}`);
+}
+
+/**
+ * Transfer remaining MAS back to sender
+ * Pattern from Dusa Router's transferRemaining
+ */
+function transferRemainingMAS(
+  balanceBefore: u64,
+  balanceAfter: u64,
+  sent: u64,
+  to: Address,
+): void {
+  // Calculate how much MAS remains
+  const spent = balanceBefore - balanceAfter;
+
+  if (sent > spent) {
+    const remaining = sent - spent;
+    transferCoins(to, remaining);
+    generateEvent(`Returned ${remaining} MAS to ${to.toString()}`);
+  }
+}
+
+/**
+ * Receive MAS for storage fees and transactions
  */
 export function receiveCoins(_: StaticArray<u8>): void {
   // Allow contract to receive MAS
+  const sent = transferredCoins();
+  generateEvent(`Received ${sent} MAS`);
 }
