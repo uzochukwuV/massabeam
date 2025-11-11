@@ -307,13 +307,153 @@ Trade:
 
 ---
 
+### **6. Recurring Orders & DCA** ✅ 📅
+**Automated dollar-cost averaging and percentage-based trading**
+
+#### **What It Does:**
+Enables users to set up recurring orders that execute automatically based on price changes or time intervals. Perfect for DCA strategies, grid trading, and automated profit-taking.
+
+**Order Types:**
+1. **BUY_ON_INCREASE** - Buy when price rises by X%
+2. **SELL_ON_DECREASE** - Sell when price drops by X%
+3. **DCA (Dollar Cost Averaging)** - Buy at fixed intervals
+4. **GRID** - Multi-level buy/sell orders
+
+**Features:**
+- Percentage-based triggers (basis points)
+- Time-interval execution
+- Grid trading with multiple levels
+- Pause/Resume functionality
+- User order queries
+- Role-based access control
+- Contract pause for emergencies
+- Comprehensive statistics
+
+**API:**
+```typescript
+// DCA: Buy $100 of ETH every day
+createDCAOrder(
+  USDC,                // tokenIn
+  WETH,                // tokenOut
+  86400,               // interval (24 hours)
+  100 * 1e6,           // $100 per execution
+  95 * 1e17,           // min 0.95 ETH
+  30                   // 30 executions (1 month)
+)
+
+// Buy on Price Increase: Accumulate when pumping
+createBuyOnIncreaseOrder(
+  USDC,                // Sell USDC
+  WETH,                // Buy WETH
+  200,                 // 2% trigger (basis points)
+  100 * 1e6,           // $100 per execution
+  95 * 1e17,           // min ETH
+  10                   // max 10 times
+)
+
+// Sell on Price Decrease: Take profits / Stop loss
+createSellOnDecreaseOrder(
+  WETH,                // Sell ETH
+  USDC,                // For USDC
+  500,                 // 5% drop trigger
+  1 * 1e18,            // 1 ETH per execution
+  1900 * 1e6           // min $1900
+)
+
+// Grid Trading: Buy/Sell at multiple levels
+createGridOrder(
+  USDC,                // Token to trade
+  WETH,                // For ETH
+  6,                   // 6 levels
+  [200, 400, 600,      // Levels: -2%, -4%, -6%,
+   200, 400, 600],     //         +2%, +4%, +6%
+  [100e6, 200e6, 300e6, // Amounts for each level
+   100e6, 200e6, 300e6],
+  95 * 1e17            // min out
+)
+
+// Management
+pauseOrder(orderId)
+resumeOrder(orderId)
+cancelRecurringOrder(orderId)
+getUserOrders(userAddress)
+
+// Bot Control
+startBot(maxIterations)
+stopBot()
+
+// Statistics
+getStatistics()  // Returns:
+// - Total, active, completed, paused, cancelled orders
+// - Total executions count
+// - Bot status and cycle count
+```
+
+**Example Use Cases:**
+
+**1. DCA Strategy:**
+```
+Buy $100 of ETH every day for 30 days
+→ Set interval: 86400 seconds
+→ Set max executions: 30
+→ Bot executes automatically
+→ Average entry price regardless of volatility
+```
+
+**2. Accumulation on Dips:**
+```
+Buy $500 of ETH when price drops 5%
+→ Entry: $2000
+→ Trigger: -500 bps (5%)
+→ Executes at $1900
+→ Can repeat for multiple dips
+```
+
+**3. Grid Trading:**
+```
+Entry Price: $2000
+Buy Levels:  $1960 (-2%), $1920 (-4%), $1880 (-6%)
+Sell Levels: $2040 (+2%), $2080 (+4%), $2120 (+6%)
+
+→ Each level executes independently
+→ Captures profits in both directions
+→ Fully autonomous execution
+```
+
+**4. Profit Taking:**
+```
+Sell 25% when price +10%, 25% when +20%
+→ Automatically lock in gains
+→ No monitoring needed
+→ Can set multiple levels
+```
+
+**Massa ASC Features:**
+- ✅ `Context.timestamp()` - Track time intervals
+- ✅ `Storage` - Persist order state
+- ✅ `generateEvent()` - Log executions
+- ✅ `callNextSlot()` - Autonomous scheduling
+- ✅ `advance()` - Self-executing cycles
+
+**Security:**
+- ✅ Role-based access control (ADMIN, KEEPER, PAUSER)
+- ✅ Emergency pause functionality
+- ✅ Only order owner or admin can cancel
+- ✅ Slippage protection per order
+- ✅ Refunds on cancellation
+
+**Contract Size:** 41KB WASM (+9KB with all features)
+
+---
+
 ## 📊 **TECHNICAL STATISTICS**
 
 ### **Code Changes:**
 ```
-Files Modified: 6
+Files Modified: 7
 - main.ts: +303 lines
 - limit_orders.ts: +202 lines
+- recurring_orders.ts: +390 lines (Grid + Management)
 - arbitrage_engine.ts: +3 lines
 - package.json: +2 dependencies
 - IMassaBeamAMM.ts: +7 lines (flashLoan method)
@@ -323,8 +463,8 @@ Files Created: 3
 - flash_arbitrage_bot.ts: +748 lines
 - IMPLEMENTATION_PROGRESS.md: +564 lines
 
-Total Lines Added: ~1,875
-Commits: 6
+Total Lines Added: ~2,265
+Commits: 8
 Build Status: ✅ ALL PASSING (6/6 contracts)
 ```
 
@@ -332,22 +472,23 @@ Build Status: ✅ ALL PASSING (6/6 contracts)
 ```
 main.wasm:                  51KB  (+9KB, Flash + MAS)
 limit_orders.wasm:          40KB  (+4KB, Advanced orders)
-flash_arbitrage_bot.wasm:   36KB  (NEW! Autonomous arbitrage)
+recurring_orders.wasm:      41KB  (+9KB, Grid + Management)
 smart_swap.wasm:            40KB  (Ready for multi-path)
+flash_arbitrage_bot.wasm:   36KB  (Autonomous arbitrage)
 arbitrage_engine.wasm:      30KB  (Detection system)
-recurring_orders.wasm:      32KB  (DCA support)
 
-Total: 229KB (compact & efficient!)
+Total: 238KB (compact & efficient!)
 ```
 
 ### **Features Count:**
-- ✅ 20+ new exported functions
-- ✅ 4 order types (Limit, Stop-Loss, Take-Profit, Trailing)
+- ✅ 30+ exported functions across all contracts
+- ✅ 8 order types (Limit, Stop-Loss, Take-Profit, Trailing, BuyOnIncrease, SellOnDecrease, DCA, Grid)
 - ✅ 2 MAS swap functions
 - ✅ 1 flash loan system
 - ✅ 1 autonomous arbitrage bot
-- ✅ 12+ management functions
-- ✅ 100% autonomous execution
+- ✅ 1 recurring orders & DCA system
+- ✅ 20+ management functions
+- ✅ 100% autonomous execution via Massa ASC
 
 ---
 
@@ -374,6 +515,12 @@ Total: 229KB (compact & efficient!)
    - Earn from price inefficiencies
    - Zero capital, zero risk
    - Autonomous 24/7 operation
+
+5. **Automated DCA & Grid Trading**
+   - Set-and-forget dollar-cost averaging
+   - Grid trading for range-bound markets
+   - Percentage-based accumulation/profit-taking
+   - Time-based or price-based execution
 
 ### **For Developers:**
 1. **Flash Loan Integration**
@@ -696,10 +843,12 @@ pnpm run test-arbitrage
 
 ### **Phase 2 (Weeks 5-8):**
 1. ✅ **Flash loan arbitrage bot** - COMPLETE! 🤖
-2. Recurring orders & DCA (80% complete)
+2. ✅ **Recurring orders & DCA** - COMPLETE! 📅
 3. Referral rewards system
 4. Liquidity mining
 5. Split-order execution
+
+**Phase 2 Progress: 2/5 Complete (40%)**
 
 ### **Phase 3 (Weeks 9-12):**
 1. Trading competitions
@@ -719,13 +868,16 @@ pnpm run test-arbitrage
 ✅ **Risk management** (stop-loss, take-profit, trailing)
 ✅ **Zero-capital strategies** (flash loans)
 ✅ **Autonomous arbitrage bot** for passive income
+✅ **Recurring orders & DCA** with grid trading
 ✅ **Production-ready code** (100% compiled, 6 contracts)
 
 ### **Innovation:**
 ✅ **First Massa DEX** with flash loans
 ✅ **Autonomous order execution** (no keepers)
 ✅ **Autonomous arbitrage bot** (passive income)
-✅ **Advanced order types** (4 types)
+✅ **Advanced order types** (8 types total)
+✅ **Grid trading** with multi-level execution
+✅ **DCA automation** with time-based execution
 ✅ **Native MAS trading** (no wrapping)
 ✅ **Comprehensive tooling** (deploy, test, monitor)
 
@@ -792,11 +944,12 @@ We've built a **comprehensive DeFi platform** that:
 
 This is a **production-ready** foundation for building the future of DeFi on Massa! 🚀
 
-**Total Development Time:** ~8-10 hours
-**Lines of Code:** ~1,875 new lines
+**Total Development Time:** ~10-12 hours
+**Lines of Code:** ~2,265 new lines
 **Contracts Delivered:** 6 (100% compiled)
-**Features Delivered:** 35+ major features
+**Features Delivered:** 40+ major features
 **Build Status:** ✅ 100% SUCCESS
+**Phase 2 Progress:** 40% (2/5 complete)
 
 ---
 
