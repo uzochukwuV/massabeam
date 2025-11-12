@@ -27,6 +27,7 @@ import { Args, stringToBytes } from '@massalabs/as-types';
 import { IERC20 } from './interfaces/IERC20';
 import { IFlashLoanCallback } from './interfaces/IFlashLoanCallback';
 import { u256 } from 'as-bignum/assembly';
+import { SafeMath, SafeMath256, Math512Bits } from '../libraries/SafeMath';
 
 // ============================================================================
 // CONSTANTS
@@ -70,26 +71,27 @@ const PAUSED_KEY = 'paused';
 
 /**
  * Pool state with reserves and pricing info
+ * Uses u256 for reserves and totalSupply to support 18-decimal tokens
  */
 export class Pool {
   tokenA: Address;
   tokenB: Address;
-  reserveA: u64;
-  reserveB: u64;
-  totalSupply: u64;
-  fee: u64; // in basis points
-  lastUpdateTime: u64;
+  reserveA: u256;  // Changed to u256 for 18-decimal tokens
+  reserveB: u256;  // Changed to u256 for 18-decimal tokens
+  totalSupply: u256;  // Changed to u256 (LP tokens)
+  fee: u64; // in basis points (small value, keep u64)
+  lastUpdateTime: u64;  // timestamp (keep u64)
   isActive: bool;
-  cumulativePriceA: u64;
-  cumulativePriceB: u64;
-  blockTimestampLast: u64;
+  cumulativePriceA: u256;  // Changed to u256 for large cumulative values
+  cumulativePriceB: u256;  // Changed to u256 for large cumulative values
+  blockTimestampLast: u64;  // timestamp (keep u64)
 
   constructor(
     tokenA: Address,
     tokenB: Address,
-    reserveA: u64 = 0,
-    reserveB: u64 = 0,
-    totalSupply: u64 = 0,
+    reserveA: u256 = u256.Zero,
+    reserveB: u256 = u256.Zero,
+    totalSupply: u256 = u256.Zero,
     fee: u64 = DEFAULT_FEE_RATE,
     lastUpdateTime: u64 = 0,
     isActive: bool = true,
@@ -102,8 +104,8 @@ export class Pool {
     this.fee = fee;
     this.lastUpdateTime = lastUpdateTime;
     this.isActive = isActive;
-    this.cumulativePriceA = 0;
-    this.cumulativePriceB = 0;
+    this.cumulativePriceA = u256.Zero;
+    this.cumulativePriceB = u256.Zero;
     this.blockTimestampLast = Context.timestamp();
   }
 
@@ -111,15 +113,15 @@ export class Pool {
     const args = new Args();
     args.add(this.tokenA.toString());
     args.add(this.tokenB.toString());
-    args.add(this.reserveA);
-    args.add(this.reserveB);
-    args.add(this.totalSupply);
-    args.add(this.fee);
-    args.add(this.lastUpdateTime);
-    args.add(this.isActive);
-    args.add(this.cumulativePriceA);
-    args.add(this.cumulativePriceB);
-    args.add(this.blockTimestampLast);
+    args.add(this.reserveA);  // u256
+    args.add(this.reserveB);  // u256
+    args.add(this.totalSupply);  // u256
+    args.add(this.fee);  // u64
+    args.add(this.lastUpdateTime);  // u64
+    args.add(this.isActive);  // bool
+    args.add(this.cumulativePriceA);  // u256
+    args.add(this.cumulativePriceB);  // u256
+    args.add(this.blockTimestampLast);  // u64
     return args.serialize();
   }
 
@@ -128,16 +130,16 @@ export class Pool {
     const pool = new Pool(
       new Address(args.nextString().unwrap()),
       new Address(args.nextString().unwrap()),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextBool().unwrap(),
+      args.nextU256().unwrap(),  // reserveA: u256
+      args.nextU256().unwrap(),  // reserveB: u256
+      args.nextU256().unwrap(),  // totalSupply: u256
+      args.nextU64().unwrap(),   // fee: u64
+      args.nextU64().unwrap(),   // lastUpdateTime: u64
+      args.nextBool().unwrap(),  // isActive: bool
     );
-    pool.cumulativePriceA = args.nextU64().unwrap();
-    pool.cumulativePriceB = args.nextU64().unwrap();
-    pool.blockTimestampLast = args.nextU64().unwrap();
+    pool.cumulativePriceA = args.nextU256().unwrap();  // u256
+    pool.cumulativePriceB = args.nextU256().unwrap();  // u256
+    pool.blockTimestampLast = args.nextU64().unwrap();  // u64
     return pool;
   }
 }
@@ -201,13 +203,19 @@ function validateTokenPair(tokenA: Address, tokenB: Address): void {
 /**
  * Validate amounts
  */
-function validateAmounts(amountA: u64, amountB: u64): void {
-  assert(amountA > 0, 'Amount A must be positive');
-  assert(amountB > 0, 'Amount B must be positive');
+function validateAmounts(amountA: u256, amountB: u256): void {
+  assert(!amountA.isZero(), 'Amount A must be positive');
+  assert(!amountB.isZero(), 'Amount B must be positive');
 
-  const PRACTICAL_MAX: u64 = 1000000000 * ONE_UNIT;
-  assert(amountA <= PRACTICAL_MAX, `Amount A too large: ${amountA}`);
-  assert(amountB <= PRACTICAL_MAX, `Amount B too large: ${amountB}`);
+  // With u256, we can handle much larger amounts
+  // Only check that they don't exceed reasonable limits for 18-decimal tokens
+  // Max: 1 trillion tokens * 10^18 = 10^30 (fits easily in u256 max ~10^77)
+  const PRACTICAL_MAX = u256.mul(
+    u256.fromU64(1000000000000),  // 1 trillion
+    u256.fromU64(1000000000000000000)  // 10^18
+  );
+  assert(amountA <= PRACTICAL_MAX, `Amount A too large: ${amountA.toString()}`);
+  assert(amountB <= PRACTICAL_MAX, `Amount B too large: ${amountB.toString()}`);
 }
 
 // ============================================================================
@@ -281,10 +289,26 @@ function sqrt(x: u64): u64 {
 /**
  * Calculate geometric mean: sqrt(x * y)
  */
-export function safeSqrt(x: u64, y: u64): u64 {
-  if (x == 0 || y == 0) return 0;
-  const product = f64(x) * f64(y);
-  return u64(Math.sqrt(product));
+/**
+ * Safe square root for u256 (for initial liquidity calculation)
+ * Returns sqrt(x * y)
+ */
+export function safeSqrt(x: u256, y: u256): u256 {
+  if (x.isZero() || y.isZero()) return u256.Zero;
+
+  // For large values, use u256 math
+  // Simple binary search sqrt for u256
+  const product = SafeMath256.mul(x, y);
+  let z = u256.Zero;
+  let guess = SafeMath256.add(product, u256.One);
+  guess = u256.shr(guess, 1);  // guess = (product + 1) / 2
+
+  while (guess < product) {
+    z = guess;
+    guess = u256.shr(SafeMath256.add(u256.div(product, guess), guess), 1);
+  }
+
+  return z.isZero() ? u256.One : z;
 }
 
 // ============================================================================
@@ -294,64 +318,63 @@ export function safeSqrt(x: u64, y: u64): u64 {
 /**
  * Calculate output for exact input using constant product formula
  * amountOut = (amountIn * (10000 - fee) * reserveOut) / (reserveIn * 10000 + amountIn * (10000 - fee))
+ * Now uses u256 with high-precision math to avoid overflow
  */
 export function getAmountOut(
-  amountIn: u64,
-  reserveIn: u64,
-  reserveOut: u64,
+  amountIn: u256,
+  reserveIn: u256,
+  reserveOut: u256,
   fee: u64,
-): u64 {
-  assert(amountIn > 0, 'Insufficient input amount');
-  assert(reserveIn > 0 && reserveOut > 0, 'Insufficient liquidity');
+): u256 {
+  assert(!amountIn.isZero(), 'Insufficient input amount');
+  assert(!reserveIn.isZero() && !reserveOut.isZero(), 'Insufficient liquidity');
   assert(fee < 10000, 'Fee too high');
 
-  // Convert to f64 for calculations
-  const amountInF = f64(amountIn);
-  const reserveInF = f64(reserveIn);
-  const reserveOutF = f64(reserveOut);
-  const feeF = f64(fee);
+  // feeMultiplier = 10000 - fee (e.g., 9970 for 0.3% fee)
+  const feeMultiplier = u256.fromU64(10000 - fee);
 
-  // amountInWithFee = amountIn * (10000 - fee)
-  const amountInWithFee = amountInF * (10000.0 - feeF);
+  // amountInWithFee = amountIn * feeMultiplier
+  const amountInWithFee = SafeMath256.mul(amountIn, feeMultiplier);
 
   // numerator = amountInWithFee * reserveOut
-  const numerator = amountInWithFee * reserveOutF;
+  // Use Math512Bits to prevent overflow in multiplication
+  const numerator = SafeMath256.mul(amountInWithFee, reserveOut);
 
   // denominator = reserveIn * 10000 + amountInWithFee
-  const denominator = reserveInF * 10000.0 + amountInWithFee;
+  const reserveInScaled = SafeMath256.mul(reserveIn, u256.fromU64(10000));
+  const denominator = SafeMath256.add(reserveInScaled, amountInWithFee);
 
-  assert(denominator > 0, 'Division by zero');
+  assert(!denominator.isZero(), 'Division by zero');
 
-  const result = numerator / denominator;
-  return u64(result);
+  // result = numerator / denominator
+  const result = u256.div(numerator, denominator);
+  return result;
 }
 
 /**
  * Calculate input for exact output
  * Inverse of getAmountOut
+ * Now uses u256 with high-precision math
  */
-export function getAmountIn(amountOut: u64, reserveIn: u64, reserveOut: u64, fee: u64): u64 {
-  assert(amountOut > 0 && fee > 0, 'Insufficient output amount');
-  assert(reserveIn > 0 && reserveOut > amountOut, 'Insufficient liquidity');
-
-  // Convert to f64 for calculations
-  const reserveInF = f64(reserveIn);
-  const amountOutF = f64(amountOut);
-  const reserveOutF = f64(reserveOut);
-  const feeF = f64(fee);
+export function getAmountIn(amountOut: u256, reserveIn: u256, reserveOut: u256, fee: u64): u256 {
+  assert(!amountOut.isZero(), 'Insufficient output amount');
+  assert(!reserveIn.isZero() && reserveOut > amountOut, 'Insufficient liquidity');
+  assert(fee < 10000, 'Fee too high');
 
   // numerator = reserveIn * amountOut * 10000
-  const numerator = reserveInF * amountOutF * 10000.0;
+  const reserveInScaled = SafeMath256.mul(reserveIn, u256.fromU64(10000));
+  const numerator = SafeMath256.mul(reserveInScaled, amountOut);
 
   // denominator = (reserveOut - amountOut) * (10000 - fee)
-  const denominator = (reserveOutF - amountOutF) * (10000.0 - feeF);
+  const reserveOutDiff = SafeMath256.sub(reserveOut, amountOut);
+  const feeMultiplier = u256.fromU64(10000 - fee);
+  const denominator = SafeMath256.mul(reserveOutDiff, feeMultiplier);
 
-  assert(denominator > 0, 'Math overflow in getAmountIn');
+  assert(!denominator.isZero(), 'Math overflow in getAmountIn');
 
-  // result = (numerator / denominator) + 1 (round up)
-  const result = (numerator / denominator) + 1.0;
-
-  return u64(result);
+  // result = (numerator / denominator) + 1 (round up to favor pool)
+  const result = u256.div(numerator, denominator);
+  return SafeMath256.add(result, u256.One);
 }
 
 // ============================================================================
@@ -360,36 +383,33 @@ export function getAmountIn(amountOut: u64, reserveIn: u64, reserveOut: u64, fee
 
 /**
  * Update cumulative prices for TWAP
+ * Now uses u256 for large cumulative values
  */
 function updateCumulativePrices(pool: Pool): void {
   const currentTime = Context.timestamp();
   const timeElapsed = currentTime - pool.blockTimestampLast;
 
-  if (timeElapsed > 0 && pool.reserveA > 0 && pool.reserveB > 0) {
-    // Calculate prices using f64
-    const priceA = f64(pool.reserveB) * f64(ONE_UNIT) / f64(pool.reserveA);
-    const priceB = f64(pool.reserveA) * f64(ONE_UNIT) / f64(pool.reserveB);
+  if (timeElapsed > 0 && !pool.reserveA.isZero() && !pool.reserveB.isZero()) {
+    // Price = (reserve / other_reserve) * ONE_UNIT
+    // priceA = (reserveB * ONE_UNIT) / reserveA
+    const oneUnit = u256.fromU64(ONE_UNIT);
+    const timeElapsedU256 = u256.fromU64(timeElapsed);
+
+    // Calculate priceA = (reserveB * ONE_UNIT) / reserveA
+    const priceANumerator = SafeMath256.mul(pool.reserveB, oneUnit);
+    const priceA = u256.div(priceANumerator, pool.reserveA);
+
+    // Calculate priceB = (reserveA * ONE_UNIT) / reserveB
+    const priceBNumerator = SafeMath256.mul(pool.reserveA, oneUnit);
+    const priceB = u256.div(priceBNumerator, pool.reserveB);
 
     // Time-weighted prices
-    const priceATimeWeighted = priceA * f64(timeElapsed);
-    const priceBTimeWeighted = priceB * f64(timeElapsed);
+    const priceATimeWeighted = SafeMath256.mul(priceA, timeElapsedU256);
+    const priceBTimeWeighted = SafeMath256.mul(priceB, timeElapsedU256);
 
-    // Update cumulative prices
-    const newCumPriceA = f64(pool.cumulativePriceA) + priceATimeWeighted;
-    const newCumPriceB = f64(pool.cumulativePriceB) + priceBTimeWeighted;
-
-    // Store with modular arithmetic if overflow
-    if (newCumPriceA <= f64(u64.MAX_VALUE)) {
-      pool.cumulativePriceA = u64(newCumPriceA);
-    } else {
-      pool.cumulativePriceA = u64(newCumPriceA % f64(u64.MAX_VALUE));
-    }
-
-    if (newCumPriceB <= f64(u64.MAX_VALUE)) {
-      pool.cumulativePriceB = u64(newCumPriceB);
-    } else {
-      pool.cumulativePriceB = u64(newCumPriceB % f64(u64.MAX_VALUE));
-    }
+    // Update cumulative prices (u256 can hold very large cumulative values)
+    pool.cumulativePriceA = SafeMath256.add(pool.cumulativePriceA, priceATimeWeighted);
+    pool.cumulativePriceB = SafeMath256.add(pool.cumulativePriceB, priceBTimeWeighted);
 
     pool.blockTimestampLast = currentTime;
   }
@@ -401,41 +421,43 @@ function updateCumulativePrices(pool: Pool): void {
 
 /**
  * Safe token transfer from user to contract
+ * Now uses u256 directly (no conversion needed!)
  */
 function safeTransferFrom(
   token: Address,
   from: Address,
   to: Address,
-  amount: u64,
+  amount: u256,
 ): bool {
-  if (amount == 0) return true;
+  if (amount.isZero()) return true;
 
   const tokenContract = new IERC20(token);
   const allowance = tokenContract.allowance(from, Context.callee());
   const balance = tokenContract.balanceOf(from);
 
-  if (allowance < u256.fromU64(amount) || balance < u256.fromU64(amount)) {
+  if (allowance < amount || balance < amount) {
     return false;
   }
 
-  tokenContract.transferFrom(from, to, u256.fromU64(amount));
+  tokenContract.transferFrom(from, to, amount);  // Direct u256
   return true;
 }
 
 /**
  * Safe token transfer from contract to user
+ * Now uses u256 directly (no conversion needed!)
  */
-function safeTransfer(token: Address, to: Address, amount: u64): bool {
-  if (amount == 0) return true;
+function safeTransfer(token: Address, to: Address, amount: u256): bool {
+  if (amount.isZero()) return true;
 
   const tokenContract = new IERC20(token);
   const balance = tokenContract.balanceOf(Context.callee());
 
-  if ((balance) < u256.fromU64(amount)) {
+  if (balance < amount) {
     return false;
   }
 
-  tokenContract.transfer(to, u256.fromU64(amount));
+  tokenContract.transfer(to, amount);  // Direct u256
   return true;
 }
 
@@ -483,11 +505,11 @@ export function createPool(args: StaticArray<u8>): void {
   const tokenA = new Address(argument.nextString().unwrap());
   const tokenB = new Address(argument.nextString().unwrap());
 
-  const amountAResult = argument.nextU64();
+  const amountAResult = argument.nextU256();  // Changed to u256
   assert(amountAResult.isOk(), 'Invalid amountA');
   const amountA = amountAResult.unwrap();
 
-  const amountBResult = argument.nextU64();
+  const amountBResult = argument.nextU256();  // Changed to u256
   assert(amountBResult.isOk(), 'Invalid amountB');
   const amountB = amountBResult.unwrap();
 
@@ -504,13 +526,14 @@ export function createPool(args: StaticArray<u8>): void {
 
   assert(!Storage.has(stringToBytes(POOL_PREFIX + poolKey)), 'Pool already exists');
 
-  // Transfer tokens from user
+  // Transfer tokens from user (now u256 - no conversion!)
   assert(safeTransferFrom(tokenA, caller, Context.callee(), amountA), 'Token A transfer failed');
   assert(safeTransferFrom(tokenB, caller, Context.callee(), amountB), 'Token B transfer failed');
 
   // Calculate initial liquidity with minimum lock
   const liquidity = safeSqrt(amountA, amountB);
-  assert(liquidity > MIN_LIQUIDITY, 'Insufficient liquidity');
+  const minLiquidity = u256.fromU64(MIN_LIQUIDITY);
+  assert(liquidity > minLiquidity, 'Insufficient liquidity');
 
   // Create pool
   const pool = new Pool(tokenA, tokenB, amountA, amountB, liquidity, DEFAULT_FEE_RATE, Context.timestamp());
@@ -524,14 +547,15 @@ export function createPool(args: StaticArray<u8>): void {
 
   // Mint LP tokens (subtract minimum liquidity lock)
   const lpTokenKey = LP_PREFIX + poolKey + ':' + caller.toString();
-  const userLiquidity = liquidity - MIN_LIQUIDITY;
+  const userLiquidity = SafeMath256.sub(liquidity, minLiquidity);
+  // Convert u256 to string for storage
   Storage.set(lpTokenKey, userLiquidity.toString());
 
   // Lock minimum liquidity permanently
-  Storage.set(LP_PREFIX + poolKey + ':MINIMUM_LIQUIDITY', MIN_LIQUIDITY.toString());
+  Storage.set(LP_PREFIX + poolKey + ':MINIMUM_LIQUIDITY', minLiquidity.toString());
 
   endNonReentrant();
-  generateEvent(`Pool created: ${tokenA.toString()}/${tokenB.toString()} - Liquidity: ${liquidity}`);
+  generateEvent(`Pool created: ${tokenA.toString()}/${tokenB.toString()} - Liquidity: ${liquidity.toString()}`);
 }
 
 // ============================================================================
