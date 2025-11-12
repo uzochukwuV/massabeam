@@ -572,10 +572,10 @@ export function addLiquidity(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const tokenA = new Address(argument.nextString().unwrap());
   const tokenB = new Address(argument.nextString().unwrap());
-  const amountADesired = argument.nextU64().unwrap();
-  const amountBDesired = argument.nextU64().unwrap();
-  const amountAMin = argument.nextU64().unwrap();
-  const amountBMin = argument.nextU64().unwrap();
+  const amountADesired = argument.nextU256().unwrap();  // u256
+  const amountBDesired = argument.nextU256().unwrap();  // u256
+  const amountAMin = argument.nextU256().unwrap();  // u256
+  const amountBMin = argument.nextU256().unwrap();  // u256
   const deadline = argument.nextU64().unwrap();
 
   validDeadline(deadline + Context.timestamp());
@@ -587,22 +587,28 @@ export function addLiquidity(args: StaticArray<u8>): void {
   assert(pool != null, 'Pool does not exist');
   assert(pool!.isActive, 'Pool is not active');
 
-  // Calculate optimal amounts with slippage protection using f64
-  let amountA: u64, amountB: u64;
+  // Calculate optimal amounts with slippage protection using u256
+  let amountA: u256, amountB: u256;
 
-  if (pool!.reserveA == 0 || pool!.reserveB == 0) {
+  if (pool!.reserveA.isZero() || pool!.reserveB.isZero()) {
     amountA = amountADesired;
     amountB = amountBDesired;
   } else {
-    // amountBOptimal = amountADesired * reserveB / reserveA
-    const amountBOptimal = u64(f64(amountADesired) * f64(pool!.reserveB) / f64(pool!.reserveA));
+    // amountBOptimal = (amountADesired * reserveB) / reserveA
+    const amountBOptimal = u256.div(
+      SafeMath256.mul(amountADesired, pool!.reserveB),
+      pool!.reserveA
+    );
     if (amountBOptimal <= amountBDesired) {
       assert(amountBOptimal >= amountBMin, 'Insufficient B amount');
       amountA = amountADesired;
       amountB = amountBOptimal;
     } else {
-      // amountAOptimal = amountBDesired * reserveA / reserveB
-      const amountAOptimal = u64(f64(amountBDesired) * f64(pool!.reserveA) / f64(pool!.reserveB));
+      // amountAOptimal = (amountBDesired * reserveA) / reserveB
+      const amountAOptimal = u256.div(
+        SafeMath256.mul(amountBDesired, pool!.reserveA),
+        pool!.reserveB
+      );
       assert(amountAOptimal <= amountADesired && amountAOptimal >= amountAMin, 'Insufficient A amount');
       amountA = amountAOptimal;
       amountB = amountBDesired;
@@ -611,28 +617,34 @@ export function addLiquidity(args: StaticArray<u8>): void {
 
   validateAmounts(amountA, amountB);
 
-  // Transfer tokens
+  // Transfer tokens (now u256 - no conversion!)
   assert(safeTransferFrom(tokenA, caller, Context.callee(), amountA), 'Token A transfer failed');
   assert(safeTransferFrom(tokenB, caller, Context.callee(), amountB), 'Token B transfer failed');
 
-  // Calculate liquidity to mint using f64
-  const liquidity = u64(f64(amountA) * f64(pool!.totalSupply) / f64(pool!.reserveA));
-  assert(liquidity > 0, 'Insufficient liquidity minted');
+  // Calculate liquidity to mint: (amountA * totalSupply) / reserveA
+  const liquidity = u256.div(
+    SafeMath256.mul(amountA, pool!.totalSupply),
+    pool!.reserveA
+  );
+  assert(!liquidity.isZero(), 'Insufficient liquidity minted');
 
   // Update pool state
-  pool!.reserveA += amountA;
-  pool!.reserveB += amountB;
-  pool!.totalSupply += liquidity;
+  pool!.reserveA = SafeMath256.add(pool!.reserveA, amountA);
+  pool!.reserveB = SafeMath256.add(pool!.reserveB, amountB);
+  pool!.totalSupply = SafeMath256.add(pool!.totalSupply, liquidity);
   updateCumulativePrices(pool!);
   savePool(pool!);
 
   // Update user LP balance
   const lpTokenKey = LP_PREFIX + getPoolKey(tokenA, tokenB) + ':' + caller.toString();
-  const currentBalance = u64(parseInt(Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0'));
-  Storage.set(lpTokenKey, (currentBalance + liquidity).toString());
+  const currentBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
+  // Parse u256 from string
+  const currentBalance = u256.fromString(currentBalanceStr);
+  const newBalance = SafeMath256.add(currentBalance, liquidity);
+  Storage.set(lpTokenKey, newBalance.toString());
 
   endNonReentrant();
-  generateEvent(`Liquidity added: ${amountA}/${amountB} - LP tokens: ${liquidity}`);
+  generateEvent(`Liquidity added: ${amountA.toString()}/${amountB.toString()} - LP tokens: ${liquidity.toString()}`);
 }
 
 /**
@@ -645,14 +657,14 @@ export function removeLiquidity(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const tokenA = new Address(argument.nextString().unwrap());
   const tokenB = new Address(argument.nextString().unwrap());
-  const liquidity = argument.nextU64().unwrap();
-  const amountAMin = argument.nextU64().unwrap();
-  const amountBMin = argument.nextU64().unwrap();
+  const liquidity = argument.nextU256().unwrap();  // u256
+  const amountAMin = argument.nextU256().unwrap();  // u256
+  const amountBMin = argument.nextU256().unwrap();  // u256
   const deadline = argument.nextU64().unwrap();
 
   validDeadline(deadline + Context.timestamp());
   validateTokenPair(tokenA, tokenB);
-  assert(liquidity > 0, 'Insufficient liquidity');
+  assert(!liquidity.isZero(), 'Insufficient liquidity');
 
   const caller = Context.caller();
   const pool = getPool(tokenA, tokenB);
@@ -661,33 +673,43 @@ export function removeLiquidity(args: StaticArray<u8>): void {
 
   // Check user LP balance
   const lpTokenKey = LP_PREFIX + getPoolKey(tokenA, tokenB) + ':' + caller.toString();
-  const userBalance = u64(parseInt(Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0'));
+  const userBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
+  const userBalance = u256.fromString(userBalanceStr);
   assert(userBalance >= liquidity, 'Insufficient LP balance');
 
-  // Calculate amounts with slippage protection using f64
-  const amountA = u64(f64(liquidity) * f64(pool!.reserveA) / f64(pool!.totalSupply));
-  const amountB = u64(f64(liquidity) * f64(pool!.reserveB) / f64(pool!.totalSupply));
+  // Calculate amounts with slippage protection using u256
+  // amountA = (liquidity * reserveA) / totalSupply
+  const amountA = u256.div(
+    SafeMath256.mul(liquidity, pool!.reserveA),
+    pool!.totalSupply
+  );
+  // amountB = (liquidity * reserveB) / totalSupply
+  const amountB = u256.div(
+    SafeMath256.mul(liquidity, pool!.reserveB),
+    pool!.totalSupply
+  );
 
   assert(amountA >= amountAMin, 'Insufficient A amount');
   assert(amountB >= amountBMin, 'Insufficient B amount');
-  assert(amountA > 0 && amountB > 0, 'Insufficient liquidity burned');
+  assert(!amountA.isZero() && !amountB.isZero(), 'Insufficient liquidity burned');
 
   // Update pool state
-  pool!.reserveA -= amountA;
-  pool!.reserveB -= amountB;
-  pool!.totalSupply -= liquidity;
+  pool!.reserveA = SafeMath256.sub(pool!.reserveA, amountA);
+  pool!.reserveB = SafeMath256.sub(pool!.reserveB, amountB);
+  pool!.totalSupply = SafeMath256.sub(pool!.totalSupply, liquidity);
   updateCumulativePrices(pool!);
   savePool(pool!);
 
   // Update user LP balance
-  Storage.set(lpTokenKey, (userBalance - liquidity).toString());
+  const newBalance = SafeMath256.sub(userBalance, liquidity);
+  Storage.set(lpTokenKey, newBalance.toString());
 
-  // Transfer tokens back
+  // Transfer tokens back (now u256 - no conversion!)
   assert(safeTransfer(tokenA, caller, amountA), 'Token A transfer failed');
   assert(safeTransfer(tokenB, caller, amountB), 'Token B transfer failed');
 
   endNonReentrant();
-  generateEvent(`Liquidity removed: ${amountA}/${amountB} - LP tokens: ${liquidity}`);
+  generateEvent(`Liquidity removed: ${amountA.toString()}/${amountB.toString()} - LP tokens: ${liquidity.toString()}`);
 }
 
 // ============================================================================
