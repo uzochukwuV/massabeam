@@ -102,16 +102,16 @@ export class LimitOrder {
   user: Address; // Order creator
   tokenIn: Address; // Token to sell
   tokenOut: Address; // Token to buy
-  amountIn: u64; // Amount to sell
-  minAmountOut: u64; // Minimum acceptable output (price floor)
-  limitPrice: u64; // Target price (tokenOut per tokenIn in 18 decimals)
+  amountIn: u256; // Amount to sell (u256 for 18-decimal token support)
+  minAmountOut: u256; // Minimum acceptable output (price floor)
+  limitPrice: u256; // Target price (tokenOut per tokenIn in 18 decimals)
   expiryTime: u64; // Unix timestamp when order expires
   createdTime: u64; // Order creation timestamp
   status: u8; // ORDER_STATUS_*
 
   // Execution tracking
-  executedAmount: u64; // Amount already executed (0 for untouched)
-  remainingAmount: u64; // Amount left to execute
+  executedAmount: u256; // Amount already executed (0 for untouched)
+  remainingAmount: u256; // Amount left to execute
 
   // Protection parameters
   maxSlippage: u64; // Max allowed slippage in basis points (100 = 1%)
@@ -125,18 +125,18 @@ export class LimitOrder {
 
   // Advanced Order Types
   orderType: u8; // ORDER_TYPE_* (LIMIT, STOP_LOSS, TAKE_PROFIT, TRAILING_STOP)
-  triggerPrice: u64; // Price at which stop-loss/take-profit triggers (18 decimals)
+  triggerPrice: u256; // Price at which stop-loss/take-profit triggers (18 decimals)
   trailingPercent: u64; // For trailing stops: % below peak price (basis points)
-  highestPrice: u64; // Tracks highest price seen (for trailing stops)
+  highestPrice: u256; // Tracks highest price seen (for trailing stops)
 
   constructor(
     id: u64,
     user: Address,
     tokenIn: Address,
     tokenOut: Address,
-    amountIn: u64,
-    minAmountOut: u64,
-    limitPrice: u64,
+    amountIn: u256,
+    minAmountOut: u256,
+    limitPrice: u256,
     expiryTime: u64,
     maxSlippage: u64 = 100,
     partialFillAllowed: bool = false,
@@ -144,7 +144,7 @@ export class LimitOrder {
     minExecutionDelay: u64 = MEV_PROTECTION_DELAY,
     maxPriceImpact: u64 = MAX_PRICE_IMPACT,
     orderType: u8 = ORDER_TYPE_LIMIT,
-    triggerPrice: u64 = 0,
+    triggerPrice: u256 = u256.Zero,
     trailingPercent: u64 = 0,
   ) {
     this.id = id;
@@ -157,7 +157,7 @@ export class LimitOrder {
     this.expiryTime = expiryTime;
     this.createdTime = Context.timestamp();
     this.status = ORDER_STATUS_ACTIVE;
-    this.executedAmount = 0;
+    this.executedAmount = u256.Zero;
     this.remainingAmount = amountIn;
     this.maxSlippage = maxSlippage;
     this.partialFillAllowed = partialFillAllowed;
@@ -168,7 +168,7 @@ export class LimitOrder {
     this.orderType = orderType;
     this.triggerPrice = triggerPrice;
     this.trailingPercent = trailingPercent;
-    this.highestPrice = 0; // Will be updated as prices change
+    this.highestPrice = u256.Zero; // Will be updated as prices change
   }
 
   serialize(): StaticArray<u8> {
@@ -177,14 +177,14 @@ export class LimitOrder {
     args.add(this.user.toString());
     args.add(this.tokenIn.toString());
     args.add(this.tokenOut.toString());
-    args.add(this.amountIn);
-    args.add(this.minAmountOut);
-    args.add(this.limitPrice);
+    args.add(this.amountIn); // u256
+    args.add(this.minAmountOut); // u256
+    args.add(this.limitPrice); // u256
     args.add(this.expiryTime);
     args.add(this.createdTime);
     args.add(this.status);
-    args.add(this.executedAmount);
-    args.add(this.remainingAmount);
+    args.add(this.executedAmount); // u256
+    args.add(this.remainingAmount); // u256
     args.add(this.maxSlippage);
     args.add(this.partialFillAllowed);
     args.add(this.useTWAP);
@@ -192,9 +192,9 @@ export class LimitOrder {
     args.add(this.maxPriceImpact);
     args.add(this.executionWindow);
     args.add(this.orderType);
-    args.add(this.triggerPrice);
+    args.add(this.triggerPrice); // u256
     args.add(this.trailingPercent);
-    args.add(this.highestPrice);
+    args.add(this.highestPrice); // u256
     return args.serialize();
   }
 
@@ -205,9 +205,9 @@ export class LimitOrder {
       new Address(args.nextString().unwrap()),
       new Address(args.nextString().unwrap()),
       new Address(args.nextString().unwrap()),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
+      args.nextU256().unwrap(), // amountIn: u256
+      args.nextU256().unwrap(), // minAmountOut: u256
+      args.nextU256().unwrap(), // limitPrice: u256
       args.nextU64().unwrap(),
       args.nextU64().unwrap(),
       args.nextBool().unwrap(),
@@ -215,15 +215,15 @@ export class LimitOrder {
       args.nextU64().unwrap(),
       args.nextU64().unwrap(),
       args.nextU8().unwrap(), // orderType
-      args.nextU64().unwrap(), // triggerPrice
+      args.nextU256().unwrap(), // triggerPrice: u256
       args.nextU64().unwrap(), // trailingPercent
     );
     order.createdTime = args.nextU64().unwrap();
     order.status = args.nextU8().unwrap();
-    order.executedAmount = args.nextU64().unwrap();
-    order.remainingAmount = args.nextU64().unwrap();
+    order.executedAmount = args.nextU256().unwrap(); // u256
+    order.remainingAmount = args.nextU256().unwrap(); // u256
     order.executionWindow = args.nextU64().unwrap();
-    order.highestPrice = args.nextU64().unwrap();
+    order.highestPrice = args.nextU256().unwrap(); // u256
     return order;
   }
 
@@ -246,8 +246,8 @@ export class LimitOrder {
       return false;
     }
 
-    // Check remaining amount
-    if (this.remainingAmount == 0) {
+    // Check remaining amount (u256)
+    if (this.remainingAmount.isZero()) {
       return false;
     }
 
@@ -255,17 +255,18 @@ export class LimitOrder {
   }
 
   // Calculate how much output we expect at current price
-  calculateExpectedOutput(currentPrice: u64): u64 {
-    if (currentPrice == 0) return 0;
+  calculateExpectedOutput(currentPrice: u256): u256 {
+    if (currentPrice.isZero()) return u256.Zero;
 
     // currentPrice is tokenOut per tokenIn in 18 decimals
-    // amountOut = amountIn * currentPrice / 10^18
-    const outputF64 = f64(this.remainingAmount) * f64(currentPrice) / 1e18;
-    return u64(outputF64);
+    // amountOut = (amountIn * currentPrice) / 10^18
+    const e18 = u256.fromU64(1000000000000000000); // 10^18
+    const numerator = u256.mul(this.remainingAmount, currentPrice);
+    return u256.div(numerator, e18);
   }
 
   // Check if price condition is met
-  isPriceConditionMet(currentPrice: u64): bool {
+  isPriceConditionMet(currentPrice: u256): bool {
     // Update highest price for trailing stop orders
     if (this.orderType == ORDER_TYPE_TRAILING_STOP) {
       if (currentPrice > this.highestPrice) {
@@ -285,12 +286,15 @@ export class LimitOrder {
       return currentPrice >= this.triggerPrice;
     } else if (this.orderType == ORDER_TYPE_TRAILING_STOP) {
       // Trailing stop: price drops X% below highest seen price
-      if (this.highestPrice == 0) {
+      if (this.highestPrice.isZero()) {
         this.highestPrice = currentPrice;
         return false;
       }
-      const stopPrice = u64(
-        f64(this.highestPrice) * (1.0 - f64(this.trailingPercent) / 10000.0),
+      // stopPrice = highestPrice * (10000 - trailingPercent) / 10000
+      const multiplier = u256.fromU64(10000 - this.trailingPercent);
+      const stopPrice = u256.div(
+        u256.mul(this.highestPrice, multiplier),
+        u256.fromU64(10000)
       );
       return currentPrice <= stopPrice;
     }
@@ -372,13 +376,13 @@ function whenNotPaused(): void {
  * Reads pool reserves to calculate the current exchange rate
  * between tokenIn and tokenOut.
  *
- * Price = reserveOut / reserveIn (in 18 decimals)
+ * Price = (reserveOut / reserveIn) * 10^18
  */
-function getCurrentPoolPrice(tokenIn: Address, tokenOut: Address): u64 {
+function getCurrentPoolPrice(tokenIn: Address, tokenOut: Address): u256 {
   const pool = getPool(tokenIn, tokenOut);
 
   if (pool == null) {
-    return 0; // Pool doesn't exist, price unavailable
+    return u256.Zero; // Pool doesn't exist, price unavailable
   }
 
   // Determine which token is which in the pool
@@ -387,15 +391,14 @@ function getCurrentPoolPrice(tokenIn: Address, tokenOut: Address): u64 {
   const reserveOut = tokenInIsA ? pool.reserveB : pool.reserveA;
 
   // Prevent division by zero
-  if (reserveIn == 0) {
-    return 0;
+  if (reserveIn.isZero()) {
+    return u256.Zero;
   }
 
-  // Calculate price: (reserveOut / reserveIn) * 10^18
-  // Using f64 for intermediate calculations to prevent overflow
-  const priceF64 = f64(reserveOut) / f64(reserveIn) * 1e18;
-
-  return u64(priceF64);
+  // Calculate price: (reserveOut * 10^18) / reserveIn
+  const e18 = u256.fromU64(1000000000000000000); // 10^18
+  const numerator = u256.mul(reserveOut, e18);
+  return u256.div(numerator, reserveIn);
 }
 
 // ============================================================================
@@ -452,17 +455,17 @@ export function createLimitOrder(args: StaticArray<u8>): u64 {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
-  const limitPrice = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
+  const limitPrice = argument.nextU256().unwrap();
   const expiryTime = argument.nextU64().unwrap();
   const maxSlippage = argument.nextU64().unwrapOrDefault() || 100;
   const partialFillAllowed = argument.nextBool().unwrapOrDefault();
 
   // Validation
-  assert(amountIn > 0, 'Amount must be positive');
-  assert(minAmountOut > 0, 'Min output must be positive');
-  assert(limitPrice > 0, 'Price must be positive');
+  assert(!amountIn.isZero(), 'Amount must be positive');
+  assert(!minAmountOut.isZero(), 'Min output must be positive');
+  assert(!limitPrice.isZero(), 'Price must be positive');
   assert(tokenIn.toString() != tokenOut.toString(), 'Cannot swap same token');
 
   const now = Context.timestamp();
@@ -473,9 +476,8 @@ export function createLimitOrder(args: StaticArray<u8>): u64 {
   // Transfer tokens from user to contract
   const caller = Context.caller();
   const tokenContract = new IERC20(tokenIn);
-  const amountInU256 = u256.fromU64(amountIn);
 
-  tokenContract.transferFrom(caller, Context.callee(), amountInU256);
+  tokenContract.transferFrom(caller, Context.callee(), amountIn);
 
   // Create order
   const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
@@ -524,7 +526,7 @@ export function executeLimitOrder(args: StaticArray<u8>): bool {
 
   const argument = new Args(args);
   const orderId = argument.nextU64().unwrap();
-  const currentPrice = argument.nextU64().unwrap();
+  const currentPrice = argument.nextU256().unwrap();
 
   // Get order
   const order = getOrder(orderId);
@@ -561,10 +563,10 @@ export function executeLimitOrder(args: StaticArray<u8>): bool {
   // Get MassaBeam address and execute swap
   const massaBeamAddress = new Address(Storage.get(MASSABEAM_ADDRESS_KEY));
 
- 
+
     // Approve token transfer
     const tokenInContract = new IERC20(order!.tokenIn);
-    tokenInContract.increaseAllowance(massaBeamAddress, u256.fromU64(order!.remainingAmount));
+    tokenInContract.increaseAllowance(massaBeamAddress, order!.remainingAmount);
 
     // Execute swap via MassaBeam
     const massaBeam = new IMassaBeamAMM(massaBeamAddress);
@@ -577,9 +579,9 @@ export function executeLimitOrder(args: StaticArray<u8>): bool {
       order!.user,
     );
 
-    // Update order state
-    order!.executedAmount += order!.remainingAmount;
-    order!.remainingAmount = 0;
+    // Update order state (u256 addition)
+    order!.executedAmount = u256.add(order!.executedAmount, order!.remainingAmount);
+    order!.remainingAmount = u256.Zero;
     order!.status = ORDER_STATUS_FILLED;
 
     saveOrder(order!);
@@ -608,15 +610,15 @@ export function createStopLossOrder(args: StaticArray<u8>): u64 {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
-  const triggerPrice = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
+  const triggerPrice = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
   const expiryTime = argument.nextU64().unwrap();
 
   // Validation
-  assert(amountIn > 0, 'Amount must be positive');
-  assert(triggerPrice > 0, 'Trigger price must be positive');
-  assert(minAmountOut > 0, 'Min output must be positive');
+  assert(!amountIn.isZero(), 'Amount must be positive');
+  assert(!triggerPrice.isZero(), 'Trigger price must be positive');
+  assert(!minAmountOut.isZero(), 'Min output must be positive');
   assert(tokenIn.toString() != tokenOut.toString(), 'Cannot swap same token');
 
   const now = Context.timestamp();
@@ -626,7 +628,7 @@ export function createStopLossOrder(args: StaticArray<u8>): u64 {
   // Transfer tokens from user to contract
   const caller = Context.caller();
   const tokenContract = new IERC20(tokenIn);
-  tokenContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+  tokenContract.transferFrom(caller, Context.callee(), amountIn);
 
   // Create stop-loss order
   const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
@@ -639,7 +641,7 @@ export function createStopLossOrder(args: StaticArray<u8>): u64 {
     tokenOut,
     amountIn,
     minAmountOut,
-    0, // limitPrice not used for stop-loss
+    u256.Zero, // limitPrice not used for stop-loss
     expiryTime,
     100, // 1% max slippage
     false, // no partial fills
@@ -670,15 +672,15 @@ export function createTakeProfitOrder(args: StaticArray<u8>): u64 {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
-  const triggerPrice = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
+  const triggerPrice = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
   const expiryTime = argument.nextU64().unwrap();
 
   // Validation
-  assert(amountIn > 0, 'Amount must be positive');
-  assert(triggerPrice > 0, 'Trigger price must be positive');
-  assert(minAmountOut > 0, 'Min output must be positive');
+  assert(!amountIn.isZero(), 'Amount must be positive');
+  assert(!triggerPrice.isZero(), 'Trigger price must be positive');
+  assert(!minAmountOut.isZero(), 'Min output must be positive');
   assert(tokenIn.toString() != tokenOut.toString(), 'Cannot swap same token');
 
   const now = Context.timestamp();
@@ -688,7 +690,7 @@ export function createTakeProfitOrder(args: StaticArray<u8>): u64 {
   // Transfer tokens
   const caller = Context.caller();
   const tokenContract = new IERC20(tokenIn);
-  tokenContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+  tokenContract.transferFrom(caller, Context.callee(), amountIn);
 
   // Create take-profit order
   const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
@@ -701,7 +703,7 @@ export function createTakeProfitOrder(args: StaticArray<u8>): u64 {
     tokenOut,
     amountIn,
     minAmountOut,
-    0, // limitPrice not used
+    u256.Zero, // limitPrice not used
     expiryTime,
     100,
     false,
@@ -731,15 +733,15 @@ export function createTrailingStopOrder(args: StaticArray<u8>): u64 {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
   const trailingPercent = argument.nextU64().unwrap(); // in basis points (e.g., 500 = 5%)
-  const minAmountOut = argument.nextU64().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
   const expiryTime = argument.nextU64().unwrap();
 
   // Validation
-  assert(amountIn > 0, 'Amount must be positive');
+  assert(!amountIn.isZero(), 'Amount must be positive');
   assert(trailingPercent > 0 && trailingPercent <= 5000, 'Trailing % must be 0-50%');
-  assert(minAmountOut > 0, 'Min output must be positive');
+  assert(!minAmountOut.isZero(), 'Min output must be positive');
   assert(tokenIn.toString() != tokenOut.toString(), 'Cannot swap same token');
 
   const now = Context.timestamp();
@@ -749,7 +751,7 @@ export function createTrailingStopOrder(args: StaticArray<u8>): u64 {
   // Transfer tokens
   const caller = Context.caller();
   const tokenContract = new IERC20(tokenIn);
-  tokenContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+  tokenContract.transferFrom(caller, Context.callee(), amountIn);
 
   // Create trailing stop order
   const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
@@ -762,7 +764,7 @@ export function createTrailingStopOrder(args: StaticArray<u8>): u64 {
     tokenOut,
     amountIn,
     minAmountOut,
-    0,
+    u256.Zero,
     expiryTime,
     100,
     false,
@@ -770,7 +772,7 @@ export function createTrailingStopOrder(args: StaticArray<u8>): u64 {
     MEV_PROTECTION_DELAY,
     MAX_PRICE_IMPACT,
     ORDER_TYPE_TRAILING_STOP,
-    0, // triggerPrice calculated dynamically
+    u256.Zero, // triggerPrice calculated dynamically
     trailingPercent,
   );
 
@@ -807,9 +809,9 @@ export function cancelLimitOrder(args: StaticArray<u8>): bool {
   assert(order!.status == ORDER_STATUS_ACTIVE, 'Order cannot be cancelled');
 
   // Refund remaining tokens
-  if (order!.remainingAmount > 0) {
+  if (!order!.remainingAmount.isZero()) {
     const tokenContract = new IERC20(order!.tokenIn);
-    tokenContract.transfer(order!.user, u256.fromU64(order!.remainingAmount));
+    tokenContract.transfer(order!.user, order!.remainingAmount);
   }
 
   // Mark as cancelled
@@ -1076,7 +1078,7 @@ export function advance(_: StaticArray<u8>): void {
 
     // Approve token transfer
     const tokenInContract = new IERC20(order.tokenIn);
-    tokenInContract.increaseAllowance(massaBeamAddress, u256.fromU64(order.remainingAmount));
+    tokenInContract.increaseAllowance(massaBeamAddress, order.remainingAmount);
 
     // Execute swap via MassaBeam
     const massaBeam = new IMassaBeamAMM(massaBeamAddress);
@@ -1089,9 +1091,9 @@ export function advance(_: StaticArray<u8>): void {
       order.user,
     );
 
-    // Update order state
-    order.executedAmount += order.remainingAmount;
-    order.remainingAmount = 0;
+    // Update order state (u256 addition)
+    order.executedAmount = u256.add(order.executedAmount, order.remainingAmount);
+    order.remainingAmount = u256.Zero;
     order.status = ORDER_STATUS_FILLED;
 
     saveOrder(order);

@@ -136,8 +136,8 @@ export class ArbitrageOpportunity {
   tokenOut: Address;
   buyDex: string; // 'MASSABEAM' or 'DUSA'
   sellDex: string;
-  optimalAmount: u64;
-  expectedProfit: u64;
+  optimalAmount: u256; // u256 for 18-decimal token support
+  expectedProfit: u256; // u256 for 18-decimal token support
   profitPercentage: u64; // In basis points
   priceImpact: u64;
   timestamp: u64;
@@ -147,8 +147,8 @@ export class ArbitrageOpportunity {
     tokenOut: Address,
     buyDex: string,
     sellDex: string,
-    optimalAmount: u64,
-    expectedProfit: u64,
+    optimalAmount: u256,
+    expectedProfit: u256,
   ) {
     this.tokenIn = tokenIn;
     this.tokenOut = tokenOut;
@@ -156,9 +156,10 @@ export class ArbitrageOpportunity {
     this.sellDex = sellDex;
     this.optimalAmount = optimalAmount;
     this.expectedProfit = expectedProfit;
-    this.profitPercentage = u64(
-      (f64(expectedProfit) / f64(optimalAmount)) * 10000.0,
-    );
+    // Calculate profit percentage using f64 for ratio
+    const amountF64 = parseFloat(optimalAmount.toString());
+    const profitF64 = parseFloat(expectedProfit.toString());
+    this.profitPercentage = u64((profitF64 / amountF64) * 10000.0);
     this.priceImpact = 0;
     this.timestamp = Context.timestamp();
   }
@@ -323,9 +324,11 @@ function checkPairForArbitrage(
 /**
  * Calculate price from pool reserves
  */
-function calculatePoolPrice(pool: Pool): u64 {
-  // Price = reserveB / reserveA * 10^18
-  return u64((f64(pool.reserveB) / f64(pool.reserveA)) * 1e18);
+function calculatePoolPrice(pool: Pool): u256 {
+  // Price = (reserveB * 10^18) / reserveA
+  const e18 = u256.fromU64(1000000000000000000); // 10^18
+  const numerator = u256.mul(pool.reserveB, e18);
+  return u256.div(numerator, pool.reserveA);
 }
 
 /**
@@ -335,19 +338,25 @@ function calculatePoolPrice(pool: Pool): u64 {
 function calculateOptimalArbitrageAmount(
   tokenA: Address,
   tokenB: Address,
-  priceA: u64,
-  priceB: u64,
-): u64 {
+  priceA: u256,
+  priceB: u256,
+): u256 {
   // Simplified: Use geometric mean of pool reserves
   const pool = getPool(tokenA, tokenB);
-  if (pool == null) return MIN_ARBITRAGE_AMOUNT;
+  const minAmount = u256.fromU64(MIN_ARBITRAGE_AMOUNT);
+  if (pool == null) return minAmount;
 
-  const geometric = u64(Math.sqrt(f64(pool!.reserveA) * f64(pool!.reserveB)));
-  const optimal = geometric / 10; // 10% of geometric mean
+  // Calculate geometric mean using f64 for sqrt (safe for ratio)
+  const reserveAF64 = parseFloat(pool!.reserveA.toString());
+  const reserveBF64 = parseFloat(pool!.reserveB.toString());
+  const geometric = u256.fromString(Math.sqrt(reserveAF64 * reserveBF64).toString().split('.')[0]);
+
+  const optimal = u256.div(geometric, u256.fromU64(10)); // 10% of geometric mean
 
   // Clamp to min/max
-  if (optimal < MIN_ARBITRAGE_AMOUNT) return MIN_ARBITRAGE_AMOUNT;
-  if (optimal > MAX_ARBITRAGE_AMOUNT) return MAX_ARBITRAGE_AMOUNT;
+  const maxAmount = u256.fromU64(MAX_ARBITRAGE_AMOUNT);
+  if (optimal < minAmount) return minAmount;
+  if (optimal > maxAmount) return maxAmount;
 
   return optimal;
 }
@@ -410,8 +419,8 @@ export function onFlashLoan(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const sender = new Address(argument.nextString().unwrap());
   const token = new Address(argument.nextString().unwrap());
-  const amount = argument.nextU64().unwrap();
-  const fee = argument.nextU64().unwrap();
+  const amount = argument.nextU256().unwrap();
+  const fee = argument.nextU256().unwrap();
   const data = argument.nextBytes().unwrap();
 
   // Parse opportunity data
@@ -420,8 +429,8 @@ export function onFlashLoan(args: StaticArray<u8>): void {
   const tokenOut = new Address(oppArgs.nextString().unwrap());
   const buyDex = oppArgs.nextString().unwrap();
   const sellDex = oppArgs.nextString().unwrap();
-  const tradeAmount = oppArgs.nextU64().unwrap();
-  const expectedProfit = oppArgs.nextU64().unwrap();
+  const tradeAmount = oppArgs.nextU256().unwrap();
+  const expectedProfit = oppArgs.nextU256().unwrap();
 
   generateEvent('FlashArbitrageBot: In callback, executing trades');
 
@@ -432,7 +441,7 @@ export function onFlashLoan(args: StaticArray<u8>): void {
   const amountBack = executeSell(sellDex, tokenOut, tokenIn, amountOut);
 
   // Step 3: Verify profit and approve repayment
-  const totalRepayment = amount + fee;
+  const totalRepayment = u256.add(amount, fee);
   assert(
     amountBack >= totalRepayment,
     'FlashArbitrageBot: Insufficient profit for repayment',
@@ -441,10 +450,10 @@ export function onFlashLoan(args: StaticArray<u8>): void {
   // Transfer tokens back for repayment
   // The flash loan contract will take them
   const tokenContract = new IERC20(token);
-  tokenContract.transfer(sender, u256.fromU64(totalRepayment));
+  tokenContract.transfer(sender, totalRepayment);
 
-  const actualProfit = amountBack - totalRepayment;
-  generateEvent(`FlashArbitrageBot: Arbitrage complete! Actual profit: ${actualProfit}`);
+  const actualProfit = u256.sub(amountBack, totalRepayment);
+  generateEvent(`FlashArbitrageBot: Arbitrage complete! Actual profit: ${actualProfit.toString()}`);
 }
 
 /**
@@ -454,8 +463,8 @@ function executeBuy(
   dex: string,
   tokenIn: Address,
   tokenOut: Address,
-  amount: u64,
-): u64 {
+  amount: u256,
+): u256 {
   if (dex == 'MASSABEAM') {
     return buyOnMassaBeam(tokenIn, tokenOut, amount);
   } else {
@@ -470,8 +479,8 @@ function executeSell(
   dex: string,
   tokenIn: Address,
   tokenOut: Address,
-  amount: u64,
-): u64 {
+  amount: u256,
+): u256 {
   if (dex == 'MASSABEAM') {
     return sellOnMassaBeam(tokenIn, tokenOut, amount);
   } else {
@@ -485,8 +494,8 @@ function executeSell(
 function buyOnMassaBeam(
   tokenIn: Address,
   tokenOut: Address,
-  amount: u64,
-): u64 {
+  amount: u256,
+): u256 {
   const massaBeam = new Address(Storage.get(MASSABEAM_ADDRESS_KEY));
   const amm = new IMassaBeamAMM(massaBeam);
 
@@ -496,17 +505,21 @@ function buyOnMassaBeam(
 
   // Get pool to calculate expected output
   const pool = getPool(tokenIn, tokenOut);
-  if (pool == null) return 0;
+  if (pool == null) return u256.Zero;
 
   const tokenInIsA = pool!.tokenA.toString() == tokenIn.toString();
   const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
   const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
 
-  // Calculate output using constant product formula
-  const amountInWithFee = u64(f64(amount) * 0.997); // 0.3% fee
-  const numerator = u64(f64(amountInWithFee) * f64(reserveOut));
-  const denominator = u64(f64(reserveIn) + f64(amountInWithFee));
-  const amountOut = numerator / denominator;
+  // Calculate output using constant product formula with u256
+  // amountInWithFee = amount * 997 / 1000 (0.3% fee)
+  const amountInWithFee = u256.div(
+    u256.mul(amount, u256.fromU64(997)),
+    u256.fromU64(1000)
+  );
+  const numerator = u256.mul(amountInWithFee, reserveOut);
+  const denominator = u256.add(reserveIn, amountInWithFee);
+  const amountOut = u256.div(numerator, denominator);
 
   return amountOut;
 }
@@ -517,34 +530,34 @@ function buyOnMassaBeam(
 function sellOnMassaBeam(
   tokenIn: Address,
   tokenOut: Address,
-  amount: u64,
-): u64 {
+  amount: u256,
+): u256 {
   return buyOnMassaBeam(tokenIn, tokenOut, amount); // Same logic
 }
 
 /**
  * Buy on Dusa
  */
-function buyOnDusa(tokenIn: Address, tokenOut: Address, amount: u64): u64 {
+function buyOnDusa(tokenIn: Address, tokenOut: Address, amount: u256): u256 {
   const dusaRouter = new Address(Storage.get(DUSA_ROUTER_ADDRESS_KEY));
   const router = new IRouter(dusaRouter);
 
   // Execute swap on Dusa
   const deadline = Context.timestamp() + 300;
-  const minOut = u64(f64(amount) * 0.99);
+  const minOut = u256.div(u256.mul(amount, u256.fromU64(99)), u256.fromU64(100));
 
   // Call Dusa swap (simplified)
   // router.swapExactTokensForTokens(amount, minOut, path, to, deadline);
 
   // Return amount received
   const tokenOutContract = new IERC20(tokenOut);
-  return tokenOutContract.balanceOf(Context.callee()).toU64();
+  return tokenOutContract.balanceOf(Context.callee());
 }
 
 /**
  * Sell on Dusa
  */
-function sellOnDusa(tokenIn: Address, tokenOut: Address, amount: u64): u64 {
+function sellOnDusa(tokenIn: Address, tokenOut: Address, amount: u256): u256 {
   return buyOnDusa(tokenIn, tokenOut, amount); // Same logic
 }
 

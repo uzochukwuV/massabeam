@@ -110,10 +110,10 @@ export class ArbitrageOpportunity {
   sellDEX: u8; // 0 = MassaBeam, 1 = Dusa (more expensive)
 
   // Trade parameters
-  amountIn: u64; // How much to buy with
-  estimatedAmountOut1: u64; // Output from first swap
-  estimatedAmountOut2: u64; // Output from second swap
-  estimatedProfit: u64; // Profit in original token
+  amountIn: u256; // How much to buy with
+  estimatedAmountOut1: u256; // Output from first swap
+  estimatedAmountOut2: u256; // Output from second swap
+  estimatedProfit: u256; // Profit in original token
 
   // Risk metrics
   priceImpact: u64; // Expected price impact in basis points
@@ -125,7 +125,7 @@ export class ArbitrageOpportunity {
   createdTime: u64;
   executedTime: u64;
   expiryTime: u64;
-  actualProfit: u64; // Profit after execution
+  actualProfit: u256; // Profit after execution
 
   constructor(
     id: u64,
@@ -134,10 +134,10 @@ export class ArbitrageOpportunity {
     tokenB: Address,
     buyDEX: u8,
     sellDEX: u8,
-    amountIn: u64,
-    estimatedAmountOut1: u64,
-    estimatedAmountOut2: u64,
-    estimatedProfit: u64,
+    amountIn: u256,
+    estimatedAmountOut1: u256,
+    estimatedAmountOut2: u256,
+    estimatedProfit: u256,
   ) {
     this.id = id;
     this.opportunityType = opportunityType;
@@ -157,7 +157,7 @@ export class ArbitrageOpportunity {
     this.createdTime = Context.timestamp();
     this.executedTime = 0;
     this.expiryTime = Context.timestamp() + 30; // 30 seconds expiry
-    this.actualProfit = 0;
+    this.actualProfit = u256.Zero;
   }
 
   serialize(): StaticArray<u8> {
@@ -169,10 +169,10 @@ export class ArbitrageOpportunity {
     args.add(this.tokenB.toString());
     args.add(this.buyDEX);
     args.add(this.sellDEX);
-    args.add(this.amountIn);
-    args.add(this.estimatedAmountOut1);
-    args.add(this.estimatedAmountOut2);
-    args.add(this.estimatedProfit);
+    args.add(this.amountIn); // u256 - Args.add handles u256
+    args.add(this.estimatedAmountOut1); // u256
+    args.add(this.estimatedAmountOut2); // u256
+    args.add(this.estimatedProfit); // u256
     args.add(this.priceImpact);
     args.add(this.totalSlippage);
     args.add(this.profitMargin);
@@ -180,7 +180,7 @@ export class ArbitrageOpportunity {
     args.add(this.createdTime);
     args.add(this.executedTime);
     args.add(this.expiryTime);
-    args.add(this.actualProfit);
+    args.add(this.actualProfit); // u256
     return args.serialize();
   }
 
@@ -193,10 +193,10 @@ export class ArbitrageOpportunity {
       new Address(args.nextString().unwrap()),
       args.nextU8().unwrap(),
       args.nextU8().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
+      args.nextU256().unwrap(), // amountIn
+      args.nextU256().unwrap(), // estimatedAmountOut1
+      args.nextU256().unwrap(), // estimatedAmountOut2
+      args.nextU256().unwrap(), // estimatedProfit
     );
     opportunity.status = args.nextU8().unwrap();
     opportunity.priceImpact = args.nextU64().unwrap();
@@ -206,14 +206,14 @@ export class ArbitrageOpportunity {
     opportunity.createdTime = args.nextU64().unwrap();
     opportunity.executedTime = args.nextU64().unwrap();
     opportunity.expiryTime = args.nextU64().unwrap();
-    opportunity.actualProfit = args.nextU64().unwrap();
+    opportunity.actualProfit = args.nextU256().unwrap(); // u256
     return opportunity;
   }
 
   isValid(): bool {
     return this.status == OPPORTUNITY_STATUS_PENDING &&
            Context.timestamp() < this.expiryTime &&
-           this.estimatedProfit >= MIN_PROFIT_THRESHOLD;
+           this.estimatedProfit >= u256.fromU64(MIN_PROFIT_THRESHOLD);
   }
 }
 
@@ -224,65 +224,71 @@ export class ArbitrageOpportunity {
 /**
  * Calculate profit margin as basis points
  */
-function calculateProfitMargin(amountIn: u64, profit: u64): u64 {
-  if (amountIn == 0) return 0;
-  const marginF64 = (f64(profit) / f64(amountIn)) * 10000.0;
+function calculateProfitMargin(amountIn: u256, profit: u256): u64 {
+  if (amountIn.isZero()) return 0;
+  // Convert to f64 for percentage calculation
+  const amountInF64 = parseFloat(amountIn.toString());
+  const profitF64 = parseFloat(profit.toString());
+  const marginF64 = (profitF64 / amountInF64) * 10000.0;
   return u64(marginF64);
 }
 
 /**
  * Get price from MassaBeam pool
  */
-function getMassaBeamPrice(tokenA: Address, tokenB: Address): u64 {
+function getMassaBeamPrice(tokenA: Address, tokenB: Address): u256 {
   const pool = getPool(tokenA, tokenB);
-  if (pool == null) return 0;
+  if (pool == null) return u256.Zero;
 
   const tokenAIsFirst = pool.tokenA.toString() == tokenA.toString();
   const reserveA = tokenAIsFirst ? pool.reserveA : pool.reserveB;
   const reserveB = tokenAIsFirst ? pool.reserveB : pool.reserveA;
 
-  if (reserveA == 0) return 0;
+  if (reserveA.isZero()) return u256.Zero;
 
-  const priceF64 = f64(reserveB) / f64(reserveA) * 1e18;
-  return u64(priceF64);
+  // Price = reserveB / reserveA * 1e18
+  const scaledReserveB = u256.mul(reserveB, u256.fromU64(1000000000000000000)); // 1e18
+  const price = u256.div(scaledReserveB, reserveA);
+  return price;
 }
 
 /**
  * Calculate amount out for MassaBeam swap
  * Using constant product formula: (x * y = k)
  */
-function getMassaBeamAmountOut(tokenIn: Address, tokenOut: Address, amountIn: u64): u64 {
+function getMassaBeamAmountOut(tokenIn: Address, tokenOut: Address, amountIn: u256): u256 {
   const pool = getPool(tokenIn, tokenOut);
-  if (pool == null) return 0;
+  if (pool == null) return u256.Zero;
 
   const tokenInIsA = pool.tokenA.toString() == tokenIn.toString();
   const reserveIn = tokenInIsA ? pool.reserveA : pool.reserveB;
   const reserveOut = tokenInIsA ? pool.reserveB : pool.reserveA;
 
-  if (reserveIn == 0 || reserveOut == 0) return 0;
+  if (reserveIn.isZero() || reserveOut.isZero()) return u256.Zero;
 
-  // Constant product formula: amountOut = (amountIn * (10000 - fee) * reserveOut) / (reserveIn * 10000 + amountIn * (10000 - fee))
-  const amountInWithFee = u64(f64(amountIn) * (10000.0 - f64(pool.fee)) / 10000.0);
-  const numerator = u64(f64(amountInWithFee) * f64(reserveOut));
-  const denominator = u64(f64(reserveIn) + f64(amountInWithFee));
+  // Constant product formula with fee
+  const feeMultiplier = u256.fromU64(10000 - pool.fee);
+  const amountInWithFee = u256.div(u256.mul(amountIn, feeMultiplier), u256.fromU64(10000));
+  const numerator = u256.mul(amountInWithFee, reserveOut);
+  const denominator = u256.add(reserveIn, amountInWithFee);
 
-  if (denominator == 0) return 0;
-  return numerator / denominator;
+  if (denominator.isZero()) return u256.Zero;
+  return u256.div(numerator, denominator);
 }
 
 /**
  * Calculate amount out for Dusa swap
  * Note: This is simplified - real implementation would call IQuoter
  */
-function getDusaAmountOut(_tokenIn: Address, _tokenOut: Address, _amountIn: u64): u64 {
+function getDusaAmountOut(_tokenIn: Address, _tokenOut: Address, _amountIn: u256): u256 {
   // In production, would call:
   // const quoter = new IQuoter(dusaQuoterAddress);
   // const route = [tokenIn, tokenOut];
-  // const quote = quoter.findBestPathFromAmountIn(route, u256.fromU64(amountIn));
-  // return quote.amounts[quote.amounts.length - 1].toU64();
+  // const quote = quoter.findBestPathFromAmountIn(route, amountIn);
+  // return quote.amounts[quote.amounts.length - 1];
 
   // For now, return 0 to indicate Dusa quote not available
-  return 0;
+  return u256.Zero;
 }
 
 /**
@@ -369,13 +375,13 @@ export function constructor(args: StaticArray<u8>): void {
 export function detectSimpleArbitrage(
   tokenA: Address,
   tokenB: Address,
-  maxAmountIn: u64,
+  maxAmountIn: u256,
 ): ArbitrageOpportunity | null {
   // Get prices from both DEXs
   const massaBeamPrice = getMassaBeamPrice(tokenA, tokenB);
-  const dusaPrice = getDusaAmountOut(tokenA, tokenB, 1000000); // Normalized price
+  const dusaPrice = getDusaAmountOut(tokenA, tokenB, u256.fromU64(1000000)); // Normalized price
 
-  if (massaBeamPrice == 0) {
+  if (massaBeamPrice.isZero()) {
     return null; // Pool doesn't exist on MassaBeam
   }
 
@@ -385,8 +391,9 @@ export function detectSimpleArbitrage(
 
   // Calculate potential profit with maximum amount
   let testAmount = maxAmountIn;
-  if (testAmount > MAX_ARBITRAGE_SIZE) {
-    testAmount = MAX_ARBITRAGE_SIZE;
+  const maxArbSize = u256.fromU64(MAX_ARBITRAGE_SIZE);
+  if (testAmount > maxArbSize) {
+    testAmount = maxArbSize;
   }
 
   // First swap: Buy on cheaper DEX
@@ -394,7 +401,7 @@ export function detectSimpleArbitrage(
     ? getMassaBeamAmountOut(tokenA, tokenB, testAmount)
     : getDusaAmountOut(tokenA, tokenB, testAmount);
 
-  if (amountAfterFirstSwap == 0) {
+  if (amountAfterFirstSwap.isZero()) {
     return null; // Swap failed
   }
 
@@ -403,17 +410,17 @@ export function detectSimpleArbitrage(
     ? getMassaBeamAmountOut(tokenB, tokenA, amountAfterFirstSwap)
     : getDusaAmountOut(tokenB, tokenA, amountAfterFirstSwap);
 
-  if (amountAfterSecondSwap == 0) {
+  if (amountAfterSecondSwap.isZero()) {
     return null;
   }
 
   // Calculate profit
   const profit = amountAfterSecondSwap > testAmount
-    ? amountAfterSecondSwap - testAmount
-    : 0;
+    ? u256.sub(amountAfterSecondSwap, testAmount)
+    : u256.Zero;
 
   // Check if profitable
-  if (profit < MIN_PROFIT_THRESHOLD) {
+  if (profit < u256.fromU64(MIN_PROFIT_THRESHOLD)) {
     return null;
   }
 
@@ -452,7 +459,7 @@ export function scanForArbitrageOpportunities(tokenPairs: Address[][]): Arbitrag
     const opportunity = detectSimpleArbitrage(
       tokenPairs[i][0],
       tokenPairs[i][1],
-      100000 * 10 ** 18, // Default test amount
+      u256.fromU64(100000 * 10 ** 18), // Default test amount (needs to fit in u64 for this literal)
     );
 
     if (opportunity != null) {
@@ -513,15 +520,20 @@ export function executeArbitrage(args: StaticArray<u8>): bool {
 
   // Approve tokens
   const tokenInContract = new IERC20(tokenInForFirstSwap);
-  tokenInContract.increaseAllowance(massaBeamAddress, u256.fromU64(opportunity.amountIn));
+  tokenInContract.increaseAllowance(massaBeamAddress, opportunity.amountIn); // Direct u256
 
   // Execute first swap on MassaBeam
   const massaBeam = new IMassaBeamAMM(massaBeamAddress);
+  // Calculate minAmountOut with 1% slippage using u256 math
+  const minAmountOut = u256.div(
+    u256.mul(opportunity.estimatedAmountOut1, u256.fromU64(99)),
+    u256.fromU64(100)
+  );
   massaBeam.swap(
     tokenInForFirstSwap,
     tokenOutForFirstSwap,
-    opportunity.amountIn,
-    u64(f64(opportunity.estimatedAmountOut1) * 0.99), // 1% slippage
+    opportunity.amountIn, // u256
+    minAmountOut, // u256
     Context.timestamp() + 60,
     Context.caller(),
   );
@@ -538,10 +550,12 @@ export function executeArbitrage(args: StaticArray<u8>): bool {
 
   // Update statistics
   const executedCount = u64(parseInt(Storage.get('total_opportunities_executed')));
-  const totalProfit = u64(parseInt(Storage.get('total_profit_realized')));
+  const totalProfitStr = Storage.get('total_profit_realized');
+  const totalProfit = u256.fromString(totalProfitStr);
 
   Storage.set('total_opportunities_executed', (executedCount + 1).toString());
-  Storage.set('total_profit_realized', (totalProfit + opportunity.actualProfit).toString());
+  const newTotalProfit = u256.add(totalProfit, opportunity.actualProfit);
+  Storage.set('total_profit_realized', newTotalProfit.toString());
 
   generateEvent('ArbitrageEngine: Arbitrage executed');
 
@@ -614,7 +628,7 @@ export function scan(_: StaticArray<u8>): void {
   // Execute top opportunities
   let executedCount: u64 = 0;
   for (let i = 0; i < opportunities.length && executedCount < MAX_OPPORTUNITIES_PER_CYCLE; i++) {
-    if (opportunities[i].estimatedProfit >= MIN_PROFIT_THRESHOLD) {
+    if (opportunities[i].estimatedProfit >= u256.fromU64(MIN_PROFIT_THRESHOLD)) {
       saveOpportunity(opportunities[i]);
 
       // Execute if automatic execution is enabled

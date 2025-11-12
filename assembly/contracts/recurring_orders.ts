@@ -90,9 +90,9 @@ const GAS_COST_PER_EXECUTION: u64 = 500_000_000;
  */
 export class PricePoint {
   timestamp: u64;
-  price: u64; // Price in 18 decimals
+  price: u256; // Price in 18 decimals (u256 for proper 18-decimal support)
 
-  constructor(timestamp: u64, price: u64) {
+  constructor(timestamp: u64, price: u256) {
     this.timestamp = timestamp;
     this.price = price;
   }
@@ -118,14 +118,14 @@ export class RecurringOrder {
   tokenOut: Address; // Token to buy/sell
 
   // Price-based parameters
-  entryPrice: u64; // Initial price when order created (18 decimals)
+  entryPrice: u256; // Initial price when order created (18 decimals, u256 for precision)
   triggerPercentage: u64; // Percentage change to trigger (basis points: 100 = 1%)
   maxExecutions: u64; // Max times to execute (0 = unlimited)
   executionCount: u64; // How many times executed so far
 
   // Execution amounts
-  amountPerExecution: u64; // How much to trade per execution
-  minAmountOut: u64; // Slippage protection
+  amountPerExecution: u256; // How much to trade per execution (u256 for 18-decimal tokens)
+  minAmountOut: u256; // Slippage protection
 
   // Time-based execution (for DCA mode)
   executionInterval: u64; // Seconds between executions (for EXECUTION_MODE_INTERVAL)
@@ -133,7 +133,7 @@ export class RecurringOrder {
 
   // Grid trading (for ORDER_TYPE_GRID)
   gridLevels: u64[]; // Array of percentage levels (e.g., [200, 400, 600] = -2%, -4%, -6%)
-  gridAmounts: u64[]; // Amount for each grid level
+  gridAmounts: u256[]; // Amount for each grid level (u256 for 18-decimal tokens)
   gridExecuted: bool[]; // Which levels have been executed
 
   // Order lifecycle
@@ -147,10 +147,10 @@ export class RecurringOrder {
     executionMode: u8,
     tokenIn: Address,
     tokenOut: Address,
-    entryPrice: u64,
+    entryPrice: u256,
     triggerPercentage: u64,
-    amountPerExecution: u64,
-    minAmountOut: u64,
+    amountPerExecution: u256,
+    minAmountOut: u256,
     executionInterval: u64 = 3600,
     maxExecutions: u64 = 0,
   ) {
@@ -187,12 +187,12 @@ export class RecurringOrder {
     args.add(this.status);
     args.add(this.tokenIn.toString());
     args.add(this.tokenOut.toString());
-    args.add(this.entryPrice);
+    args.add(this.entryPrice); // u256
     args.add(this.triggerPercentage);
     args.add(this.maxExecutions);
     args.add(this.executionCount);
-    args.add(this.amountPerExecution);
-    args.add(this.minAmountOut);
+    args.add(this.amountPerExecution); // u256
+    args.add(this.minAmountOut); // u256
     args.add(this.executionInterval);
     args.add(this.lastExecutedTime);
     args.add(this.createdTime);
@@ -209,17 +209,17 @@ export class RecurringOrder {
       args.nextU8().unwrap(),
       new Address(args.nextString().unwrap()),
       new Address(args.nextString().unwrap()),
+      args.nextU256().unwrap(), // entryPrice: u256
       args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
-      args.nextU64().unwrap(),
+      args.nextU256().unwrap(), // amountPerExecution: u256
+      args.nextU256().unwrap(), // minAmountOut: u256
       args.nextU64().unwrap(),
       args.nextU64().unwrap(),
     );
   }
 
   // Check if order can execute based on price
-  canExecuteOnPrice(currentPrice: u64): bool {
+  canExecuteOnPrice(currentPrice: u256): bool {
     if (this.status != ORDER_STATUS_ACTIVE) {
       return false;
     }
@@ -271,12 +271,16 @@ export class RecurringOrder {
  * Example: entry=1000, current=1020 → +2% → 200 BPS
  * Example: entry=1000, current=980 → -2% → -200 BPS
  */
-function calculatePriceChangeBps(entryPrice: u64, currentPrice: u64): i64 {
-  if (entryPrice == 0) return 0;
+function calculatePriceChangeBps(entryPrice: u256, currentPrice: u256): i64 {
+  if (entryPrice.isZero()) return 0;
 
-  // Using f64 for precision
-  const change = f64(currentPrice) - f64(entryPrice);
-  const percentChange = (change / f64(entryPrice)) * 10000.0; // Convert to basis points
+  // Convert to f64 for percentage calculation (relative comparison)
+  // This is safe because we're calculating ratios, not absolute values
+  const entryF64 = parseFloat(entryPrice.toString());
+  const currentF64 = parseFloat(currentPrice.toString());
+
+  const change = currentF64 - entryF64;
+  const percentChange = (change / entryF64) * 10000.0; // Convert to basis points
 
   return i64(percentChange);
 }
@@ -284,24 +288,25 @@ function calculatePriceChangeBps(entryPrice: u64, currentPrice: u64): i64 {
 /**
  * Get current price from MassaBeam pool
  */
-function getCurrentPoolPrice(tokenIn: Address, tokenOut: Address): u64 {
+function getCurrentPoolPrice(tokenIn: Address, tokenOut: Address): u256 {
   const pool = getPool(tokenIn, tokenOut);
 
   if (pool == null) {
-    return 0; // Pool doesn't exist
+    return u256.Zero; // Pool doesn't exist
   }
 
   const tokenInIsA = pool.tokenA.toString() == tokenIn.toString();
   const reserveIn = tokenInIsA ? pool.reserveA : pool.reserveB;
   const reserveOut = tokenInIsA ? pool.reserveB : pool.reserveA;
 
-  if (reserveIn == 0) {
-    return 0;
+  if (reserveIn.isZero()) {
+    return u256.Zero;
   }
 
-  // Price = reserveOut / reserveIn * 10^18
-  const priceF64 = f64(reserveOut) / f64(reserveIn) * 1e18;
-  return u64(priceF64);
+  // Price = (reserveOut * 10^18) / reserveIn
+  const e18 = u256.fromU64(1000000000000000000); // 10^18
+  const numerator = u256.mul(reserveOut, e18);
+  return u256.div(numerator, reserveIn);
 }
 
 /**
@@ -394,13 +399,13 @@ export function createBuyOnIncreaseOrder(args: StaticArray<u8>): u64 {
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
   const triggerPercentage = argument.nextU64().unwrap(); // Basis points
-  const amountPerExecution = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
+  const amountPerExecution = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
   const maxExecutions = argument.nextU64().unwrapOrDefault() || 0;
 
   // Get current price as entry price
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
-  assert(entryPrice > 0, 'Pool not found or no liquidity');
+  assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
   // Get order count
   const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
@@ -423,11 +428,15 @@ export function createBuyOnIncreaseOrder(args: StaticArray<u8>): u64 {
   );
 
   // Transfer initial tokens from user
+  const totalAmount = u256.mul(
+    amountPerExecution,
+    u256.fromU64(maxExecutions > 0 ? maxExecutions : 10)
+  );
   const tokenContract = new IERC20(tokenIn);
   tokenContract.transferFrom(
     Context.caller(),
     Context.callee(),
-    u256.fromU64(amountPerExecution * (maxExecutions > 0 ? maxExecutions : 10)),
+    totalAmount
   );
 
   // Store order
@@ -456,11 +465,11 @@ export function createSellOnDecreaseOrder(args: StaticArray<u8>): u64 {
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
   const triggerPercentage = argument.nextU64().unwrap();
-  const amountPerExecution = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
+  const amountPerExecution = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
 
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
-  assert(entryPrice > 0, 'Pool not found or no liquidity');
+  assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
   const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
   const orderId = orderCount + 1;
@@ -479,11 +488,12 @@ export function createSellOnDecreaseOrder(args: StaticArray<u8>): u64 {
   );
 
   // Transfer tokens
+  const totalAmount = u256.mul(amountPerExecution, u256.fromU64(5));
   const tokenContract = new IERC20(tokenIn);
   tokenContract.transferFrom(
     Context.caller(),
     Context.callee(),
-    u256.fromU64(amountPerExecution * 5),
+    totalAmount
   );
 
   saveRecurringOrder(order);
@@ -507,12 +517,12 @@ export function createDCAOrder(args: StaticArray<u8>): u64 {
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
   const executionInterval = argument.nextU64().unwrap(); // Seconds between executions
-  const amountPerExecution = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
+  const amountPerExecution = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
   const maxExecutions = argument.nextU64().unwrap();
 
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
-  assert(entryPrice > 0, 'Pool not found or no liquidity');
+  assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
   const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
   const orderId = orderCount + 1;
@@ -533,11 +543,12 @@ export function createDCAOrder(args: StaticArray<u8>): u64 {
   );
 
   // Transfer tokens for all executions
+  const totalAmount = u256.mul(amountPerExecution, u256.fromU64(maxExecutions));
   const tokenContract = new IERC20(tokenIn);
   tokenContract.transferFrom(
     Context.caller(),
     Context.callee(),
-    u256.fromU64(amountPerExecution * maxExecutions),
+    totalAmount
   );
 
   saveRecurringOrder(order);
@@ -569,11 +580,14 @@ export function cancelRecurringOrder(args: StaticArray<u8>): bool {
   const remainingExecutions = order!.maxExecutions > 0
     ? order!.maxExecutions - order!.executionCount
     : 10;
-  const remainingAmount = order!.amountPerExecution * remainingExecutions;
+  const remainingAmount = u256.mul(
+    order!.amountPerExecution,
+    u256.fromU64(remainingExecutions)
+  );
 
-  if (remainingAmount > 0) {
+  if (!remainingAmount.isZero()) {
     const tokenContract = new IERC20(order!.tokenIn);
-    tokenContract.transfer(order!.user, u256.fromU64(remainingAmount));
+    tokenContract.transfer(order!.user, remainingAmount);
   }
 
   order!.status = ORDER_STATUS_CANCELLED;
@@ -661,7 +675,7 @@ export function advance(_: StaticArray<u8>): void {
     // Get current price
     const currentPrice = getCurrentPoolPrice(order.tokenIn, order.tokenOut);
 
-    if (currentPrice == 0) {
+    if (currentPrice.isZero()) {
       continue; // Pool unavailable
     }
 
@@ -713,7 +727,7 @@ function executeRecurringOrder(order: RecurringOrder): void {
 
   // Standard order execution
   const tokenInContract = new IERC20(order.tokenIn);
-  tokenInContract.increaseAllowance(massaBeamAddress, u256.fromU64(order.amountPerExecution));
+  tokenInContract.increaseAllowance(massaBeamAddress, order.amountPerExecution);
 
   // Execute swap
   massaBeam.swap(
@@ -744,7 +758,7 @@ function executeRecurringOrder(order: RecurringOrder): void {
  */
 function executeGridOrder(order: RecurringOrder, massaBeam: IMassaBeamAMM): void {
   const currentPrice = getCurrentPoolPrice(order.tokenIn, order.tokenOut);
-  if (currentPrice == 0) return;
+  if (currentPrice.isZero()) return;
 
   const priceChangeBps = calculatePriceChangeBps(order.entryPrice, currentPrice);
 
@@ -775,7 +789,7 @@ function executeGridOrder(order: RecurringOrder, massaBeam: IMassaBeamAMM): void
       const tokenInContract = new IERC20(order.tokenIn);
       tokenInContract.increaseAllowance(
         new Address(Storage.get(MASSABEAM_ADDRESS_KEY)),
-        u256.fromU64(amount),
+        amount
       );
 
       massaBeam.swap(
@@ -859,7 +873,7 @@ export function getCurrentPrice(args: StaticArray<u8>): StaticArray<u8> {
   const tokenOut = new Address(argument.nextString().unwrap());
 
   const price = getCurrentPoolPrice(tokenIn, tokenOut);
-  return new Args().add(price).serialize();
+  return new Args().add(price).serialize(); // u256
 }
 
 // ============================================================================
@@ -887,20 +901,20 @@ export function createGridOrder(args: StaticArray<u8>): u64 {
   const numLevels = argument.nextU8().unwrap();
 
   const gridLevels: u64[] = [];
-  const gridAmounts: u64[] = [];
+  const gridAmounts: u256[] = [];
   const gridExecuted: bool[] = [];
 
   // Parse grid levels and amounts
   for (let i: u8 = 0; i < numLevels; i++) {
     gridLevels.push(argument.nextU64().unwrap());
-    gridAmounts.push(argument.nextU64().unwrap());
+    gridAmounts.push(argument.nextU256().unwrap());
     gridExecuted.push(false);
   }
 
-  const minAmountOut = argument.nextU64().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
 
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
-  assert(entryPrice > 0, 'Pool not found or no liquidity');
+  assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
   const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
   const orderId = orderCount + 1;
@@ -914,7 +928,7 @@ export function createGridOrder(args: StaticArray<u8>): u64 {
     tokenOut,
     entryPrice,
     0, // Not used for grid
-    0, // Set per level
+    u256.Zero, // Set per level
     minAmountOut,
     0,
     0, // Unlimited executions for grid
@@ -926,9 +940,9 @@ export function createGridOrder(args: StaticArray<u8>): u64 {
   order.gridExecuted = gridExecuted;
 
   // Calculate total amount needed
-  let totalAmount: u64 = 0;
+  let totalAmount = u256.Zero;
   for (let i = 0; i < gridAmounts.length; i++) {
-    totalAmount += gridAmounts[i];
+    totalAmount = u256.add(totalAmount, gridAmounts[i]);
   }
 
   // Transfer tokens
@@ -936,7 +950,7 @@ export function createGridOrder(args: StaticArray<u8>): u64 {
   tokenContract.transferFrom(
     Context.caller(),
     Context.callee(),
-    u256.fromU64(totalAmount),
+    totalAmount
   );
 
   saveRecurringOrder(order);
