@@ -725,17 +725,17 @@ export function swapMASForTokens(args: StaticArray<u8>): void {
   nonReentrant();
 
   const balanceBefore = balance();
-  const sent = transferredCoins();
+  const sent = transferredCoins();  // u64 - native MAS amount
 
   const argument = new Args(args);
   const tokenOut = new Address(argument.nextString().unwrap());
-  const minAmountOut = argument.nextU64().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();  // u256 - token amount
   const deadline = argument.nextU64().unwrap();
   const to = new Address(argument.nextString().unwrap());
 
   // Validation
   assert(sent > 0, 'No MAS sent');
-  assert(minAmountOut > 0, 'Invalid min output');
+  assert(!minAmountOut.isZero(), 'Invalid min output');
   assert(Context.timestamp() <= deadline, 'Deadline expired');
 
   // Get WMAS and pool
@@ -743,41 +743,47 @@ export function swapMASForTokens(args: StaticArray<u8>): void {
   const pool = getPool(wmas, tokenOut);
   assert(pool != null, 'Pool does not exist');
 
-  // Calculate output
+  // Convert sent MAS (u64) to u256 for calculations
+  const amountIn = u256.fromU64(sent);
+
+  // Calculate output using u256 math
   const tokenInIsA = pool!.tokenA.toString() == wmas.toString();
   const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
   const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
 
-  const amountInWithFee = u64(f64(sent) * (10000.0 - f64(pool!.fee)) / 10000.0);
-  const numerator = u64(f64(amountInWithFee) * f64(reserveOut));
-  const denominator = u64(f64(reserveIn) + f64(amountInWithFee));
-  const amountOut = numerator / denominator;
+  // Use getAmountOut (which is now u256)
+  const amountOut = getAmountOut(amountIn, reserveIn, reserveOut, pool!.fee);
 
   assert(amountOut >= minAmountOut, 'Insufficient output');
 
-  // Update reserves (treat sent MAS as WMAS)
+  // Update reserves (treat sent MAS as WMAS with u256)
   if (tokenInIsA) {
-    pool!.reserveA += sent;
-    pool!.reserveB -= amountOut;
+    pool!.reserveA = SafeMath256.add(pool!.reserveA, amountIn);
+    pool!.reserveB = SafeMath256.sub(pool!.reserveB, amountOut);
   } else {
-    pool!.reserveB += sent;
-    pool!.reserveA -= amountOut;
+    pool!.reserveB = SafeMath256.add(pool!.reserveB, amountIn);
+    pool!.reserveA = SafeMath256.sub(pool!.reserveA, amountOut);
   }
 
-  // Transfer tokens
+  // Transfer tokens (u256)
   const outputToken = new IERC20(tokenOut);
-  outputToken.transfer(to, u256.fromU64(amountOut));
+  outputToken.transfer(to, amountOut);
 
   updateCumulativePrices(pool!);
   savePool(pool!);
 
-  const fee = sent - amountInWithFee;
-  const totalFees = u64(parseInt(Storage.get('total_fees')));
-  Storage.set('total_fees', (totalFees + fee).toString());
+  // Calculate fee: (amountIn * fee) / 10000
+  const feeAmount = u256.div(
+    SafeMath256.mul(amountIn, u256.fromU64(pool!.fee)),
+    u256.fromU64(10000)
+  );
+  const totalFeesStr = Storage.get('total_fees');
+  const totalFees = totalFeesStr ? u256.fromString(totalFeesStr) : u256.Zero;
+  Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   transferRemainingMAS(balanceBefore, balance(), sent, Context.caller());
   endNonReentrant();
-  generateEvent(`SwapMASForTokens: ${sent} MAS → ${amountOut} tokens`);
+  generateEvent(`SwapMASForTokens: ${sent} MAS → ${amountOut.toString()} tokens`);
 }
 
 /**
@@ -790,13 +796,13 @@ export function swapTokensForMAS(args: StaticArray<u8>): void {
 
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();  // u256 - token amount
+  const minAmountOut = argument.nextU64().unwrap();  // u64 - MAS amount
   const deadline = argument.nextU64().unwrap();
   const to = new Address(argument.nextString().unwrap());
 
   // Validation
-  assert(amountIn > 0, 'Invalid input');
+  assert(!amountIn.isZero(), 'Invalid input');
   assert(minAmountOut > 0, 'Invalid min output');
   assert(Context.timestamp() <= deadline, 'Deadline expired');
 
@@ -805,44 +811,52 @@ export function swapTokensForMAS(args: StaticArray<u8>): void {
   const pool = getPool(tokenIn, wmas);
   assert(pool != null, 'Pool does not exist');
 
-  // Transfer input tokens
+  // Transfer input tokens (u256)
   const caller = Context.caller();
   const tokenInContract = new IERC20(tokenIn);
-  tokenInContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+  tokenInContract.transferFrom(caller, Context.callee(), amountIn);
 
-  // Calculate MAS output
+  // Calculate MAS output using u256 math
   const tokenInIsA = pool!.tokenA.toString() == tokenIn.toString();
   const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
   const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
 
-  const amountInWithFee = u64(f64(amountIn) * (10000.0 - f64(pool!.fee)) / 10000.0);
-  const numerator = u64(f64(amountInWithFee) * f64(reserveOut));
-  const denominator = u64(f64(reserveIn) + f64(amountInWithFee));
-  const amountOut = numerator / denominator;
+  // Use getAmountOut (which is now u256)
+  const amountOutU256 = getAmountOut(amountIn, reserveIn, reserveOut, pool!.fee);
+
+  // Convert to u64 for MAS transfer
+  // Assert that output fits in u64 (MAS has 9 decimals, so reasonable amounts should fit)
+  assert(amountOutU256 <= u256.fromU64(u64.MAX_VALUE), 'MAS output exceeds u64 max');
+  const amountOut = amountOutU256.toU64();
 
   assert(amountOut >= minAmountOut, 'Insufficient output');
 
-  // Update reserves
+  // Update reserves (u256)
   if (tokenInIsA) {
-    pool!.reserveA += amountIn;
-    pool!.reserveB -= amountOut;
+    pool!.reserveA = SafeMath256.add(pool!.reserveA, amountIn);
+    pool!.reserveB = SafeMath256.sub(pool!.reserveB, amountOutU256);
   } else {
-    pool!.reserveB += amountIn;
-    pool!.reserveA -= amountOut;
+    pool!.reserveB = SafeMath256.add(pool!.reserveB, amountIn);
+    pool!.reserveA = SafeMath256.sub(pool!.reserveA, amountOutU256);
   }
 
-  // Send MAS
+  // Send MAS (u64)
   transferCoins(to, amountOut);
 
   updateCumulativePrices(pool!);
   savePool(pool!);
 
-  const fee = amountIn - amountInWithFee;
-  const totalFees = u64(parseInt(Storage.get('total_fees')));
-  Storage.set('total_fees', (totalFees + fee).toString());
+  // Calculate fee: (amountIn * fee) / 10000
+  const feeAmount = u256.div(
+    SafeMath256.mul(amountIn, u256.fromU64(pool!.fee)),
+    u256.fromU64(10000)
+  );
+  const totalFeesStr = Storage.get('total_fees');
+  const totalFees = totalFeesStr ? u256.fromString(totalFeesStr) : u256.Zero;
+  Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   endNonReentrant();
-  generateEvent(`SwapTokensForMAS: ${amountIn} tokens → ${amountOut} MAS`);
+  generateEvent(`SwapTokensForMAS: ${amountIn.toString()} tokens → ${amountOut} MAS`);
 }
 
 /**
@@ -855,14 +869,14 @@ export function swap(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
-  const amountOutMin = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();  // u256
+  const amountOutMin = argument.nextU256().unwrap();  // u256
   const deadline = argument.nextU64().unwrap();
 
   validDeadline(deadline + Context.timestamp());
   validateTokenPair(tokenIn, tokenOut);
-  assert(amountIn > 0, 'Invalid input amount');
-  assert(amountOutMin > 0, 'Invalid minimum output');
+  assert(!amountIn.isZero(), 'Invalid input amount');
+  assert(!amountOutMin.isZero(), 'Invalid minimum output');
 
   const caller = Context.caller();
   const pool = getPool(tokenIn, tokenOut);
@@ -874,24 +888,33 @@ export function swap(args: StaticArray<u8>): void {
   const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
   const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
 
-  // Calculate output with slippage protection
+  // Calculate output with slippage protection (now u256!)
   const amountOut = getAmountOut(amountIn, reserveIn, reserveOut, pool!.fee);
   assert(amountOut >= amountOutMin, 'Insufficient output amount');
   assert(amountOut < reserveOut, 'Insufficient liquidity');
 
-  // Transfer input token from user
+  // Transfer input token from user (u256 - no conversion!)
   assert(safeTransferFrom(tokenIn, caller, Context.callee(), amountIn), 'Input transfer failed');
 
-  // Transfer output token to user
+  // Transfer output token to user (u256 - no conversion!)
   assert(safeTransfer(tokenOut, caller, amountOut), 'Output transfer failed');
 
-  // Update reserves and validate K invariant
-  const newReserveIn = reserveIn + amountIn;
-  const newReserveOut = reserveOut - amountOut;
+  // Update reserves using SafeMath256
+  const newReserveIn = SafeMath256.add(reserveIn, amountIn);
+  const newReserveOut = SafeMath256.sub(reserveOut, amountOut);
 
-  // K invariant check: (reserveIn + amountInWithFee) * (reserveOut - amountOut) >= reserveIn * reserveOut
-  const oldK = f64(reserveIn) * f64(reserveOut);
-  const newK = (f64(reserveIn) + f64(amountIn) * (10000.0 - f64(pool!.fee)) / 10000.0) * f64(reserveOut - amountOut);
+  // K invariant check using u256 math
+  // oldK = reserveIn * reserveOut
+  const oldK = SafeMath256.mul(reserveIn, reserveOut);
+  // newK = newReserveIn * newReserveOut (after fee)
+  // Actually: (reserveIn + amountIn * (10000 - fee) / 10000) * (reserveOut - amountOut)
+  const feeMultiplier = u256.fromU64(10000 - pool!.fee);
+  const amountInWithFee = u256.div(
+    SafeMath256.mul(amountIn, feeMultiplier),
+    u256.fromU64(10000)
+  );
+  const newReserveInWithFee = SafeMath256.add(reserveIn, amountInWithFee);
+  const newK = SafeMath256.mul(newReserveInWithFee, newReserveOut);
   assert(newK >= oldK, 'K invariant violation');
 
   // Update pool state
@@ -906,16 +929,22 @@ export function swap(args: StaticArray<u8>): void {
   updateCumulativePrices(pool!);
   savePool(pool!);
 
-  // Update statistics
-  const totalVolume = u64(parseInt(Storage.get('total_volume')));
-  Storage.set('total_volume', (totalVolume + amountIn).toString());
+  // Update statistics (u256)
+  const totalVolumeStr = Storage.get('total_volume');
+  const totalVolume = totalVolumeStr ? u256.fromString(totalVolumeStr) : u256.Zero;
+  Storage.set('total_volume', SafeMath256.add(totalVolume, amountIn).toString());
 
-  const fee = u64(f64(amountIn) * f64(pool!.fee) / 10000.0);
-  const totalFees = u64(parseInt(Storage.get('total_fees')));
-  Storage.set('total_fees', (totalFees + fee).toString());
+  // Calculate fee: (amountIn * fee) / 10000
+  const feeAmount = u256.div(
+    SafeMath256.mul(amountIn, u256.fromU64(pool!.fee)),
+    u256.fromU64(10000)
+  );
+  const totalFeesStr = Storage.get('total_fees');
+  const totalFees = totalFeesStr ? u256.fromString(totalFeesStr) : u256.Zero;
+  Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   endNonReentrant();
-  generateEvent(`Swap: ${amountIn} ${tokenIn.toString()} → ${amountOut} ${tokenOut.toString()}`);
+  generateEvent(`Swap: ${amountIn.toString()} ${tokenIn.toString()} → ${amountOut.toString()} ${tokenOut.toString()}`);
 }
 
 // ============================================================================
@@ -947,59 +976,70 @@ export function flashLoan(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const receiver = new Address(argument.nextString().unwrap());
   const token = new Address(argument.nextString().unwrap());
-  const amount = argument.nextU64().unwrap();
+  const amount = argument.nextU256().unwrap();  // u256
   const data = argument.nextBytes().unwrapOrDefault();
 
   // Validation
-  assert(amount > 0, 'Flash loan amount must be positive');
-  assert(amount <= MAX_FLASH_LOAN_AMOUNT, 'Flash loan amount exceeds maximum');
+  assert(!amount.isZero(), 'Flash loan amount must be positive');
+
+  // MAX_FLASH_LOAN_AMOUNT constant is u64, convert to u256 for comparison
+  const maxAmount = u256.fromU64(MAX_FLASH_LOAN_AMOUNT);
+  assert(amount <= maxAmount, 'Flash loan amount exceeds maximum');
 
   const caller = Context.caller();
   const tokenContract = new IERC20(token);
 
-  // Check contract has sufficient balance
+  // Check contract has sufficient balance (u256)
   const contractBalance = tokenContract.balanceOf(Context.callee());
   assert(
-    contractBalance >= u256.fromU64(amount),
+    contractBalance >= amount,
     'Insufficient contract balance for flash loan',
   );
 
-  // Calculate fee (0.09% = 9 basis points)
-  const fee = u64(f64(amount) * f64(FLASH_LOAN_FEE_RATE) / f64(BASIS_POINTS));
-  assert(fee > 0, 'Flash loan fee must be positive');
+  // Calculate fee (0.09% = 9 basis points): (amount * 9) / 10000
+  const fee = u256.div(
+    SafeMath256.mul(amount, u256.fromU64(FLASH_LOAN_FEE_RATE)),
+    u256.fromU64(BASIS_POINTS)
+  );
+  assert(!fee.isZero(), 'Flash loan fee must be positive');
 
   // Record balance before loan
   const balanceBefore = tokenContract.balanceOf(Context.callee());
 
-  // Transfer tokens to receiver
+  // Transfer tokens to receiver (u256 - no conversion!)
   assert(safeTransfer(token, receiver, amount), 'Flash loan transfer failed');
 
-  generateEvent(`FlashLoan: ${amount} tokens loaned to ${receiver.toString()} (fee: ${fee})`);
+  generateEvent(`FlashLoan: ${amount.toString()} tokens loaned to ${receiver.toString()} (fee: ${fee.toString()})`);
 
-  // Execute callback on receiver
+  // Execute callback on receiver (amount and fee are already u256)
   const callback = new IFlashLoanCallback(receiver);
-  callback.onFlashLoan(caller, token, u256.fromU64(amount), u256.fromU64(fee), data);
+  callback.onFlashLoan(caller, token, amount, fee, data);
 
-  // Verify repayment + fee
+  // Verify repayment + fee (u256)
   const balanceAfter = tokenContract.balanceOf(Context.callee());
-  const expectedBalance = balanceBefore.toU64() + fee;
+  const expectedBalance = SafeMath256.add(balanceBefore, fee);
 
   assert(
-    balanceAfter.toU64() >= expectedBalance,
-    `Flash loan not repaid: expected ${expectedBalance}, got ${balanceAfter.toU64()}`,
+    balanceAfter >= expectedBalance,
+    `Flash loan not repaid: expected ${expectedBalance.toString()}, got ${balanceAfter.toString()}`,
   );
 
-  // Update flash loan statistics
-  const flashLoanVolume = u64(parseInt(Storage.has('flash_loan_volume') ? Storage.get('flash_loan_volume') : '0'));
-  const flashLoanCount = u64(parseInt(Storage.has('flash_loan_count') ? Storage.get('flash_loan_count') : '0'));
-  const flashLoanFees = u64(parseInt(Storage.has('flash_loan_fees') ? Storage.get('flash_loan_fees') : '0'));
+  // Update flash loan statistics (u256)
+  const flashLoanVolumeStr = Storage.has('flash_loan_volume') ? Storage.get('flash_loan_volume') : '0';
+  const flashLoanVolume = u256.fromString(flashLoanVolumeStr);
 
-  Storage.set('flash_loan_volume', (flashLoanVolume + amount).toString());
+  const flashLoanCountStr = Storage.has('flash_loan_count') ? Storage.get('flash_loan_count') : '0';
+  const flashLoanCount = u64(parseInt(flashLoanCountStr));
+
+  const flashLoanFeesStr = Storage.has('flash_loan_fees') ? Storage.get('flash_loan_fees') : '0';
+  const flashLoanFees = u256.fromString(flashLoanFeesStr);
+
+  Storage.set('flash_loan_volume', SafeMath256.add(flashLoanVolume, amount).toString());
   Storage.set('flash_loan_count', (flashLoanCount + 1).toString());
-  Storage.set('flash_loan_fees', (flashLoanFees + fee).toString());
+  Storage.set('flash_loan_fees', SafeMath256.add(flashLoanFees, fee).toString());
 
   endNonReentrant();
-  generateEvent(`FlashLoan: Repaid successfully with fee ${fee}`);
+  generateEvent(`FlashLoan: Repaid successfully with fee ${fee.toString()}`);
 }
 
 /**
