@@ -18,6 +18,7 @@ import {
   Mas,
   SmartContract,
   JsonRpcProvider,
+  bytesToStr,
 } from '@massalabs/massa-web3';
 import { USDC, DAI, WETH, WMAS } from '@dusalabs/sdk';
 import * as fs from 'fs';
@@ -196,6 +197,8 @@ async function main(): Promise<void> {
         // Step 1: Approve Token A
         logInfo(`Approving ${pool.tokenA.symbol}...`);
         const tokenAContract = new SmartContract(provider, pool.tokenA.address);
+        console.log(((await tokenAContract.read("decimals"))))
+
 
         await tokenAContract.call(
           'increaseAllowance',
