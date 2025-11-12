@@ -62,6 +62,12 @@ export const ORDER_STATUS_FILLED: u8 = 1;
 export const ORDER_STATUS_CANCELLED: u8 = 2;
 export const ORDER_STATUS_EXPIRED: u8 = 3;
 
+// Order types
+export const ORDER_TYPE_LIMIT: u8 = 0; // Standard limit order
+export const ORDER_TYPE_STOP_LOSS: u8 = 1; // Sell when price drops below trigger
+export const ORDER_TYPE_TAKE_PROFIT: u8 = 2; // Sell when price rises above trigger
+export const ORDER_TYPE_TRAILING_STOP: u8 = 3; // Stop loss that follows price up
+
 // Roles
 const ADMIN_ROLE = 'admin';
 const KEEPER_ROLE = 'keeper';
@@ -117,6 +123,12 @@ export class LimitOrder {
   maxPriceImpact: u64; // Max allowed price impact in basis points
   executionWindow: u64; // Preferred execution block range (0 = any)
 
+  // Advanced Order Types
+  orderType: u8; // ORDER_TYPE_* (LIMIT, STOP_LOSS, TAKE_PROFIT, TRAILING_STOP)
+  triggerPrice: u64; // Price at which stop-loss/take-profit triggers (18 decimals)
+  trailingPercent: u64; // For trailing stops: % below peak price (basis points)
+  highestPrice: u64; // Tracks highest price seen (for trailing stops)
+
   constructor(
     id: u64,
     user: Address,
@@ -131,6 +143,9 @@ export class LimitOrder {
     useTWAP: bool = true,
     minExecutionDelay: u64 = MEV_PROTECTION_DELAY,
     maxPriceImpact: u64 = MAX_PRICE_IMPACT,
+    orderType: u8 = ORDER_TYPE_LIMIT,
+    triggerPrice: u64 = 0,
+    trailingPercent: u64 = 0,
   ) {
     this.id = id;
     this.user = user;
@@ -150,6 +165,10 @@ export class LimitOrder {
     this.minExecutionDelay = minExecutionDelay;
     this.maxPriceImpact = maxPriceImpact;
     this.executionWindow = 0;
+    this.orderType = orderType;
+    this.triggerPrice = triggerPrice;
+    this.trailingPercent = trailingPercent;
+    this.highestPrice = 0; // Will be updated as prices change
   }
 
   serialize(): StaticArray<u8> {
@@ -172,6 +191,10 @@ export class LimitOrder {
     args.add(this.minExecutionDelay);
     args.add(this.maxPriceImpact);
     args.add(this.executionWindow);
+    args.add(this.orderType);
+    args.add(this.triggerPrice);
+    args.add(this.trailingPercent);
+    args.add(this.highestPrice);
     return args.serialize();
   }
 
@@ -191,11 +214,16 @@ export class LimitOrder {
       args.nextBool().unwrap(),
       args.nextU64().unwrap(),
       args.nextU64().unwrap(),
+      args.nextU8().unwrap(), // orderType
+      args.nextU64().unwrap(), // triggerPrice
+      args.nextU64().unwrap(), // trailingPercent
     );
+    order.createdTime = args.nextU64().unwrap();
     order.status = args.nextU8().unwrap();
     order.executedAmount = args.nextU64().unwrap();
     order.remainingAmount = args.nextU64().unwrap();
     order.executionWindow = args.nextU64().unwrap();
+    order.highestPrice = args.nextU64().unwrap();
     return order;
   }
 
@@ -238,9 +266,36 @@ export class LimitOrder {
 
   // Check if price condition is met
   isPriceConditionMet(currentPrice: u64): bool {
-    // Price meets condition if current price >= limit price
-    // (higher price is better for sellers)
-    return currentPrice >= this.limitPrice;
+    // Update highest price for trailing stop orders
+    if (this.orderType == ORDER_TYPE_TRAILING_STOP) {
+      if (currentPrice > this.highestPrice) {
+        this.highestPrice = currentPrice;
+      }
+    }
+
+    // Check trigger based on order type
+    if (this.orderType == ORDER_TYPE_LIMIT) {
+      // Standard limit order: price >= limit price
+      return currentPrice >= this.limitPrice;
+    } else if (this.orderType == ORDER_TYPE_STOP_LOSS) {
+      // Stop loss: price <= trigger price (sell when price drops)
+      return currentPrice <= this.triggerPrice;
+    } else if (this.orderType == ORDER_TYPE_TAKE_PROFIT) {
+      // Take profit: price >= trigger price (sell when price rises)
+      return currentPrice >= this.triggerPrice;
+    } else if (this.orderType == ORDER_TYPE_TRAILING_STOP) {
+      // Trailing stop: price drops X% below highest seen price
+      if (this.highestPrice == 0) {
+        this.highestPrice = currentPrice;
+        return false;
+      }
+      const stopPrice = u64(
+        f64(this.highestPrice) * (1.0 - f64(this.trailingPercent) / 10000.0),
+      );
+      return currentPrice <= stopPrice;
+    }
+
+    return false;
   }
 }
 
@@ -538,6 +593,198 @@ export function executeLimitOrder(args: StaticArray<u8>): bool {
 }
 
 /**
+ * Create a stop-loss order
+ * Sells when price drops below trigger price
+ *
+ * @param args Serialized arguments:
+ *   - tokenIn: Token to sell
+ *   - tokenOut: Token to buy
+ *   - amountIn: Amount to sell
+ *   - triggerPrice: Price at which to trigger (18 decimals)
+ *   - minAmountOut: Minimum output (slippage protection)
+ *   - expiryTime: When order expires
+ */
+export function createStopLossOrder(args: StaticArray<u8>): u64 {
+  whenNotPaused();
+
+  const argument = new Args(args);
+  const tokenIn = new Address(argument.nextString().unwrap());
+  const tokenOut = new Address(argument.nextString().unwrap());
+  const amountIn = argument.nextU64().unwrap();
+  const triggerPrice = argument.nextU64().unwrap();
+  const minAmountOut = argument.nextU64().unwrap();
+  const expiryTime = argument.nextU64().unwrap();
+
+  // Validation
+  assert(amountIn > 0, 'Amount must be positive');
+  assert(triggerPrice > 0, 'Trigger price must be positive');
+  assert(minAmountOut > 0, 'Min output must be positive');
+  assert(tokenIn.toString() != tokenOut.toString(), 'Cannot swap same token');
+
+  const now = Context.timestamp();
+  assert(expiryTime > now, 'Expiry must be in the future');
+  assert(expiryTime <= now + MAX_ORDER_DURATION, 'Expiry too far in future');
+
+  // Transfer tokens from user to contract
+  const caller = Context.caller();
+  const tokenContract = new IERC20(tokenIn);
+  tokenContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+
+  // Create stop-loss order
+  const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
+  const orderId = orderCount + 1;
+
+  const order = new LimitOrder(
+    orderId,
+    caller,
+    tokenIn,
+    tokenOut,
+    amountIn,
+    minAmountOut,
+    0, // limitPrice not used for stop-loss
+    expiryTime,
+    100, // 1% max slippage
+    false, // no partial fills
+    true, // use TWAP
+    MEV_PROTECTION_DELAY,
+    MAX_PRICE_IMPACT,
+    ORDER_TYPE_STOP_LOSS,
+    triggerPrice,
+    0, // no trailing
+  );
+
+  // Store order
+  saveOrder(order);
+  addOrderToUser(caller, orderId);
+  Storage.set(ORDER_COUNT_KEY, orderId.toString());
+
+  generateEvent('StopLossOrder:Created');
+  return orderId;
+}
+
+/**
+ * Create a take-profit order
+ * Sells when price rises above trigger price
+ */
+export function createTakeProfitOrder(args: StaticArray<u8>): u64 {
+  whenNotPaused();
+
+  const argument = new Args(args);
+  const tokenIn = new Address(argument.nextString().unwrap());
+  const tokenOut = new Address(argument.nextString().unwrap());
+  const amountIn = argument.nextU64().unwrap();
+  const triggerPrice = argument.nextU64().unwrap();
+  const minAmountOut = argument.nextU64().unwrap();
+  const expiryTime = argument.nextU64().unwrap();
+
+  // Validation
+  assert(amountIn > 0, 'Amount must be positive');
+  assert(triggerPrice > 0, 'Trigger price must be positive');
+  assert(minAmountOut > 0, 'Min output must be positive');
+  assert(tokenIn.toString() != tokenOut.toString(), 'Cannot swap same token');
+
+  const now = Context.timestamp();
+  assert(expiryTime > now, 'Expiry must be in the future');
+  assert(expiryTime <= now + MAX_ORDER_DURATION, 'Expiry too far in future');
+
+  // Transfer tokens
+  const caller = Context.caller();
+  const tokenContract = new IERC20(tokenIn);
+  tokenContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+
+  // Create take-profit order
+  const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
+  const orderId = orderCount + 1;
+
+  const order = new LimitOrder(
+    orderId,
+    caller,
+    tokenIn,
+    tokenOut,
+    amountIn,
+    minAmountOut,
+    0, // limitPrice not used
+    expiryTime,
+    100,
+    false,
+    true,
+    MEV_PROTECTION_DELAY,
+    MAX_PRICE_IMPACT,
+    ORDER_TYPE_TAKE_PROFIT,
+    triggerPrice,
+    0,
+  );
+
+  saveOrder(order);
+  addOrderToUser(caller, orderId);
+  Storage.set(ORDER_COUNT_KEY, orderId.toString());
+
+  generateEvent('TakeProfitOrder:Created');
+  return orderId;
+}
+
+/**
+ * Create a trailing stop order
+ * Stop loss that follows price up, triggers when price drops X% from peak
+ */
+export function createTrailingStopOrder(args: StaticArray<u8>): u64 {
+  whenNotPaused();
+
+  const argument = new Args(args);
+  const tokenIn = new Address(argument.nextString().unwrap());
+  const tokenOut = new Address(argument.nextString().unwrap());
+  const amountIn = argument.nextU64().unwrap();
+  const trailingPercent = argument.nextU64().unwrap(); // in basis points (e.g., 500 = 5%)
+  const minAmountOut = argument.nextU64().unwrap();
+  const expiryTime = argument.nextU64().unwrap();
+
+  // Validation
+  assert(amountIn > 0, 'Amount must be positive');
+  assert(trailingPercent > 0 && trailingPercent <= 5000, 'Trailing % must be 0-50%');
+  assert(minAmountOut > 0, 'Min output must be positive');
+  assert(tokenIn.toString() != tokenOut.toString(), 'Cannot swap same token');
+
+  const now = Context.timestamp();
+  assert(expiryTime > now, 'Expiry must be in the future');
+  assert(expiryTime <= now + MAX_ORDER_DURATION, 'Expiry too far in future');
+
+  // Transfer tokens
+  const caller = Context.caller();
+  const tokenContract = new IERC20(tokenIn);
+  tokenContract.transferFrom(caller, Context.callee(), u256.fromU64(amountIn));
+
+  // Create trailing stop order
+  const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
+  const orderId = orderCount + 1;
+
+  const order = new LimitOrder(
+    orderId,
+    caller,
+    tokenIn,
+    tokenOut,
+    amountIn,
+    minAmountOut,
+    0,
+    expiryTime,
+    100,
+    false,
+    true,
+    MEV_PROTECTION_DELAY,
+    MAX_PRICE_IMPACT,
+    ORDER_TYPE_TRAILING_STOP,
+    0, // triggerPrice calculated dynamically
+    trailingPercent,
+  );
+
+  saveOrder(order);
+  addOrderToUser(caller, orderId);
+  Storage.set(ORDER_COUNT_KEY, orderId.toString());
+
+  generateEvent('TrailingStopOrder:Created');
+  return orderId;
+}
+
+/**
  * Cancel an active order
  *
  * User can cancel their own orders, admins can cancel any order.
@@ -806,8 +1053,13 @@ export function advance(_: StaticArray<u8>): void {
       continue;
     }
 
-    // Check if price condition is met (current price >= limit price)
-    if (!order.isPriceConditionMet(currentPrice)) {
+    // Check if price condition is met (saves order if highestPrice updated)
+    const priceConditionMet = order.isPriceConditionMet(currentPrice);
+
+    // Save order after price check (important for trailing stops)
+    saveOrder(order);
+
+    if (!priceConditionMet) {
       generateEvent('LimitOrder:BotPriceNotReady');
       continue;
     }
