@@ -79,7 +79,7 @@ import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
  */
 export class SwapQuote {
   dex: string; // "MASSABEAM" or "DUSA"
-  amountOut: u64; // Expected output amount
+  amountOut: u256; // Expected output amount (u256 for 18-decimal tokens)
   priceImpact: f64; // Price impact as percentage (e.g., 0.5 for 0.5%)
   fee: u64; // Fee in basis points (100 = 1%)
   gasEstimate: u64; // Estimated gas cost
@@ -87,7 +87,7 @@ export class SwapQuote {
 
   constructor(
     dex: string,
-    amountOut: u64,
+    amountOut: u256,
     priceImpact: f64,
     fee: u64,
     gasEstimate: u64,
@@ -186,13 +186,13 @@ export function smartSwap(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
-  const minAmountOut = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
   const deadline = argument.nextU64().unwrap();
 
   // Validation
-  assert(amountIn > 0, 'Invalid input amount');
-  assert(minAmountOut > 0, 'Invalid minimum output');
+  assert(!amountIn.isZero(), 'Invalid input amount');
+  assert(!minAmountOut.isZero(), 'Invalid minimum output');
   assert(Context.timestamp() <= deadline, 'Transaction expired');
   assert(tokenIn.toString() != tokenOut.toString(), 'Identical tokens');
 
@@ -211,7 +211,7 @@ export function smartSwap(args: StaticArray<u8>): void {
 
   // Log routing decision
   generateEvent(
-    `SmartSwap: Selected ${decision.selectedDex} - Output: ${decision.quote.amountOut} (${decision.reason})`,
+    `SmartSwap: Selected ${decision.selectedDex} - Output: ${decision.quote.amountOut.toString()} (${decision.reason})`,
   );
 
   // Execute swap on selected DEX
@@ -225,7 +225,7 @@ export function smartSwap(args: StaticArray<u8>): void {
   recordSwap(decision, amountIn);
 
   generateEvent(
-    `SmartSwap: ${amountIn} tokens → ${decision.quote.amountOut} output executed on ${decision.selectedDex}`,
+    `SmartSwap: ${amountIn.toString()} tokens → ${decision.quote.amountOut.toString()} output executed on ${decision.selectedDex}`,
   );
 }
 
@@ -236,7 +236,7 @@ export function getBestQuote(args: StaticArray<u8>): StaticArray<u8> {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
 
   const massaBeamQuote = getMassaBeamQuote(tokenIn, tokenOut, amountIn);
   const dusaQuote = getDusaQuote(tokenIn, tokenOut, amountIn);
@@ -246,7 +246,7 @@ export function getBestQuote(args: StaticArray<u8>): StaticArray<u8> {
   // Return best quote details
   const result = new Args()
     .add(decision.selectedDex)
-    .add(decision.quote.amountOut)
+    .add(decision.quote.amountOut) // u256
     .add(u64(decision.quote.priceImpact * 100.0))
     .add(decision.quote.fee)
     .add(decision.reason);
@@ -261,7 +261,7 @@ export function compareQuotes(args: StaticArray<u8>): StaticArray<u8> {
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
 
   const massaBeamQuote = getMassaBeamQuote(tokenIn, tokenOut, amountIn);
   const dusaQuote = getDusaQuote(tokenIn, tokenOut, amountIn);
@@ -269,12 +269,12 @@ export function compareQuotes(args: StaticArray<u8>): StaticArray<u8> {
   // Return both quotes for comparison
   const result = new Args()
     .add('MASSABEAM')
-    .add(massaBeamQuote.amountOut)
+    .add(massaBeamQuote.amountOut) // u256
     .add(u64(massaBeamQuote.priceImpact * 100.0))
     .add(massaBeamQuote.fee)
     .add(massaBeamQuote.gasEstimate)
     .add('DUSA')
-    .add(dusaQuote.amountOut)
+    .add(dusaQuote.amountOut) // u256
     .add(u64(dusaQuote.priceImpact * 100.0))
     .add(dusaQuote.fee)
     .add(dusaQuote.gasEstimate);
@@ -315,14 +315,14 @@ export function getStatistics(_: StaticArray<u8>): StaticArray<u8> {
  * amountOut = (amountIn * (10000 - fee) * reserveOut) / (reserveIn * 10000 + amountIn * (10000 - fee))
  * where fee is in basis points (30 = 0.3%)
  */
-function getMassaBeamQuote(tokenIn: Address, tokenOut: Address, amountIn: u64): SwapQuote {
+function getMassaBeamQuote(tokenIn: Address, tokenOut: Address, amountIn: u256): SwapQuote {
 
     // Get pool directly using getPool function imported from main.ts
     const pool = getPool(tokenIn, tokenOut);
 
     if (pool == null) {
       // Pool doesn't exist - return zero quote
-      return new SwapQuote('MASSABEAM', 0, 0.0, 0, MASSABEAM_GAS_ESTIMATE, false);
+      return new SwapQuote('MASSABEAM', u256.Zero, 0.0, 0, MASSABEAM_GAS_ESTIMATE, false);
     }
 
     // Determine token order
@@ -331,19 +331,25 @@ function getMassaBeamQuote(tokenIn: Address, tokenOut: Address, amountIn: u64): 
     const reserveOut = tokenInIsA ? pool.reserveB : pool.reserveA;
 
     // Check if pool has liquidity
-    if (reserveIn == 0 || reserveOut == 0) {
-      return new SwapQuote('MASSABEAM', 0, 0.0, pool.fee, MASSABEAM_GAS_ESTIMATE, false);
+    if (reserveIn.isZero() || reserveOut.isZero()) {
+      return new SwapQuote('MASSABEAM', u256.Zero, 0.0, pool.fee, MASSABEAM_GAS_ESTIMATE, false);
     }
 
-    // Calculate output amount using constant product formula
-    const amountInWithFee = u64(f64(amountIn) * (10000.0 - f64(pool.fee)) / 10000.0);
-    const numerator = u64(f64(amountInWithFee) * f64(reserveOut));
-    const denominator = u64(f64(reserveIn) + f64(amountInWithFee));
-    const amountOut = numerator / denominator;
+    // Calculate output amount using constant product formula with u256
+    // amountInWithFee = amountIn * (10000 - fee) / 10000
+    const feeMultiplier = u256.fromU64(10000 - pool.fee);
+    const amountInWithFee = u256.div(u256.mul(amountIn, feeMultiplier), u256.fromU64(10000));
+    const numerator = u256.mul(amountInWithFee, reserveOut);
+    const denominator = u256.add(reserveIn, amountInWithFee);
+    const amountOut = u256.div(numerator, denominator);
 
-    // Calculate price impact in basis points
-    const expectedRate = f64(reserveOut) / f64(reserveIn);
-    const actualRate = f64(amountOut) / f64(amountIn);
+    // Calculate price impact in basis points (using f64 for ratios)
+    const reserveInF64 = parseFloat(reserveIn.toString());
+    const reserveOutF64 = parseFloat(reserveOut.toString());
+    const amountInF64 = parseFloat(amountIn.toString());
+    const amountOutF64 = parseFloat(amountOut.toString());
+    const expectedRate = reserveOutF64 / reserveInF64;
+    const actualRate = amountOutF64 / amountInF64;
     const priceImpact = (1.0 - (actualRate / expectedRate)) * 100.0;
 
     return new SwapQuote(
@@ -367,7 +373,7 @@ function getMassaBeamQuote(tokenIn: Address, tokenOut: Address, amountIn: u64): 
  * - Multi-hop swaps for token pairs without direct liquidity
  * - Returns Quote object with full route, pairs, bin steps, and fee information
  */
-function getDusaQuote(tokenIn: Address, tokenOut: Address, amountIn: u64): SwapQuote {
+function getDusaQuote(tokenIn: Address, tokenOut: Address, amountIn: u256): SwapQuote {
     // Create Dusa Quoter interface for contract-to-contract call
     // Pattern follows IQuoter.ts findBestPathFromAmountIn with proper Quote deserialization
     const quoterAddress = new Address(Storage.get(DUSA_ROUTER));
@@ -375,7 +381,6 @@ function getDusaQuote(tokenIn: Address, tokenOut: Address, amountIn: u64): SwapQ
 
     // Build swap route (simple 2-token swap)
     const route: Address[] = [tokenIn, tokenOut];
-    const amountInU256 = u256.fromU64(amountIn);
 
     // Call Dusa quoter to find best path
     // This returns a Quote object with:
@@ -384,34 +389,37 @@ function getDusaQuote(tokenIn: Address, tokenOut: Address, amountIn: u64): SwapQ
     // - binSteps: bin steps for each pair
     // - amounts: amount at each step (first is input, last is output)
     // - fees: fee at each step
-    const quote: Quote = quoter.findBestPathFromAmountIn(route, amountInU256);
+    const quote: Quote = quoter.findBestPathFromAmountIn(route, amountIn);
 
     // Check if quote has valid amounts
     if (quote.amounts.length == 0) {
-      return new SwapQuote('DUSA', 0, 0.0, 0, DUSA_GAS_ESTIMATE, false);
+      return new SwapQuote('DUSA', u256.Zero, 0.0, 0, DUSA_GAS_ESTIMATE, false);
     }
 
     // Extract output amount (last element in amounts array)
     const outputAmount = quote.amounts[quote.amounts.length - 1];
-    const expectedOutput = outputAmount.toU64();
 
     // Calculate total fees from quote
     // Sum all fees in the path for multi-hop swaps
     let totalFee: u64 = 0;
     for (let i = 0; i < quote.fees.length; i++) {
-      totalFee += quote.fees[i].toU64();
+      // Note: fees are already in basis points (u256)
+      const feeStr = quote.fees[i].toString();
+      const feeU64 = u64(parseInt(feeStr));
+      totalFee += feeU64;
     }
     if (totalFee == 0) totalFee = 25; // Default 0.25% if no fees calculated
 
-    // Calculate price impact
-    // Formula: priceImpact = (1 - actualOut/expectedOut) * 100
-    const expectedRate = f64(expectedOutput) / f64(amountIn);
+    // Calculate price impact (using f64 for ratios)
+    const amountInF64 = parseFloat(amountIn.toString());
+    const outputF64 = parseFloat(outputAmount.toString());
+    const expectedRate = outputF64 / amountInF64;
     const actualRate = expectedRate; // Already accounts for fees in output
     const priceImpact = (1.0 - actualRate) * 100.0;
 
     return new SwapQuote(
       'DUSA',
-      expectedOutput,
+      outputAmount,
       priceImpact,
       totalFee,
       DUSA_GAS_ESTIMATE,
@@ -431,8 +439,8 @@ function getDusaQuote(tokenIn: Address, tokenOut: Address, amountIn: u64): SwapQ
 function executeMassaBeamSwap(
   tokenIn: Address,
   tokenOut: Address,
-  amountIn: u64,
-  minAmountOut: u64,
+  amountIn: u256,
+  minAmountOut: u256,
   deadline: u64,
 ): void {
   const massaBeamAddress = new Address(Storage.get(MASSABEAM_AMM));
@@ -440,10 +448,9 @@ function executeMassaBeamSwap(
 
     // Step 1: Transfer tokens from caller to MassaBeam contract
     const tokenContract = new IERC20(tokenIn);
-    const amountInU256 = u256.fromU64(amountIn);
 
-    tokenContract.transferFrom(caller, massaBeamAddress, amountInU256);
-    generateEvent(`MassaBeam: Transferred ${amountIn} tokens from ${caller.toString()}`);
+    tokenContract.transferFrom(caller, massaBeamAddress, amountIn);
+    generateEvent(`MassaBeam: Transferred ${amountIn.toString()} tokens from ${caller.toString()}`);
 
     // Step 2: Execute swap via MassaBeam interface
     // Uses IMassaBeamAMM interface which wraps contract call
@@ -459,7 +466,7 @@ function executeMassaBeamSwap(
     );
 
     generateEvent(
-      `MassaBeam swap executed: ${amountIn} tokens → ${amountOut} output to ${caller.toString()}`,
+      `MassaBeam swap executed: ${amountIn.toString()} tokens → ${amountOut.toString()} output to ${caller.toString()}`,
     );
 
 }
@@ -471,8 +478,8 @@ function executeMassaBeamSwap(
 function executeDusaSwap(
   tokenIn: Address,
   tokenOut: Address,
-  amountIn: u64,
-  minAmountOut: u64,
+  amountIn: u256,
+  minAmountOut: u256,
   deadline: u64,
 ): void {
   const dusaRouterAddress = new Address(Storage.get(DUSA_ROUTER));
@@ -480,10 +487,9 @@ function executeDusaSwap(
 
     // Step 1: Transfer tokens from caller to Dusa Router
     const tokenContract = new IERC20(tokenIn);
-    const amountInU256 = u256.fromU64(amountIn);
 
-    tokenContract.transferFrom(caller, dusaRouterAddress, amountInU256);
-    generateEvent(`Dusa: Transferred ${amountIn} tokens from ${caller.toString()}`);
+    tokenContract.transferFrom(caller, dusaRouterAddress, amountIn);
+    generateEvent(`Dusa: Transferred ${amountIn.toString()} tokens from ${caller.toString()}`);
 
     // Step 2: Build swap parameters
     // Build token path (simple 2-token swap)
@@ -509,7 +515,7 @@ function executeDusaSwap(
     );
 
     generateEvent(
-      `Dusa swap executed: ${amountIn} tokens → ${amountOut} output to ${caller.toString()}`,
+      `Dusa swap executed: ${amountIn.toString()} tokens → ${amountOut.toString()} output to ${caller.toString()}`,
     );
 
 }
@@ -527,7 +533,7 @@ function executeDusaSwap(
 function selectBestRoute(
   massaBeamQuote: SwapQuote,
   dusaQuote: SwapQuote,
-  amountIn: u64,
+  amountIn: u256,
 ): RoutingDecision {
   // If one DEX has no liquidity, use the other
   if (!massaBeamQuote.isAvailable && dusaQuote.isAvailable) {
@@ -550,8 +556,10 @@ function selectBestRoute(
 
   // Both available: compare output amounts
   if (dusaQuote.amountOut > massaBeamQuote.amountOut) {
-    const diff = dusaQuote.amountOut - massaBeamQuote.amountOut;
-    const improvement = f64(diff) / f64(massaBeamQuote.amountOut) * 100.0;
+    const diff = u256.sub(dusaQuote.amountOut, massaBeamQuote.amountOut);
+    const diffF64 = parseFloat(diff.toString());
+    const massaOutF64 = parseFloat(massaBeamQuote.amountOut.toString());
+    const improvement = (diffF64 / massaOutF64) * 100.0;
 
     // If Dusa output is significantly better (>0.5%), use it despite higher gas
     if (improvement > 0.5) {
@@ -565,8 +573,10 @@ function selectBestRoute(
   }
 
   if (massaBeamQuote.amountOut > dusaQuote.amountOut) {
-    const diff = massaBeamQuote.amountOut - dusaQuote.amountOut;
-    const improvement = f64(diff) / f64(dusaQuote.amountOut) * 100.0;
+    const diff = u256.sub(massaBeamQuote.amountOut, dusaQuote.amountOut);
+    const diffF64 = parseFloat(diff.toString());
+    const dusaOutF64 = parseFloat(dusaQuote.amountOut.toString());
+    const improvement = (diffF64 / dusaOutF64) * 100.0;
 
     // If MassaBeam output is significantly better, use it
     if (improvement > 0.5) {
@@ -604,7 +614,7 @@ function selectBestRoute(
 /**
  * Record swap statistics for analytics
  */
-function recordSwap(decision: RoutingDecision, amountIn: u64): void {
+function recordSwap(decision: RoutingDecision, amountIn: u256): void {
   // Update total swaps
   const totalSwaps = u64(parseInt(Storage.get('total_swaps')));
   Storage.set('total_swaps', (totalSwaps + 1).toString());
@@ -614,9 +624,11 @@ function recordSwap(decision: RoutingDecision, amountIn: u64): void {
   const dexSwaps = u64(parseInt(Storage.get(dexKey)));
   Storage.set(dexKey, (dexSwaps + 1).toString());
 
-  // Update volume
-  const totalVolume = u64(parseInt(Storage.get('total_volume')));
-  Storage.set('total_volume', (totalVolume + amountIn).toString());
+  // Update volume (u256 string-based storage)
+  const totalVolumeStr = Storage.get('total_volume');
+  const totalVolume = u256.fromString(totalVolumeStr);
+  const newVolume = u256.add(totalVolume, amountIn);
+  Storage.set('total_volume', newVolume.toString());
 }
 
 // ============================================================================
