@@ -4,6 +4,8 @@
  * Adapted from Dussa implementation
  */
 
+
+import { u128 } from 'as-bignum/assembly/integer/u128';
 import { u256 } from 'as-bignum/assembly/integer/u256';
 
 /**
@@ -77,7 +79,7 @@ export class SafeMath256 {
       return u256.Zero;
     }
     const c = u256.mul(a, b);
-    assert(u256.eq(u256.div(c, a), b), 'SafeMath256: multiplication overflow');
+    assert(u256.eq(this.div(c, a), b), 'SafeMath256: multiplication overflow');
     return c;
   }
 
@@ -87,7 +89,7 @@ export class SafeMath256 {
    */
   static div(a: u256, b: u256): u256 {
     assert(u256.gt(b, u256.Zero), 'SafeMath256: division by zero');
-    const c = u256.div(a, b);
+    const c = u256.fromU128(u128.div(u128.fromU256(a) , u128.fromU256(b)));
     return c;
   }
 
@@ -97,7 +99,7 @@ export class SafeMath256 {
    */
   static mod(a: u256, b: u256): u256 {
     assert(!b.isZero(), 'SafeMath256: modulo by zero');
-    return u256.rem(a, b);
+    return u128.rem(a.toU128(), b.toU128()).toU256();
   }
 
   /**
@@ -135,7 +137,7 @@ export class Math512Bits {
     // For now, use safe multiplication then division
     // TODO: Implement full 512-bit precision like Dussa
     const product = SafeMath256.mul(x, y);
-    return u256.div(product, denominator);
+    return SafeMath256.div(product, denominator);
   }
 
   /**
@@ -145,8 +147,8 @@ export class Math512Bits {
     assert(u256.gt(denominator, u256.Zero), 'Math512Bits: division by zero');
 
     const product = SafeMath256.mul(x, y);
-    const result = u256.div(product, denominator);
-    const remainder = u256.rem(product, denominator);
+    const result = SafeMath256.div(product, denominator);
+    const remainder = SafeMath256.mod(product, denominator);
 
     // Round up if there's a remainder
     if (!remainder.isZero()) {

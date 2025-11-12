@@ -305,7 +305,7 @@ export function safeSqrt(x: u256, y: u256): u256 {
 
   while (guess < product) {
     z = guess;
-    guess = u256.shr(SafeMath256.add(u256.div(product, guess), guess), 1);
+    guess = u256.shr(SafeMath256.add(SafeMath256.div(product, guess), guess), 1);
   }
 
   return z.isZero() ? u256.One : z;
@@ -347,7 +347,7 @@ export function getAmountOut(
   assert(!denominator.isZero(), 'Division by zero');
 
   // result = numerator / denominator
-  const result = u256.div(numerator, denominator);
+  const result = SafeMath256.div(numerator, denominator);
   return result;
 }
 
@@ -373,7 +373,7 @@ export function getAmountIn(amountOut: u256, reserveIn: u256, reserveOut: u256, 
   assert(!denominator.isZero(), 'Math overflow in getAmountIn');
 
   // result = (numerator / denominator) + 1 (round up to favor pool)
-  const result = u256.div(numerator, denominator);
+  const result = SafeMath256.div(numerator, denominator);
   return SafeMath256.add(result, u256.One);
 }
 
@@ -397,11 +397,11 @@ function updateCumulativePrices(pool: Pool): void {
 
     // Calculate priceA = (reserveB * ONE_UNIT) / reserveA
     const priceANumerator = SafeMath256.mul(pool.reserveB, oneUnit);
-    const priceA = u256.div(priceANumerator, pool.reserveA);
+    const priceA = SafeMath256.div(priceANumerator, pool.reserveA);
 
     // Calculate priceB = (reserveA * ONE_UNIT) / reserveB
     const priceBNumerator = SafeMath256.mul(pool.reserveA, oneUnit);
-    const priceB = u256.div(priceBNumerator, pool.reserveB);
+    const priceB = SafeMath256.div(priceBNumerator, pool.reserveB);
 
     // Time-weighted prices
     const priceATimeWeighted = SafeMath256.mul(priceA, timeElapsedU256);
@@ -595,7 +595,7 @@ export function addLiquidity(args: StaticArray<u8>): void {
     amountB = amountBDesired;
   } else {
     // amountBOptimal = (amountADesired * reserveB) / reserveA
-    const amountBOptimal = u256.div(
+    const amountBOptimal = SafeMath256.div(
       SafeMath256.mul(amountADesired, pool!.reserveB),
       pool!.reserveA
     );
@@ -605,7 +605,7 @@ export function addLiquidity(args: StaticArray<u8>): void {
       amountB = amountBOptimal;
     } else {
       // amountAOptimal = (amountBDesired * reserveA) / reserveB
-      const amountAOptimal = u256.div(
+      const amountAOptimal = SafeMath256.div(
         SafeMath256.mul(amountBDesired, pool!.reserveA),
         pool!.reserveB
       );
@@ -622,7 +622,7 @@ export function addLiquidity(args: StaticArray<u8>): void {
   assert(safeTransferFrom(tokenB, caller, Context.callee(), amountB), 'Token B transfer failed');
 
   // Calculate liquidity to mint: (amountA * totalSupply) / reserveA
-  const liquidity = u256.div(
+  const liquidity = SafeMath256.div(
     SafeMath256.mul(amountA, pool!.totalSupply),
     pool!.reserveA
   );
@@ -639,7 +639,7 @@ export function addLiquidity(args: StaticArray<u8>): void {
   const lpTokenKey = LP_PREFIX + getPoolKey(tokenA, tokenB) + ':' + caller.toString();
   const currentBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
   // Parse u256 from string
-  const currentBalance = u256.fromString(currentBalanceStr);
+  const currentBalance = u256.fromBytes(currentBalanceStr);
   const newBalance = SafeMath256.add(currentBalance, liquidity);
   Storage.set(lpTokenKey, newBalance.toString());
 
@@ -674,17 +674,17 @@ export function removeLiquidity(args: StaticArray<u8>): void {
   // Check user LP balance
   const lpTokenKey = LP_PREFIX + getPoolKey(tokenA, tokenB) + ':' + caller.toString();
   const userBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
-  const userBalance = u256.fromString(userBalanceStr);
+  const userBalance = u256.fromBytes(userBalanceStr);
   assert(userBalance >= liquidity, 'Insufficient LP balance');
 
   // Calculate amounts with slippage protection using u256
   // amountA = (liquidity * reserveA) / totalSupply
-  const amountA = u256.div(
+  const amountA = SafeMath256.div(
     SafeMath256.mul(liquidity, pool!.reserveA),
     pool!.totalSupply
   );
   // amountB = (liquidity * reserveB) / totalSupply
-  const amountB = u256.div(
+  const amountB = SafeMath256.div(
     SafeMath256.mul(liquidity, pool!.reserveB),
     pool!.totalSupply
   );
@@ -773,12 +773,12 @@ export function swapMASForTokens(args: StaticArray<u8>): void {
   savePool(pool!);
 
   // Calculate fee: (amountIn * fee) / 10000
-  const feeAmount = u256.div(
+  const feeAmount = SafeMath256.div(
     SafeMath256.mul(amountIn, u256.fromU64(pool!.fee)),
     u256.fromU64(10000)
   );
   const totalFeesStr = Storage.get('total_fees');
-  const totalFees = totalFeesStr ? u256.fromString(totalFeesStr) : u256.Zero;
+  const totalFees = totalFeesStr ? u256.fromBytes(totalFeesStr) : u256.Zero;
   Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   transferRemainingMAS(balanceBefore, balance(), sent, Context.caller());
@@ -847,12 +847,12 @@ export function swapTokensForMAS(args: StaticArray<u8>): void {
   savePool(pool!);
 
   // Calculate fee: (amountIn * fee) / 10000
-  const feeAmount = u256.div(
+  const feeAmount = SafeMath256.div(
     SafeMath256.mul(amountIn, u256.fromU64(pool!.fee)),
     u256.fromU64(10000)
   );
   const totalFeesStr = Storage.get('total_fees');
-  const totalFees = totalFeesStr ? u256.fromString(totalFeesStr) : u256.Zero;
+  const totalFees = totalFeesStr ? u256.fromBytes(totalFeesStr) : u256.Zero;
   Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   endNonReentrant();
@@ -909,7 +909,7 @@ export function swap(args: StaticArray<u8>): void {
   // newK = newReserveIn * newReserveOut (after fee)
   // Actually: (reserveIn + amountIn * (10000 - fee) / 10000) * (reserveOut - amountOut)
   const feeMultiplier = u256.fromU64(10000 - pool!.fee);
-  const amountInWithFee = u256.div(
+  const amountInWithFee = SafeMath256.div(
     SafeMath256.mul(amountIn, feeMultiplier),
     u256.fromU64(10000)
   );
@@ -931,16 +931,16 @@ export function swap(args: StaticArray<u8>): void {
 
   // Update statistics (u256)
   const totalVolumeStr = Storage.get('total_volume');
-  const totalVolume = totalVolumeStr ? u256.fromString(totalVolumeStr) : u256.Zero;
+  const totalVolume = totalVolumeStr ? u256.fromBytes(totalVolumeStr) : u256.Zero;
   Storage.set('total_volume', SafeMath256.add(totalVolume, amountIn).toString());
 
   // Calculate fee: (amountIn * fee) / 10000
-  const feeAmount = u256.div(
+  const feeAmount = SafeMath256.div(
     SafeMath256.mul(amountIn, u256.fromU64(pool!.fee)),
     u256.fromU64(10000)
   );
   const totalFeesStr = Storage.get('total_fees');
-  const totalFees = totalFeesStr ? u256.fromString(totalFeesStr) : u256.Zero;
+  const totalFees = totalFeesStr ? u256.fromBytes(totalFeesStr) : u256.Zero;
   Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   endNonReentrant();
@@ -997,7 +997,7 @@ export function flashLoan(args: StaticArray<u8>): void {
   );
 
   // Calculate fee (0.09% = 9 basis points): (amount * 9) / 10000
-  const fee = u256.div(
+  const fee = SafeMath256.div(
     SafeMath256.mul(amount, u256.fromU64(FLASH_LOAN_FEE_RATE)),
     u256.fromU64(BASIS_POINTS)
   );
@@ -1026,13 +1026,13 @@ export function flashLoan(args: StaticArray<u8>): void {
 
   // Update flash loan statistics (u256)
   const flashLoanVolumeStr = Storage.has('flash_loan_volume') ? Storage.get('flash_loan_volume') : '0';
-  const flashLoanVolume = u256.fromString(flashLoanVolumeStr);
+  const flashLoanVolume = u256.fromBytes(flashLoanVolumeStr);
 
   const flashLoanCountStr = Storage.has('flash_loan_count') ? Storage.get('flash_loan_count') : '0';
   const flashLoanCount = u64(parseInt(flashLoanCountStr));
 
   const flashLoanFeesStr = Storage.has('flash_loan_fees') ? Storage.get('flash_loan_fees') : '0';
-  const flashLoanFees = u256.fromString(flashLoanFeesStr);
+  const flashLoanFees = u256.fromBytes(flashLoanFeesStr);
 
   Storage.set('flash_loan_volume', SafeMath256.add(flashLoanVolume, amount).toString());
   Storage.set('flash_loan_count', (flashLoanCount + 1).toString());
@@ -1230,7 +1230,7 @@ export function readQuoteSwapExactInput(args: StaticArray<u8>): StaticArray<u8> 
   const argument = new Args(args);
   const tokenIn = new Address(argument.nextString().unwrap());
   const tokenOut = new Address(argument.nextString().unwrap());
-  const amountIn = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
 
   // Get pool information
   const pool = getPool(tokenIn, tokenOut);
@@ -1265,9 +1265,9 @@ export function readQuoteSwapExactInput(args: StaticArray<u8>): StaticArray<u8> 
  */
 export function readGetAmountOut(args: StaticArray<u8>): StaticArray<u8> {
   const argument = new Args(args);
-  const amountIn = argument.nextU64().unwrap();
-  const reserveIn = argument.nextU64().unwrap();
-  const reserveOut = argument.nextU64().unwrap();
+  const amountIn = argument.nextU256().unwrap();
+  const reserveIn = argument.nextU256().unwrap();
+  const reserveOut = argument.nextU256().unwrap();
   const fee = argument.nextU64().unwrap();
 
   const amountOut = getAmountOut(amountIn, reserveIn, reserveOut, fee);
@@ -1280,9 +1280,9 @@ export function readGetAmountOut(args: StaticArray<u8>): StaticArray<u8> {
  */
 export function readGetAmountIn(args: StaticArray<u8>): StaticArray<u8> {
   const argument = new Args(args);
-  const amountOut = argument.nextU64().unwrap();
-  const reserveIn = argument.nextU64().unwrap();
-  const reserveOut = argument.nextU64().unwrap();
+  const amountOut = argument.nextU256().unwrap();
+  const reserveIn = argument.nextU256().unwrap();
+  const reserveOut = argument.nextU256().unwrap();
   const fee = argument.nextU64().unwrap();
 
   const amountIn = getAmountIn(amountOut, reserveIn, reserveOut, fee);
@@ -1295,8 +1295,8 @@ export function readGetAmountIn(args: StaticArray<u8>): StaticArray<u8> {
  */
 export function readSafeSqrt(args: StaticArray<u8>): StaticArray<u8> {
   const argument = new Args(args);
-  const x = argument.nextU64().unwrap();
-  const y = argument.nextU64().unwrap();
+  const x = argument.nextU256().unwrap();
+  const y = argument.nextU256().unwrap();
 
   const result = safeSqrt(x, y);
 

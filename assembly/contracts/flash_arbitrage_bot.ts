@@ -37,6 +37,7 @@ import { IFlashLoanCallback } from './interfaces/IFlashLoanCallback';
 import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
 import { IRouter } from './interfaces/IRouter';
 import { getPool, Pool } from './main';
+import { SafeMath256 } from '../libraries/SafeMath';
 
 // ============================================================================
 // CONSTANTS & CONFIGURATION
@@ -247,12 +248,12 @@ export function scanOpportunities(_: StaticArray<u8>): void {
       Storage.set(TOTAL_OPPORTUNITIES_KEY, (totalOpps + 1).toString());
 
       generateEvent(
-        `Opportunity: ${opportunity!.expectedProfit} profit on ${pair.tokenA.toString()}-${pair.tokenB.toString()}`,
+        `Opportunity: ${opportunity.expectedProfit} profit on ${pair.tokenA.toString()}-${pair.tokenB.toString()}`,
       );
 
       // Execute if profitable enough
-      if (opportunity!.profitPercentage >= MIN_PROFIT_THRESHOLD_BPS) {
-        executeArbitrage(opportunity!);
+      if (opportunity.profitPercentage >= MIN_PROFIT_THRESHOLD_BPS) {
+        executeArbitrage(opportunity);
       }
     }
   }
@@ -275,11 +276,11 @@ function checkPairForArbitrage(
 
   // Get Dusa price (would call Dusa Quoter)
   // For now, simulate with a price difference
-  const dusaPrice = u64(f64(massaBeamPrice) * 1.015); // 1.5% difference
+  const dusaPrice = u64(massaBeamPrice.toU64() * u64(1.015)); // 1.5% difference
 
   // Calculate profit potential
   const profitPercentBps = u64(
-    Math.abs(f64(dusaPrice - massaBeamPrice)) / f64(massaBeamPrice) * 10000.0,
+    Math.abs(f64(u64(dusaPrice) - massaBeamPrice.toU64())) / f64(massaBeamPrice.toU64() * u64(10000.0)),
   );
 
   // Check if profitable after fees
@@ -296,19 +297,19 @@ function checkPairForArbitrage(
     tokenA,
     tokenB,
     massaBeamPrice,
-    dusaPrice,
+    u256.fromU64(dusaPrice),
   );
 
-  if (optimalAmount < MIN_ARBITRAGE_AMOUNT || optimalAmount > MAX_ARBITRAGE_AMOUNT) {
+  if (optimalAmount < u256.fromU64(MIN_ARBITRAGE_AMOUNT) || optimalAmount > u256.fromU64(MAX_ARBITRAGE_AMOUNT)) {
     return null;
   }
 
   // Determine buy/sell DEXs
-  const buyDex = massaBeamPrice < dusaPrice ? 'MASSABEAM' : 'DUSA';
-  const sellDex = massaBeamPrice < dusaPrice ? 'DUSA' : 'MASSABEAM';
+  const buyDex = massaBeamPrice < u256.fromU64(dusaPrice) ? 'MASSABEAM' : 'DUSA';
+  const sellDex = massaBeamPrice < u256.fromU64(dusaPrice) ? 'DUSA' : 'MASSABEAM';
 
   const expectedProfit = u64(
-    f64(optimalAmount) * (f64(profitPercentBps) - f64(totalFees)) / 10000.0,
+    f64(optimalAmount.toU64()) * (f64(profitPercentBps) - f64(totalFees)) / 10000.0,
   );
 
   return new ArbitrageOpportunity(
@@ -317,7 +318,7 @@ function checkPairForArbitrage(
     buyDex,
     sellDex,
     optimalAmount,
-    expectedProfit,
+    u256.fromU64(expectedProfit),
   );
 }
 
@@ -328,7 +329,7 @@ function calculatePoolPrice(pool: Pool): u256 {
   // Price = (reserveB * 10^18) / reserveA
   const e18 = u256.fromU64(1000000000000000000); // 10^18
   const numerator = u256.mul(pool.reserveB, e18);
-  return u256.div(numerator, pool.reserveA);
+  return SafeMath256.div(numerator, pool.reserveA);
 }
 
 /**
@@ -347,11 +348,11 @@ function calculateOptimalArbitrageAmount(
   if (pool == null) return minAmount;
 
   // Calculate geometric mean using f64 for sqrt (safe for ratio)
-  const reserveAF64 = parseFloat(pool!.reserveA.toString());
-  const reserveBF64 = parseFloat(pool!.reserveB.toString());
-  const geometric = u256.fromString(Math.sqrt(reserveAF64 * reserveBF64).toString().split('.')[0]);
+  const reserveAF64 = parseFloat(pool.reserveA.toString());
+  const reserveBF64 = parseFloat(pool.reserveB.toString());
+  const geometric = u256.fromBytes(Math.sqrt(reserveAF64 * reserveBF64).toString().split('.')[0]);
 
-  const optimal = u256.div(geometric, u256.fromU64(10)); // 10% of geometric mean
+  const optimal = SafeMath256.div(geometric, u256.fromU64(10)); // 10% of geometric mean
 
   // Clamp to min/max
   const maxAmount = u256.fromU64(MAX_ARBITRAGE_AMOUNT);
@@ -401,7 +402,7 @@ function executeArbitrage(opportunity: ArbitrageOpportunity): void {
   const totalProfit = u64(parseInt(Storage.get(TOTAL_PROFIT_KEY)));
   Storage.set(
     TOTAL_PROFIT_KEY,
-    (totalProfit + opportunity.expectedProfit).toString(),
+    u256.add(u256.fromU64(totalProfit), opportunity.expectedProfit).toString(),
   );
 
   Storage.set(LAST_PROFIT_KEY, opportunity.expectedProfit.toString());
@@ -507,19 +508,19 @@ function buyOnMassaBeam(
   const pool = getPool(tokenIn, tokenOut);
   if (pool == null) return u256.Zero;
 
-  const tokenInIsA = pool!.tokenA.toString() == tokenIn.toString();
-  const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
-  const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
+  const tokenInIsA = pool.tokenA.toString() == tokenIn.toString();
+  const reserveIn = tokenInIsA ? pool.reserveA : pool.reserveB;
+  const reserveOut = tokenInIsA ? pool.reserveB : pool.reserveA;
 
   // Calculate output using constant product formula with u256
   // amountInWithFee = amount * 997 / 1000 (0.3% fee)
-  const amountInWithFee = u256.div(
+  const amountInWithFee = SafeMath256.div(
     u256.mul(amount, u256.fromU64(997)),
     u256.fromU64(1000)
   );
   const numerator = u256.mul(amountInWithFee, reserveOut);
   const denominator = u256.add(reserveIn, amountInWithFee);
-  const amountOut = u256.div(numerator, denominator);
+  const amountOut = SafeMath256.div(numerator, denominator);
 
   return amountOut;
 }
@@ -544,7 +545,7 @@ function buyOnDusa(tokenIn: Address, tokenOut: Address, amount: u256): u256 {
 
   // Execute swap on Dusa
   const deadline = Context.timestamp() + 300;
-  const minOut = u256.div(u256.mul(amount, u256.fromU64(99)), u256.fromU64(100));
+  const minOut = SafeMath256.div(u256.mul(amount, u256.fromU64(99)), u256.fromU64(100));
 
   // Call Dusa swap (simplified)
   // router.swapExactTokensForTokens(amount, minOut, path, to, deadline);

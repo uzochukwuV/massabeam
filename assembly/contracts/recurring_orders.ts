@@ -38,6 +38,7 @@ import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
 
 // Import getPool from main.ts to check current prices
 import { getPool } from './main';
+import { SafeMath256 } from '../libraries/SafeMath';
 
 // ============================================================================
 // CONSTANTS & CONFIGURATION
@@ -306,7 +307,7 @@ function getCurrentPoolPrice(tokenIn: Address, tokenOut: Address): u256 {
   // Price = (reserveOut * 10^18) / reserveIn
   const e18 = u256.fromU64(1000000000000000000); // 10^18
   const numerator = u256.mul(reserveOut, e18);
-  return u256.div(numerator, reserveIn);
+  return SafeMath256.div(numerator, reserveIn);
 }
 
 /**

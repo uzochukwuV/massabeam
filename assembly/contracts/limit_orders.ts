@@ -40,6 +40,7 @@ import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
 // Import getPool from main.ts to check current prices from pools
 // This allows limit orders to validate prices directly from pool reserves
 import { getPool } from './main';
+import { SafeMath256 } from '../libraries/SafeMath';
 
 
 // ============================================================================
@@ -262,7 +263,7 @@ export class LimitOrder {
     // amountOut = (amountIn * currentPrice) / 10^18
     const e18 = u256.fromU64(1000000000000000000); // 10^18
     const numerator = u256.mul(this.remainingAmount, currentPrice);
-    return u256.div(numerator, e18);
+    return SafeMath256.div(numerator, e18);
   }
 
   // Check if price condition is met
@@ -292,7 +293,7 @@ export class LimitOrder {
       }
       // stopPrice = highestPrice * (10000 - trailingPercent) / 10000
       const multiplier = u256.fromU64(10000 - this.trailingPercent);
-      const stopPrice = u256.div(
+      const stopPrice = SafeMath256.div(
         u256.mul(this.highestPrice, multiplier),
         u256.fromU64(10000)
       );
@@ -401,7 +402,7 @@ function getCurrentPoolPrice(tokenIn: Address, tokenOut: Address): u256 {
   // Calculate price: (reserveOut * 10^18) / reserveIn
   const e18 = u256.fromU64(1000000000000000000); // 10^18
   const numerator = u256.mul(reserveOut, e18);
-  return u256.div(numerator, reserveIn);
+  return SafeMath256.div(numerator, reserveIn);
 }
 
 // ============================================================================
@@ -1050,7 +1051,7 @@ export function advance(_: StaticArray<u8>): void {
     const currentPrice = getCurrentPoolPrice(order.tokenIn, order.tokenOut);
 
     // If pool doesn't exist or price is unavailable, skip this order
-    if (currentPrice == 0) {
+    if (currentPrice == u256.fromF64(0)) {
       generateEvent('LimitOrder:BotPoolUnavailable');
       continue;
     }

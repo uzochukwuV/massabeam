@@ -69,6 +69,7 @@ import { IQuoter, Quote } from './interfaces/IQuoter';
 import { IRouter } from './interfaces/IRouter';
 import { IERC20 } from './interfaces/IERC20';
 import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
+import { SafeMath256 } from '../libraries/SafeMath';
 
 // ============================================================================
 // TYPES AND CONSTANTS
@@ -338,10 +339,10 @@ function getMassaBeamQuote(tokenIn: Address, tokenOut: Address, amountIn: u256):
     // Calculate output amount using constant product formula with u256
     // amountInWithFee = amountIn * (10000 - fee) / 10000
     const feeMultiplier = u256.fromU64(10000 - pool.fee);
-    const amountInWithFee = u256.div(u256.mul(amountIn, feeMultiplier), u256.fromU64(10000));
+    const amountInWithFee = SafeMath256.div(u256.mul(amountIn, feeMultiplier), u256.fromU64(10000));
     const numerator = u256.mul(amountInWithFee, reserveOut);
     const denominator = u256.add(reserveIn, amountInWithFee);
-    const amountOut = u256.div(numerator, denominator);
+    const amountOut = SafeMath256.div(numerator, denominator);
 
     // Calculate price impact in basis points (using f64 for ratios)
     const reserveInF64 = parseFloat(reserveIn.toString());
@@ -505,8 +506,8 @@ function executeDusaSwap(
     const router = new IRouter(dusaRouterAddress);
 
     const amountOut = router.swapExactTokensForTokens(
-      amountIn,
-      minAmountOut,
+      amountIn.toI64(),
+      minAmountOut.toI64(),
       binSteps,
       path,
       caller, // Output recipient
@@ -626,7 +627,7 @@ function recordSwap(decision: RoutingDecision, amountIn: u256): void {
 
   // Update volume (u256 string-based storage)
   const totalVolumeStr = Storage.get('total_volume');
-  const totalVolume = u256.fromString(totalVolumeStr);
+  const totalVolume = u256.fromBytes(totalVolumeStr);
   const newVolume = u256.add(totalVolume, amountIn);
   Storage.set('total_volume', newVolume.toString());
 }

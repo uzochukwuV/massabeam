@@ -43,6 +43,7 @@ import { IERC20 } from './interfaces/IERC20';
 import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
 import { IRouter } from './interfaces/IRouter';
 import { getPool } from './main';
+import { SafeMath256 } from '../libraries/SafeMath';
 
 // ============================================================================
 // CONSTANTS & CONFIGURATION
@@ -248,7 +249,7 @@ function getMassaBeamPrice(tokenA: Address, tokenB: Address): u256 {
 
   // Price = reserveB / reserveA * 1e18
   const scaledReserveB = u256.mul(reserveB, u256.fromU64(1000000000000000000)); // 1e18
-  const price = u256.div(scaledReserveB, reserveA);
+  const price = SafeMath256.div(scaledReserveB, reserveA);
   return price;
 }
 
@@ -268,12 +269,12 @@ function getMassaBeamAmountOut(tokenIn: Address, tokenOut: Address, amountIn: u2
 
   // Constant product formula with fee
   const feeMultiplier = u256.fromU64(10000 - pool.fee);
-  const amountInWithFee = u256.div(u256.mul(amountIn, feeMultiplier), u256.fromU64(10000));
+  const amountInWithFee = SafeMath256.div(u256.mul(amountIn, feeMultiplier), u256.fromU64(10000));
   const numerator = u256.mul(amountInWithFee, reserveOut);
   const denominator = u256.add(reserveIn, amountInWithFee);
 
   if (denominator.isZero()) return u256.Zero;
-  return u256.div(numerator, denominator);
+  return SafeMath256.div(numerator, denominator);
 }
 
 /**
@@ -525,7 +526,7 @@ export function executeArbitrage(args: StaticArray<u8>): bool {
   // Execute first swap on MassaBeam
   const massaBeam = new IMassaBeamAMM(massaBeamAddress);
   // Calculate minAmountOut with 1% slippage using u256 math
-  const minAmountOut = u256.div(
+  const minAmountOut = SafeMath256.div(
     u256.mul(opportunity.estimatedAmountOut1, u256.fromU64(99)),
     u256.fromU64(100)
   );
@@ -551,7 +552,7 @@ export function executeArbitrage(args: StaticArray<u8>): bool {
   // Update statistics
   const executedCount = u64(parseInt(Storage.get('total_opportunities_executed')));
   const totalProfitStr = Storage.get('total_profit_realized');
-  const totalProfit = u256.fromString(totalProfitStr);
+  const totalProfit = u256.fromBytes(totalProfitStr);
 
   Storage.set('total_opportunities_executed', (executedCount + 1).toString());
   const newTotalProfit = u256.add(totalProfit, opportunity.actualProfit);
