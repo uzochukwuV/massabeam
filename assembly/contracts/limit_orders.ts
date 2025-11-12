@@ -98,7 +98,7 @@ export class LimitOrder {
   tokenOut: Address; // Token to buy
   amountIn: u64; // Amount to sell
   minAmountOut: u64; // Minimum acceptable output (price floor)
-  limitPrice: u64; // Target price (tokenOut per tokenIn in 18 decimals)
+  limitPrice: u64; // Target price (tokenOut per tokenIn in 8 decimals)
   expiryTime: u64; // Unix timestamp when order expires
   createdTime: u64; // Order creation timestamp
   status: u8; // ORDER_STATUS_*
@@ -273,7 +273,10 @@ function saveOrder(order: LimitOrder): void {
  */
 function addOrderToUser(user: Address, orderId: u64): void {
   const key = stringToBytes(USER_ORDERS_PREFIX + user.toString());
-  const data = Storage.get<StaticArray<u8>>(key);
+  let data =  new StaticArray<u8>(0);
+  if (Storage.has(key)) {
+    data = Storage.get<StaticArray<u8>>(key);
+  }
 
   let ids: u64[] = [];
   if (data.length > 0) {
@@ -391,7 +394,7 @@ export function constructor(args: StaticArray<u8>): void {
  *   - maxSlippage: Max slippage tolerance (0-10000, default 100)
  *   - partialFillAllowed: Accept partial fills (default false)
  */
-export function createLimitOrder(args: StaticArray<u8>): u64 {
+export function createLimitOrder(args: StaticArray<u8>): void {
   whenNotPaused();
 
   const argument = new Args(args);
@@ -448,7 +451,6 @@ export function createLimitOrder(args: StaticArray<u8>): u64 {
 
   generateEvent('LimitOrder:Created');
 
-  return orderId;
 }
 
 /**

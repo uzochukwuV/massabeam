@@ -205,6 +205,12 @@ function setupEventListeners() {
       handleCreateLimitOrder();
     });
   }
+
+  // Limit orders - Token selection change (update current price)
+  const orderTokenInSelect = document.getElementById('orderTokenIn');
+  const orderTokenOutSelect = document.getElementById('orderTokenOut');
+  if (orderTokenInSelect) orderTokenInSelect.addEventListener('change', onOrderTokenChanged);
+  if (orderTokenOutSelect) orderTokenOutSelect.addEventListener('change', onOrderTokenChanged);
 }
 
 // ============================================================================
@@ -634,6 +640,97 @@ function setupSectionNavigation() {
 // ============================================================================
 
 /**
+ * Handle order token selection change - Update current market price and balance
+ */
+async function onOrderTokenChanged() {
+  const tokenIn = document.getElementById('orderTokenIn')?.value;
+  const tokenOut = document.getElementById('orderTokenOut')?.value;
+  const currentPriceEl = document.getElementById('currentMarketPrice');
+  const balanceEl = document.getElementById('orderTokenInBalance');
+
+  // Update balance for tokenIn
+  if (tokenIn && balanceEl) {
+    try {
+      const tokenInData = tokenService.getToken(tokenIn);
+      const balance = await tokenService.getBalance(tokenIn);
+
+      if (tokenInData && balance !== undefined) {
+        const formatted = tokenInData.formatAmount(balance);
+        balanceEl.textContent = formatted;
+      } else {
+        balanceEl.textContent = '0';
+      }
+    } catch (error) {
+      console.error('Failed to fetch token balance:', error);
+      balanceEl.textContent = '0';
+    }
+  } else if (balanceEl) {
+    balanceEl.textContent = '0';
+  }
+
+  // Update current market price
+  if (!currentPriceEl) return;
+
+  // Clear price if tokens not fully selected
+  if (!tokenIn || !tokenOut) {
+    currentPriceEl.textContent = '-';
+    return;
+  }
+
+  try {
+    // Get token data
+    const tokenInData = tokenService.getToken(tokenIn);
+    const tokenOutData = tokenService.getToken(tokenOut);
+
+    if (!tokenInData || !tokenOutData) {
+      currentPriceEl.textContent = '-';
+      return;
+    }
+
+    // Get current exchange rate (1 tokenIn = X tokenOut)
+    const DECIMALS = 0; // Temporary for raw format pools
+    const oneToken = Math.pow(10, DECIMALS).toString(); // For raw: "1"
+    const exchangeRate = await getExchangeRate(tokenIn, tokenOut, oneToken || '1');
+
+    if (exchangeRate && exchangeRate.rate) {
+      const rate = Number(exchangeRate.rate).toFixed(6);
+      currentPriceEl.textContent = `1 ${tokenInData.symbol} = ${rate} ${tokenOutData.symbol}`;
+      currentPriceEl.style.color = 'var(--text-primary)';
+    } else {
+      currentPriceEl.textContent = 'Pool not found';
+      currentPriceEl.style.color = 'var(--text-muted)';
+    }
+  } catch (error) {
+    console.error('Failed to fetch current price:', error);
+    currentPriceEl.textContent = 'Error loading price';
+    currentPriceEl.style.color = 'var(--text-muted)';
+  }
+}
+
+/**
+ * Set max amount for order (MAX button handler)
+ */
+async function setOrderMaxAmount() {
+  const tokenIn = document.getElementById('orderTokenIn')?.value;
+  const amountInput = document.getElementById('orderAmountIn');
+
+  if (!tokenIn || !amountInput) return;
+
+  try {
+    const tokenInData = tokenService.getToken(tokenIn);
+    const balance = await tokenService.getBalance(tokenIn);
+
+    if (tokenInData && balance !== undefined) {
+      // Convert balance to human-readable format
+      const humanBalance = Number(balance) / Math.pow(10, tokenInData.decimals);
+      amountInput.value = humanBalance.toFixed(tokenInData.decimals).replace(/\.?0+$/, '');
+    }
+  } catch (error) {
+    console.error('Failed to set max amount:', error);
+  }
+}
+
+/**
  * Handle create limit order
  */
 async function handleCreateLimitOrder() {
@@ -660,8 +757,11 @@ async function handleCreateLimitOrder() {
     const amountIn = Math.floor(Number(amountInput) * Math.pow(10, DECIMALS));
 
     // Calculate min amount out based on limit price
-    // limitPrice is in 18 decimals: (tokenOut per tokenIn) * 10^18
-    const limitPriceScaled = BigInt(Math.floor(Number(limitPrice) * Math.pow(10, 18)));
+    // IMPORTANT: Use 8 decimals for price to avoid u64 overflow
+    // u64 max = 18,446,744,073,709,551,615 (~18.4 * 10^18)
+    // With 8 decimals: max price = 184,467,440,737 (plenty of room)
+    const PRICE_DECIMALS = 8;
+    const limitPriceScaled = BigInt(Math.floor(Number(limitPrice) * Math.pow(10, PRICE_DECIMALS)));
     const minAmountOut = Math.floor(Number(amountInput) * Number(limitPrice) * (1 - slippage / 100));
 
     // Calculate expiry timestamp
@@ -817,12 +917,13 @@ function displayOrders(orders) {
  */
 function renderOrderCard(order) {
   const DECIMALS = 0; // Temporary for raw pools
+  const PRICE_DECIMALS = 8; // Price uses 8 decimals
   const tokenInData = tokenService.getToken(order.tokenIn);
   const tokenOutData = tokenService.getToken(order.tokenOut);
 
   const amountInHuman = (order.amountIn / Math.pow(10, DECIMALS)).toFixed(6);
   const minOutHuman = (order.minAmountOut / Math.pow(10, DECIMALS)).toFixed(6);
-  const limitPriceHuman = (order.limitPrice / Math.pow(10, 18)).toFixed(6);
+  const limitPriceHuman = (order.limitPrice / Math.pow(10, PRICE_DECIMALS)).toFixed(6);
 
   const statusName = ORDER_STATUS_NAMES[order.status];
   const statusColor = ORDER_STATUS_COLORS[order.status];
@@ -960,6 +1061,7 @@ export {
   handleAddLiquidity,
   handleCreatePool,
   onSwapTokenChanged,
+  onOrderTokenChanged,
   handleCreateLimitOrder,
   handleCancelOrder,
   refreshUserOrders,
@@ -974,3 +1076,4 @@ window.refreshDashboard = refreshProtocolStats;
 window.switchSection = switchSection;
 window.handleCancelOrder = handleCancelOrder;
 window.showOrderDetails = showOrderDetails;
+window.setOrderMaxAmount = setOrderMaxAmount;

@@ -31,7 +31,7 @@ export const DEPLOYED_CONTRACTS = {
   },
 
   // Protocol Contracts
-  AMM: "AS1hRjXF9cpLGqF1jXebHofnQj4L8KsRCWjJucRR47u2ChfgcCdt",
+  AMM: "AS123iK1bQATxAVw2WE5vojCLFnU4ESuTanHsGkyUnpn8xqF6Yfnk",
   DCA: "AS12Z8eKEdKv6mJiBFrh53gWFLY3K5LnKnxuFymCCXEBpk3rMD7Ua",
   ENGINE: "AS1QXNZ6MB9GV3zmtSLgEKFAXs3Sxcp4qnCtupLXku942QgxBn4P",
 
@@ -258,7 +258,7 @@ export async function readContract(contractAddress, functionName, args) {
 
 const CONTRACTS = {
   AMM: DEPLOYED_CONTRACTS.AMM,
-  LIMIT_ORDERS: DEPLOYED_CONTRACTS.LIMIT_ORDERS || 'AS12YOUR_LIMIT_ORDERS_CONTRACT_ADDRESS_HERE', // TODO: Add deployed address
+  LIMIT_ORDERS: DEPLOYED_CONTRACTS.LIMIT_ORDERS || 'AS12WizgAiQq1HgsQsRTaq7EU2VayUJpbGXVF5LgBccZd7Xi64YdT', // TODO: Add deployed address
 };
 
 
@@ -671,7 +671,7 @@ export const AMMContract = {
       console.log("Calculating amount out:", { amountIn, reserveIn, reserveOut, fee });
 
       const args = new Args()
-        .addU64(toBI(amountIn))
+        .addU64(toBI(amountIn == "1" ? "100000000" : amountIn))
         .addU64(toBI(reserveIn))
         .addU64(toBI(reserveOut))
         .addU64(toBI(fee));
@@ -1246,6 +1246,13 @@ export const LimitOrdersContract = {
         maxSlippage,
         partialFill
       });
+
+      provider = await getProvider();
+      const tokenInContract = await getTokenByAddress(tokenIn);
+
+      await tokenInContract.increaseAllowance(CONTRACTS.LIMIT_ORDERS, toBI(amountIn));
+
+
 
       const args = new Args()
         .addString(tokenIn)

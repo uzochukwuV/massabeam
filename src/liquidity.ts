@@ -37,95 +37,116 @@ const __dirname = dirname(__filename);
 // ============================================================================
 
 /**
- * Liquidity operations configuration
- * Supports multiple pools with add and remove operations
+ * Liquidity operations configuration with realistic market prices
+ *
+ * Market prices (approximate):
+ * - ETH: ~$3,500
+ * - DAI: ~$1.00 (stablecoin)
+ * - USDC: ~$1.00 (stablecoin)
+ *
+ * Token decimals:
+ * - DAI: 18 decimals
+ * - USDC: 6 decimals
+ * - WETH: 18 decimals
+ *
+ * NOTE: Currently using 8 decimals for Massa u64 compatibility
+ * TODO: When pools are properly fixed, these should use actual token decimals
  */
 const LIQUIDITY_CONFIG = {
   create: [
+    // {
+    //   name: 'DAI/USDC',
+    //   tokenA: DAI[0],
+    //   tokenB: USDC[0],
+    //   // Price ratio: 1 DAI = 1.00 USDC (stablecoin pair)
+    //   // Using 8 decimals for Massa: 1.00 * 10^8 = 100000000
+    //   amountA: '10000', // 10,000 DAI worth of liquidity
+    //   amountB: '10000', // 10,000 USDC worth of liquidity (1:1 ratio)
+    //   deadline: 60 * 60 * 100,
+    // },
+    {
+      name: 'USDC/WETH',
+      tokenA: USDC[0],
+      tokenB: WETH[0],
+      // Price ratio: 1 ETH = ~3,500 USDC
+      // 35,000 USDC = 10 ETH at $3,500/ETH
+      amountA: '350000', // 35,000 USDC
+      amountB: '100', // 10 ETH (worth ~$35,000)
+      deadline: 60 * 60 * 100,
+    },
+    // {
+    //   name: 'DAI/WETH',
+    //   tokenA: DAI[0],
+    //   tokenB: WETH[0],
+    //   // Price ratio: 1 ETH = ~3,500 DAI
+    //   // 35,000 DAI = 10 ETH at $3,500/ETH
+    //   amountA: '350000', // 35,000 DAI
+    //   amountB: '100', // 10 ETH (worth ~$35,000)
+    //   deadline: 60 * 60 * 100,
+    // },
+  ],
+  add: [
+    {
+      name: 'DAI/USDC',
+      tokenA: DAI[0],
+      tokenB: USDC[0],
+      // Adding more liquidity to stablecoin pair (1:1 ratio)
+      amountA: '5000', // 5,000 DAI
+      amountB: '5000', // 5,000 USDC
+      amountAMin: '4750', // 5% slippage (should be very low for stables)
+      amountBMin: '4750', // 5% slippage
+      deadline: 60 * 60 * 100,
+    },
+    {
+      name: 'USDC/WETH',
+      tokenA: USDC[0],
+      tokenB: WETH[0],
+      // Adding liquidity maintaining ~3,500 USDC per ETH ratio
+      amountA: '17500', // 17,500 USDC
+      amountB: '5', // 5 ETH
+      amountAMin: '15750', // 10% slippage
+      amountBMin: '4', // 10% slippage (allowing for volatility)
+      deadline: 60 * 60 * 100,
+    },
     {
       name: 'DAI/WETH',
       tokenA: DAI[0],
       tokenB: WETH[0],
-      amountA: '50000000', // 5 DAI (18 decimals) - initial liquidity
-      amountB: '50000000', // 10 USDC (6 decimals) - initial liquidity
+      // Adding liquidity maintaining ~3,500 DAI per ETH ratio
+      amountA: '17500', // 17,500 DAI
+      amountB: '5', // 5 ETH
+      amountAMin: '15750', // 10% slippage
+      amountBMin: '4', // 10% slippage
       deadline: 60 * 60 * 100,
-    },
-    {
-      name: 'USDC/WETH',
-      tokenA: USDC[0],
-      tokenB: WETH[0],
-      amountA: '50000000', // 5 DAI (18 decimals) - initial liquidity
-      amountB: '10000', // 10 USDC (6 decimals) - initial liquidity
-      deadline: 60 * 60 * 100,
-    },
-    {
-      name: 'DAI/USDC',
-      tokenA: DAI[0],
-      tokenB: USDC[0],
-      amountA: '50000000', // 5 DAI (18 decimals) - initial liquidity
-      amountB: '10000000', // 10 USDC (6 decimals) - initial liquidity
-      deadline: 60 * 60 * 100,
-    },
-  ],
-  add: [
-    {
-       name: 'DAI/WETH',
-      tokenA: DAI[0],
-      tokenB: WETH[0],
-      amountA: '50000000', // 5 DAI (18 decimals)
-      amountB: '10000000', // 100 USDC (6 decimals)
-      amountAMin: '450000', // 10% slippage
-      amountBMin: '9000000', // 10% slippage
-      deadline: 60 * 60 * 100, // 1 hour
-    },
-   {
-       name: 'USDC/WETH',
-      tokenA: USDC[0],
-      tokenB: WETH[0],
-      amountA: '50000000', // 5 DAI (18 decimals)
-      amountB: '1000', // 100 USDC (6 decimals)
-      amountAMin: '450000', // 10% slippage
-      amountBMin: '900', // 10% slippage
-      deadline: 60 * 60 * 100, // 1 hour
-    },
-    {
-      name: 'DAI/USDC',
-      tokenA: DAI[0],
-      tokenB: USDC[0],
-      amountA: '50000000', // 5 DAI (18 decimals)
-      amountB: '10000000', // 100 USDC (6 decimals)
-      amountAMin: '450000', // 10% slippage
-      amountBMin: '9000000', // 10% slippage
-      deadline: 60 * 60 * 100, // 1 hour
     },
   ],
   remove: [
     {
-        name: 'DAI/WETH',
+      name: 'DAI/USDC',
       tokenA: DAI[0],
-      tokenB: WETH[0],
-      liquidityTokens: '34163074', // Amount of LP tokens to burn
-      amountAMin: '2000', // Minimum 2 DAI
-      amountBMin: '40000', // Minimum 40 USDC
-      deadline: 60 * 60 * 100, // 1 hour
+      tokenB: USDC[0],
+      liquidityTokens: '5000', // Removing ~50% of initial liquidity
+      amountAMin: '4500', // Minimum 4,500 DAI (10% slippage buffer)
+      amountBMin: '4500', // Minimum 4,500 USDC
+      deadline: 60 * 60 * 100,
     },
     {
       name: 'USDC/WETH',
       tokenA: USDC[0],
       tokenB: WETH[0],
-      liquidityTokens: '34163074', // Amount of LP tokens to burn
-      amountAMin: '2000', // Minimum 2 DAI
-      amountBMin: '40000', // Minimum 40 USDC
-      deadline: 60 * 60 * 100, // 1 hour
+      liquidityTokens: '5', // Removing portion of liquidity
+      amountAMin: '8000', // Minimum 8,000 USDC (allowing for price movement)
+      amountBMin: '2', // Minimum 2 ETH
+      deadline: 60 * 60 * 100,
     },
     {
-      name: 'DAI/USDC',
+      name: 'DAI/WETH',
       tokenA: DAI[0],
-      tokenB: USDC[0],
-      liquidityTokens: '34163074', // Amount of LP tokens to burn
-      amountAMin: '2000', // Minimum 2 DAI
-      amountBMin: '40000', // Minimum 40 USDC
-      deadline: 60 * 60 * 100, // 1 hour
+      tokenB: WETH[0],
+      liquidityTokens: '5', // Removing portion of liquidity
+      amountAMin: '8000', // Minimum 8,000 DAI
+      amountBMin: '2', // Minimum 2 ETH
+      deadline: 60 * 60 * 100,
     },
   ],
 };
@@ -426,15 +447,15 @@ async function removeLiquidity(
       .addU64(BigInt(deadline));
     
 
-    const result = await contract.call('removeLiquidity', removeLiquidityArgs, {
-      coins: Mas.fromString('0.1'),
-    });
+    // const result = await contract.call('removeLiquidity', removeLiquidityArgs, {
+    //   coins: Mas.fromString('0.1'),
+    // });
 
-    logSuccess(`Liquidity removed successfully!`);
-    log('Transaction:', result.toString());
-    log('Pool Name:', pool.name);
+    // logSuccess(`Liquidity removed successfully!`);
+    // log('Transaction:', result.toString());
+    // log('Pool Name:', pool.name);
 
-    await sleep(2000);
+    // await sleep(2000);
     return true;
   } catch (error) {
     logError(`Failed to remove liquidity: ${error}`);
