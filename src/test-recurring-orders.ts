@@ -110,6 +110,8 @@ async function main(): Promise<void> {
     logSuccess('Contracts loaded');
     await sleep(1000);
 
+    const usdcContract = new SmartContract(provider, USDC[0].address);
+
     // Display token information
     logSection('📊 TOKENS FOR TESTING');
     log('USDC', `${USDC[0].symbol} - ${USDC[0].address.slice(0, 10)}...`);
@@ -216,6 +218,7 @@ async function main(): Promise<void> {
 
       // Approve tokens for grid
       const approveAmount3 = BigInt(600 * 1000000); // $600 total
+      
       await usdcContract.call(
         'increaseAllowance',
         new Args().addString(recurringOrdersAddress).addU256(approveAmount3),
@@ -228,7 +231,7 @@ async function main(): Promise<void> {
       const gridArgs = new Args()
         .addString(USDC[0].address)
         .addString(WETH[0].address)
-        .addU8(3) // 3 levels
+        .addU8(3n) // 3 levels
         .addU64(BigInt(200)) // -2% level 1
         .addU64(BigInt(100 * 1000000)) // $100 for level 1
         .addU64(BigInt(400)) // -4% level 2
@@ -282,7 +285,7 @@ async function main(): Promise<void> {
 
       // Parse result
       const ordersArgs = new Args(userOrdersResult.value);
-      const orderCount = ordersArgs.nextU64().unwrap();
+      const orderCount = ordersArgs.nextU64()
 
       log('Total orders:', orderCount.toString());
       logSuccess('User orders retrieved');
@@ -301,14 +304,14 @@ async function main(): Promise<void> {
 
       // Parse statistics
       const statsArgs = new Args(statsResult.value);
-      const totalOrders = statsArgs.nextU64().unwrap();
-      const activeOrders = statsArgs.nextU64().unwrap();
-      const completedOrders = statsArgs.nextU64().unwrap();
-      const pausedOrders = statsArgs.nextU64().unwrap();
-      const cancelledOrders = statsArgs.nextU64().unwrap();
-      const totalExecutions = statsArgs.nextU64().unwrap();
-      const isBotRunning = statsArgs.nextBool().unwrap();
-      const botCounter = statsArgs.nextU64().unwrap();
+      const totalOrders = statsArgs.nextU64();
+      const activeOrders = statsArgs.nextU64();
+      const completedOrders = statsArgs.nextU64();
+      const pausedOrders = statsArgs.nextU64();
+      const cancelledOrders = statsArgs.nextU64();
+      const totalExecutions = statsArgs.nextU64();
+      const isBotRunning = statsArgs.nextBool();
+      const botCounter = statsArgs.nextU64();
 
       logSection('📈 CONTRACT STATISTICS');
       log('Total Orders:', totalOrders.toString());

@@ -169,13 +169,13 @@ async function main(): Promise<void> {
 
       // Parse statistics (7 values: totalOpps, totalExecuted, totalProfit, totalFailed, lastProfit, lastExecution, isRunning)
       const statsArgs = new Args(statsResult.value);
-      const totalOpps = statsArgs.nextString().unwrap();
-      const totalExecuted = statsArgs.nextString().unwrap();
-      const totalProfit = statsArgs.nextString().unwrap();
-      const totalFailed = statsArgs.nextString().unwrap();
-      const lastProfit = statsArgs.nextString().unwrap();
-      const lastExecution = statsArgs.nextString().unwrap();
-      const isRunning = statsArgs.nextString().unwrap();
+      const totalOpps = statsArgs.nextString()
+      const totalExecuted = statsArgs.nextString()
+      const totalProfit = statsArgs.nextString()
+      const totalFailed = statsArgs.nextString()
+      const lastProfit = statsArgs.nextString()
+      const lastExecution = statsArgs.nextString()
+      const isRunning = statsArgs.nextString()
 
       logSection('📈 BOT STATISTICS');
       log('Total Opportunities:', totalOpps);

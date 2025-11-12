@@ -1,18 +1,28 @@
 {
   "contracts": {
-    "massaBeam": "AS123iK1bQATxAVw2WE5vojCLFnU4ESuTanHsGkyUnpn8xqF6Yfnk",
-    "smartSwap": "AS12tcnAuQNZLfHzCArv5A34XuQWwNWg9ucnnLGrzYKQiAGBNbPU2",
-    "arbitrageEngine": "AS12aHYSXQdE3EH1mdA5ATsitvea6pGgnQ9DgyYiGe8DzmVRgQD8P",
-    "limitOrders": "AS1295fwNN86YPfKRBcyjTbiwXipmnSqARrPBAyCc8wGkXQkQXu5r"
+    "massaBeam": "AS1ocS3uKU2JLBZ9oBBjAEU71UzkdGKEf2cEpP6dYnfh9p4WXrfR",
+    "limitOrders": "AS12CEkg96KFuvA3B1ooRCTJumPKzXXVLea4szGMveWbrWpDZZsLu",
+    "recurringOrders": "AS1DCm3NYPnJgMB3HA6bgcuSaK5L1DicvNN13m3WQ1RnhmA1sH98",
+    "flashArbitrageBot": "AS1GZxLwxdNvE1czMS93mzHcVZ5S3Fa7VG1z7VohVPPVHXcZ5LTr",
+    "smartSwap": "AS1ku86Ec7HSzPEWgtLWKct3QFBKZfJiSCgkiFCoAENJzn9cGAwq",
+    "arbitrageEngine": "AS1Mur54DvHDKVKVrWqR1gTK37Qs3TzT9mnE3o52TXMUc85pvX4S"
   },
   "deployment": {
-    "timestamp": "2025-11-03T12:36:57.582Z",
+    "timestamp": "2025-11-12T12:17:43.215Z",
     "network": "buildnet",
     "account": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
-    "txHash": "N/A"
+    "totalGasUsed": "~12 MAS"
   },
   "integration": {
     "dusaRouter": "AS1XqtvX3rz2RWbnqLfaYVKEjM3VS5pny9yKDdXcmJ5C1vrcLEFd",
-    "dusaQuoter": "AS1Wse7vxWvB1iP1DwNQTQQctwU1fQ1jrq5JgdSPZH132UYrYrXF"
+    "dusaQuoter": "AS1Wse7vxWvB1iP1DwNQTQQctwU1fQ1jrq5JgdSPZH132UYrYrXF",
+    "wmasAddress": "AS12FW5Rs5YN2zdpEnqwj4iHUUPt9R4Eqjq2qtpJFNKW3mn33RuLU"
+  },
+  "decimals": {
+    "usdc": 6,
+    "dai": 18,
+    "weth": 18,
+    "wmas": 9,
+    "note": "Contracts use u64 for internal calculations, u256 for token transfers"
   }
 }
