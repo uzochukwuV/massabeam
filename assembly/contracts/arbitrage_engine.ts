@@ -346,9 +346,9 @@ export function constructor(args: StaticArray<u8>): void {
 
   // Grant admin to deployer
   const deployer = Context.caller();
-  Storage.set(stringToBytes(ADMIN_ROLE + ':' + deployer.toString()), 'true');
-  Storage.set(stringToBytes(EXECUTOR_ROLE + ':' + deployer.toString()), 'true');
-  Storage.set(stringToBytes(SCANNER_ROLE + ':' + deployer.toString()), 'true');
+  Storage.set(stringToBytes(ADMIN_ROLE + ':' + deployer.toString()), stringToBytes('true'));
+  Storage.set(stringToBytes(EXECUTOR_ROLE + ':' + deployer.toString()), stringToBytes('true'));
+  Storage.set(stringToBytes(SCANNER_ROLE + ':' + deployer.toString()), stringToBytes('true'));
 
   generateEvent('ArbitrageEngine: Initialized with MassaBeam and Dusa integration');
 }

@@ -12,6 +12,8 @@
         "deploy:smartrouter": "npm run build && tsx src/deploy-smartrouter.ts",
         "mint-tokens": "tsx src/mint-tokens.ts",
         "limit": "tsx src/test-limit-orders.ts",
+        "test-flash-arb": "tsx src/test-flash-arbitrage.ts",
+        "test-recurring": "tsx src/test-recurring-orders.ts",
         "add-liquidity": "tsx src/add-liquidity.ts",
         "remove-liquidity": "tsx src/remove-liquidity.ts",
         "swap": "tsx src/swap.ts",
@@ -61,7 +63,9 @@
         "node": ">=16"
     },
     "dependencies": {
-        "@dusalabs/sdk": "^1.1.15"
+        "@dusalabs/sdk": "^1.1.15",
+        "as-bignum": "^0.3.1",
+        "as-base64": "^0.2.0"
     },
     "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }
