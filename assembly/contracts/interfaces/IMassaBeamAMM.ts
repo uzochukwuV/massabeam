@@ -17,31 +17,31 @@ export class IMassaBeamAMM {
      * Swap tokens
      * @param tokenIn - Input token address
      * @param tokenOut - Output token address
-     * @param amountIn - Amount of input tokens
-     * @param minAmountOut - Minimum output amount (slippage protection)
-     * @param deadline - Transaction deadline
+     * @param amountIn - Amount of input tokens (u256)
+     * @param minAmountOut - Minimum output amount (u256)
+     * @param deadline - Transaction deadline (u64)
      * @param to - Recipient address
      */
     swap(
         tokenIn: Address,
         tokenOut: Address,
-        amountIn: u64,
-        minAmountOut: u64,
+        amountIn: u256,
+        minAmountOut: u256,
         deadline: u64,
         to: Address
-    ): u64 {
+    ): u256 {
         const args = new Args()
             .add(tokenIn.toString())
             .add(tokenOut.toString())
-            .add(amountIn)
-            .add(minAmountOut)
-            .add(deadline);
+            .add(amountIn)  // u256
+            .add(minAmountOut)  // u256
+            .add(deadline);  // u64
 
         const result = call(this._origin, "swap", args, 0);
 
-        // Parse result - swap returns output amount
+        // Parse result - swap returns output amount (u256)
         const resultArgs = new Args(result);
-        return resultArgs.nextU64().unwrap();
+        return resultArgs.nextU256().unwrap();
     }
 
     /**
@@ -61,17 +61,18 @@ export class IMassaBeamAMM {
      * Get output amount for a given input
      * @param tokenIn - Input token
      * @param tokenOut - Output token
-     * @param amountIn - Input amount
+     * @param amountIn - Input amount (u256)
+     * @returns Output amount (u256)
      */
-    getAmountOut(tokenIn: Address, tokenOut: Address, amountIn: u64): u64 {
+    getAmountOut(tokenIn: Address, tokenOut: Address, amountIn: u256): u256 {
         const args = new Args()
             .add(tokenIn.toString())
             .add(tokenOut.toString())
-            .add(amountIn);
+            .add(amountIn);  // u256
 
         const result = call(this._origin, "getAmountOut", args, 0);
         const resultArgs = new Args(result);
-        return resultArgs.nextU64().unwrap();
+        return resultArgs.nextU256().unwrap();
     }
 
     /**
