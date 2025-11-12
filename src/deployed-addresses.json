@@ -1,12 +1,12 @@
 {
   "contracts": {
-    "massaBeam": "AS1an1U7K8NzHdTEckUUi8n9wnNKVb9xdx91mwhvkNtTVKpyRoeX",
-    "smartSwap": "AS12Ck7Q3X6WxWHSvNpBZcRjsKxjG4YgYMe8rfAr8NThUc1xEtSdV",
-    "arbitrageEngine": "AS12mFe64tyPgZ9ETHfk1txhwWixw7So5i4FoheSqR8E1wE7hDx4D",
-    "limitOrders": "AS1NEY7uWMgbNK73w6o7qeFERsgjZvS8t7ZHR8xCPYU1t4r9UCsH"
+    "massaBeam": "AS14Nf4ZKVAAVWdtsDz7F5knSVEXYUPRi88LxEsJXJpTaw22uqxM",
+    "smartSwap": "AS12PaBNWtCkijoZP64sg6L3VcH9EeCqp6jFE1cvf3QLYgESXPt8p",
+    "arbitrageEngine": "AS12BEJiYhJkj6q5UcjvgsGtifh3R3ubqcQHDNm9ZwDHKTyXLfXJ6",
+    "limitOrders": "AS12KBjYMY3teBiQcoTMsLPvRFF9eobg1N7nmDu1tPEbZSNDDthms"
   },
   "deployment": {
-    "timestamp": "2025-11-03T13:45:47.848Z",
+    "timestamp": "2025-11-12T10:32:40.543Z",
     "network": "buildnet",
     "account": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
     "txHash": "N/A"
