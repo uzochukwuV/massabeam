@@ -79,23 +79,27 @@ const removeLiquidityArgs = new Args()
   .addU256(amountAMin)  // Contract expects u64!
   .addU256(amountBMin); // Contract expects u64!
 ```
-**Impact**: Function call FAILS - deserialization error
-**Contract Signature** (main.ts:615-618):
+**Impact**: Legacy scripts used u64 when contract expects u256 - FAILS
+**Contract Signature** (main.ts after u256 refactor):
 ```typescript
-const liquidity = argument.nextU64().unwrap();   // ← u64!
-const amountAMin = argument.nextU64().unwrap();  // ← u64!
-const amountBMin = argument.nextU64().unwrap();  // ← u64!
+const liquidity = argument.nextU256().unwrap();   // ← u256! (not u64)
+const amountAMin = argument.nextU256().unwrap();  // ← u256! (not u64)
+const amountBMin = argument.nextU256().unwrap();  // ← u256! (not u64)
+const deadline = argument.nextU64().unwrap();     // ← ONLY deadline is u64
 ```
-**ALL MassaBeam functions use u64, NOT u256!**
+**ALL MassaBeam amount parameters use u256!** (Refactored in commits 6519d89-8a2adf1)
+**Legacy test scripts incorrectly used u64 - that was the bug!**
 
-#### Bug #3: createPool Uses u64 Instead of BigInt
+#### Bug #3: Legacy Scripts Used u64 for All Amounts (Should be u256)
 ```typescript
-// ❌ WRONG (Line 258-260)
-.addU64(amountA)  // amountA is BigInt, not number
-.addU64(amountB)
-.addU64(BigInt(deadline)) // Inconsistent type handling
+// ❌ WRONG in legacy scripts (Line 258-260)
+.addU64(amountA)  // Should be addU256!
+.addU64(amountB)  // Should be addU256!
+.addU64(amountIn) // Should be addU256!
 ```
-**Impact**: Type conversion errors, unexpected behavior
+**Impact**: Fails with 18-decimal tokens (u64 overflows)
+**Fix**: Use addU256() for all token amounts, addU64() only for deadline
+**See**: U256_REFACTOR_STATUS.md for complete migration details
 
 ---
 
