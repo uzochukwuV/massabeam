@@ -9,9 +9,12 @@
         "clean": "rimraf build",
         "deploy": "npm run build && tsx src/deploy.ts",
         "deploy:full": "npm run build && tsx src/deploy-full.ts",
+        "deploy:all": "npm run build && tsx src/deploy-all-contracts.ts",
         "deploy:smartrouter": "npm run build && tsx src/deploy-smartrouter.ts",
         "mint-tokens": "tsx src/mint-tokens.ts",
         "limit": "tsx src/test-limit-orders.ts",
+        "test-flash-arb": "tsx src/test-flash-arbitrage.ts",
+        "test-recurring": "tsx src/test-recurring-orders.ts",
         "add-liquidity": "tsx src/add-liquidity.ts",
         "remove-liquidity": "tsx src/remove-liquidity.ts",
         "swap": "tsx src/swap.ts",
@@ -20,7 +23,7 @@
         "verify-dussa": "tsx src/verify-dussa-addresses.ts",
         "test-dussa-swap": "tsx src/test-dussa-swap.ts",
         "setup-wmas-pool": "tsx src/setup-wmas-pool.ts",
-        "setup": "npm run deploy:full && npm run mint-tokens && npm run create-pools && npm run add-liquidity && npm run swap",
+        "setup": "npm run deploy:all && npm run mint-tokens && npm run create-pools && npm run add-liquidity",
         "hello": "tsx src/hello.ts",
         "prettier": "prettier '**/src/**/*.ts' --check && as-prettier --check assembly",
         "prettier:fix": "prettier '**/src/**/*.ts' --write && as-prettier --write assembly",
@@ -61,7 +64,9 @@
         "node": ">=16"
     },
     "dependencies": {
-        "@dusalabs/sdk": "^1.1.15"
+        "@dusalabs/sdk": "^1.1.15",
+        "as-bignum": "^0.3.1",
+        "as-base64": "^0.2.0"
     },
     "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }
