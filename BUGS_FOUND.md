@@ -35,13 +35,14 @@ const constructorArgs = new Args()
 
 ### 2. **swap.ts**
 
-#### Bug #1: Broken Deadline Calculation
+#### Bug #1: Confusing Deadline Calculation (ACTUALLY WORKS)
 ```typescript
-// ❌ WRONG (Line 170)
-const deadline = swap.deadline - 1000; // Meaningless subtraction!
+// ⚠️ CONFUSING (Line 170)
+const deadline = swap.deadline - 1000; // Works but confusing
 ```
-**Impact**: Deadline is in past, swaps fail
-**Fix**: `const deadline = Math.floor(Date.now() / 1000) + swap.deadline;`
+**Impact**: NONE - Contract adds Context.timestamp() to deadline (line 620 in main.ts)
+**Note**: Deadline should be **relative seconds**, not absolute timestamp. The -1000 is unnecessary but harmless.
+**Contract behavior**: `validDeadline(deadline + Context.timestamp())`
 
 #### Bug #2: Type Mismatch in Args
 ```typescript
@@ -70,7 +71,7 @@ const tokenBBalance = await tokenAContract.read(...); // Should be tokenBContrac
 ```
 **Impact**: Reads wrong token balance, incorrect logging
 
-#### Bug #2: Mixed u64/u256 Types in removeLiquidity (Lines 423-426)
+#### Bug #2: ✅ CONFIRMED - Mixed u64/u256 Types in removeLiquidity (Lines 423-426)
 ```typescript
 // ❌ WRONG
 const removeLiquidityArgs = new Args()
@@ -78,8 +79,14 @@ const removeLiquidityArgs = new Args()
   .addU256(amountAMin)  // Contract expects u64!
   .addU256(amountBMin); // Contract expects u64!
 ```
-**Impact**: Function call fails due to type mismatch
-**Contract Signature**: `removeLiquidity(tokenA, tokenB, liquidity: u64, amountAMin: u64, amountBMin: u64, deadline: u64)`
+**Impact**: Function call FAILS - deserialization error
+**Contract Signature** (main.ts:615-618):
+```typescript
+const liquidity = argument.nextU64().unwrap();   // ← u64!
+const amountAMin = argument.nextU64().unwrap();  // ← u64!
+const amountBMin = argument.nextU64().unwrap();  // ← u64!
+```
+**ALL MassaBeam functions use u64, NOT u256!**
 
 #### Bug #3: createPool Uses u64 Instead of BigInt
 ```typescript
