@@ -203,7 +203,7 @@ async function main() {
 
     // Final summary
     Logger.section('✅ DEPLOYMENT COMPLETE');
-    const final Addresses = loadDeployedAddresses();
+    const finalAddresses = loadDeployedAddresses();
     Object.entries(finalAddresses).forEach(([name, addr]) => {
       if (addr) Logger.log(name, addr);
     });

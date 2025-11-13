@@ -20,7 +20,9 @@ import {
   JsonRpcProvider,
   bytesToStr,
   bytesToU64,
+  bytesToU256,
 } from '@massalabs/massa-web3';
+import { u256 } from 'as-bignum/assembly';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -261,25 +263,33 @@ export async function retryWithBackoff<T>(
 // ============================================================================
 
 /**
- * Get token balance
+ * Get token balance (returns u256 as bigint)
  */
 export async function getTokenBalance(
   provider: JsonRpcProvider,
   tokenAddress: string,
   accountAddress: string
 ): Promise<bigint> {
-  const tokenContract = new SmartContract(provider, tokenAddress);
-  const result = await tokenContract.read('balanceOf', new Args().addString(accountAddress));
+  try {
+    const tokenContract = new SmartContract(provider, tokenAddress);
+    const result = await tokenContract.read('balanceOf', new Args().addString(accountAddress));
 
-  if (!result.value || result.value.length === 0) {
+    if (!result.value || result.value.length === 0) {
+      return 0n;
+    }
+
+    // ERC20 balanceOf returns u256
+    const args = new Args(result.value);
+    const balance = args.nextU256().unwrap();
+    return BigInt(balance.toString());
+  } catch (error) {
+    Logger.debug(`Failed to get token balance: ${error}`);
     return 0n;
   }
-
-  return BigInt(bytesToU64(result.value));
 }
 
 /**
- * Get token allowance
+ * Get token allowance (returns u256 as bigint)
  */
 export async function getTokenAllowance(
   provider: JsonRpcProvider,
@@ -287,21 +297,29 @@ export async function getTokenAllowance(
   ownerAddress: string,
   spenderAddress: string
 ): Promise<bigint> {
-  const tokenContract = new SmartContract(provider, tokenAddress);
-  const result = await tokenContract.read(
-    'allowance',
-    new Args().addString(ownerAddress).addString(spenderAddress)
-  );
+  try {
+    const tokenContract = new SmartContract(provider, tokenAddress);
+    const result = await tokenContract.read(
+      'allowance',
+      new Args().addString(ownerAddress).addString(spenderAddress)
+    );
 
-  if (!result.value || result.value.length === 0) {
+    if (!result.value || result.value.length === 0) {
+      return 0n;
+    }
+
+    // ERC20 allowance returns u256
+    const args = new Args(result.value);
+    const allowance = args.nextU256().unwrap();
+    return BigInt(allowance.toString());
+  } catch (error) {
+    Logger.debug(`Failed to get token allowance: ${error}`);
     return 0n;
   }
-
-  return BigInt(bytesToU64(result.value));
 }
 
 /**
- * Approve token spending
+ * Approve token spending (uses u256 for amount)
  */
 export async function approveToken(
   provider: JsonRpcProvider,
@@ -315,11 +333,14 @@ export async function approveToken(
   try {
     const tokenContract = new SmartContract(provider, tokenAddress);
 
+    // Convert bigint to u256 for Args
+    const u256Amount = u256.fromString(amount.toString());
+
     await retryWithBackoff(
       async () => {
         await tokenContract.call(
           'increaseAllowance',
-          new Args().addString(spenderAddress).addU256(amount),
+          new Args().addString(spenderAddress).add(u256Amount),  // Use .add() for u256
           { coins: Mas.fromString('0.01') }
         );
       },
@@ -550,6 +571,47 @@ export function isValidDeadline(deadline: number): boolean {
 }
 
 // ============================================================================
+// U256 UTILITIES
+// ============================================================================
+
+/**
+ * Convert bigint to u256 for Args
+ */
+export function toU256(amount: bigint): u256 {
+  return u256.fromString(amount.toString());
+}
+
+/**
+ * Convert u256 to bigint
+ */
+export function fromU256(amount: u256): bigint {
+  return BigInt(amount.toString());
+}
+
+/**
+ * Create Args with u256 amount (helper for common pattern)
+ */
+export function createArgsWithU256(amount: bigint): Args {
+  return new Args().add(toU256(amount));
+}
+
+/**
+ * Parse token amount string to u256 (e.g., "1.5" with 18 decimals)
+ */
+export function parseToU256(amount: string, decimals: number): u256 {
+  const bigintAmount = parseTokenAmount(amount, decimals);
+  return toU256(bigintAmount);
+}
+
+/**
+ * Format u256 token amount to readable string
+ */
+export function formatU256(amount: u256, decimals: number, symbol: string = ''): string {
+  const bigintAmount = fromU256(amount);
+  return formatTokenAmount(bigintAmount, decimals, symbol);
+}
+
+// ============================================================================
 // EXPORT ALL UTILITIES
 // ============================================================================
 
@@ -577,5 +639,10 @@ export default {
   isValidAddress,
   isPositiveAmount,
   isValidDeadline,
+  toU256,
+  fromU256,
+  createArgsWithU256,
+  parseToU256,
+  formatU256,
   DEFAULT_CONFIG,
 };
