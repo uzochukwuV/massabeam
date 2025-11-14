@@ -235,7 +235,7 @@ async function deployRecurringOrders(
       provider,
       wasmBuffer,
       constructorArgs,
-      { coins: Mas.fromString('3') }
+      { coins: Mas.fromString('2') }
     );
 
     log('Contract Address:', contract.address.toString());

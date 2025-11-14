@@ -48,22 +48,22 @@ const TEST_CONFIG = {
       name: 'DAI/USDC',
       tokenA: DAI[0],
       tokenB: USDC[0],
-      amountA: '1000',  // 1000 DAI
-      amountB: '1000',  // 1000 USDC
+      amountA: '10',  // 1000 DAI
+      amountB: '10',  // 1000 USDC
     },
     {
       name: 'WETH/USDC',
       tokenA: WETH[0],
       tokenB: USDC[0],
-      amountA: '1',     // 1 WETH
-      amountB: '3000',  // 3000 USDC
+      amountA: '0.01',     // 1 WETH
+      amountB: '30',  // 3000 USDC
     },
     {
       name: 'DAI/USDT',
       tokenA: DAI[0],
       tokenB: USDT[0],
-      amountA: '500',   // 500 DAI
-      amountB: '500',   // 500 USDT
+      amountA: '5',   // 500 DAI
+      amountB: '5',   // 500 USDT
     },
   ],
 
@@ -72,14 +72,14 @@ const TEST_CONFIG = {
       name: 'DAI → USDC',
       tokenIn: DAI[0],
       tokenOut: USDC[0],
-      amountIn: '100',      // 100 DAI
+      amountIn: '1',      // 100 DAI
       slippageBps: 200,     // 2% slippage
     },
     {
       name: 'USDC → WETH',
       tokenIn: USDC[0],
       tokenOut: WETH[0],
-      amountIn: '1000',     // 1000 USDC
+      amountIn: '1',     // 1000 USDC
       slippageBps: 300,     // 3% slippage
     },
   ],
@@ -149,11 +149,11 @@ async function createPool(
     const createPoolArgs = new Args()
       .addString(pool.tokenA.address)
       .addString(pool.tokenB.address)
-      .add(toU256(amountA))      // u256!
-      .add(toU256(amountB))      // u256!
+      .addU256(toU256(amountA))      // u256!
+      .addU256(toU256(amountB))      // u256!
       .addU64(BigInt(deadline)); // u64 for deadline
 
-    await callContract(contract, 'createPool', createPoolArgs, '0.1', `Create ${pool.name} pool`);
+    await callContract(contract, 'createPool', createPoolArgs, '0.2', `Create ${pool.name} pool`);
 
     Logger.success(`Pool ${pool.name} created successfully!`);
 
@@ -207,10 +207,10 @@ async function addLiquidity(
     const addLiquidityArgs = new Args()
       .addString(pool.tokenA.address)
       .addString(pool.tokenB.address)
-      .add(toU256(amountA))      // u256
-      .add(toU256(amountB))      // u256
-      .add(toU256(amountAMin))   // u256
-      .add(toU256(amountBMin))   // u256
+      .addU256(toU256(amountA))      // u256
+      .addU256(toU256(amountB))      // u256
+      .addU256(toU256(amountAMin))   // u256
+      .addU256(toU256(amountBMin))   // u256
       .addU64(BigInt(deadline)); // u64
 
     await callContract(contract, 'addLiquidity', addLiquidityArgs, '0.1', `Add liquidity to ${pool.name}`);
@@ -256,7 +256,7 @@ async function removeLiquidity(
       return false;
     }
 
-    const lpBalanceStr = new Args(lpBalanceResult.value).nextString().unwrap();
+    const lpBalanceStr = new Args(lpBalanceResult.value).nextString();
     const lpBalance = BigInt(lpBalanceStr);
 
     Logger.log('LP Balance', lpBalance.toString());
@@ -284,9 +284,9 @@ async function removeLiquidity(
     const removeLiquidityArgs = new Args()
       .addString(pool.tokenA.address)
       .addString(pool.tokenB.address)
-      .add(toU256(liquidity))    // u256
-      .add(toU256(amountAMin))   // u256
-      .add(toU256(amountBMin))   // u256
+      .addU256(toU256(liquidity))    // u256
+      .addU256(toU256(amountAMin))   // u256
+      .addU256(toU256(amountBMin))   // u256
       .addU64(BigInt(deadline)); // u64
 
     await callContract(contract, 'removeLiquidity', removeLiquidityArgs, '0.1', `Remove liquidity from ${pool.name}`);
@@ -331,10 +331,10 @@ async function executeSwap(
     const quoteArgs = new Args()
       .addString(swap.tokenIn.address)
       .addString(swap.tokenOut.address)
-      .add(toU256(amountIn));
+      .addU256(toU256(amountIn));
 
     const quoteResult = await readContract(contract, 'readGetAmountOut', quoteArgs);
-    const expectedOut = fromU256(new Args(quoteResult.value).nextU256().unwrap());
+    const expectedOut = fromU256(new Args(quoteResult.value).nextU256());
 
     const minAmountOut = calculateMinOutput(expectedOut, swap.slippageBps);
 
@@ -367,8 +367,8 @@ async function executeSwap(
     const swapArgs = new Args()
       .addString(swap.tokenIn.address)
       .addString(swap.tokenOut.address)
-      .add(toU256(amountIn))       // u256
-      .add(toU256(minAmountOut))   // u256
+      .addU256(toU256(amountIn))       // u256
+      .addU256(toU256(minAmountOut))   // u256
       .addU64(BigInt(deadline));   // u64
 
     await callContract(contract, 'swap', swapArgs, '0.1', `Swap ${swap.name}`);
@@ -406,13 +406,13 @@ async function displayPoolInfo(contract: SmartContract, tokenA: string, tokenB: 
       const args = new Args(result.value);
 
       // Parse pool data
-      const tokenAAddr = args.nextString().unwrap();
-      const tokenBAddr = args.nextString().unwrap();
-      const reserveA = fromU256(args.nextU256().unwrap());
-      const reserveB = fromU256(args.nextU256().unwrap());
-      const totalSupply = fromU256(args.nextU256().unwrap());
-      const fee = args.nextU32().unwrap();
-      const isActive = args.nextBool().unwrap();
+      const tokenAAddr = args.nextString();
+      const tokenBAddr = args.nextString();
+      const reserveA = fromU256(args.nextU256());
+      const reserveB = fromU256(args.nextU256());
+      const totalSupply = fromU256(args.nextU256());
+      const fee = args.nextU32();
+      const isActive = args.nextBool();
 
       Logger.section('📊 POOL STATE');
       Logger.log('Reserve A', reserveA.toString());

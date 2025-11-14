@@ -2,7 +2,7 @@
   "extends": "assemblyscript/std/assembly.json",
   "include": [
     "**/*.ts"
-, "../../massa-swap/massa_beam_dca.ts"  ],
+, "../../massa-swap/massa_beam_dca.ts", "contracts/main.ts", "contracts/utils/beam.ts"  ],
   "typedocOptions": {
     "exclude": "assembly/**/__tests__",
     "excludePrivate": true,

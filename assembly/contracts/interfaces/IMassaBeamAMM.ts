@@ -82,4 +82,96 @@ export class IMassaBeamAMM {
     flashLoan(args: StaticArray<u8>): void {
         call(this._origin, "flashLoan", new Args().add(args), 0);
     }
+
+    /**
+     * Set pool reserves for testing (ADMIN ONLY)
+     * @param tokenA - First token
+     * @param tokenB - Second token
+     * @param newReserveA - New reserve for tokenA (u256)
+     * @param newReserveB - New reserve for tokenB (u256)
+     */
+    setPoolReserves(
+        tokenA: Address,
+        tokenB: Address,
+        newReserveA: u256,
+        newReserveB: u256
+    ): void {
+        const args = new Args()
+            .add(tokenA.toString())
+            .add(tokenB.toString())
+            .add(newReserveA)  // u256
+            .add(newReserveB); // u256
+
+        call(this._origin, "setPoolReserves", args, 0);
+    }
+
+    /**
+     * Simulate price change for testing
+     * @param tokenIn - Token to swap in
+     * @param tokenOut - Token to swap out
+     * @param amountIn - Amount to swap in (u256)
+     */
+    simulatePriceChange(
+        tokenIn: Address,
+        tokenOut: Address,
+        amountIn: u256
+    ): void {
+        const args = new Args()
+            .add(tokenIn.toString())
+            .add(tokenOut.toString())
+            .add(amountIn);  // u256
+
+        call(this._origin, "simulatePriceChange", args, 0);
+    }
+
+    /**
+     * Swap MAS for tokens
+     * @param tokenOut - Output token address
+     * @param minAmountOut - Minimum output amount (u256)
+     * @param deadline - Transaction deadline (u64)
+     * @param to - Recipient address
+     */
+    swapMASForTokens(
+        tokenOut: Address,
+        minAmountOut: u256,
+        deadline: u64,
+        to: Address
+    ): u256 {
+        const args = new Args()
+            .add(tokenOut.toString())
+            .add(minAmountOut)  // u256
+            .add(deadline)
+            .add(to.toString());
+
+        const result = call(this._origin, "swapMASForTokens", args, 0);
+        const resultArgs = new Args(result);
+        return resultArgs.nextU256().unwrap();
+    }
+
+    /**
+     * Swap tokens for MAS
+     * @param tokenIn - Input token address
+     * @param amountIn - Amount of input tokens (u256)
+     * @param minAmountOut - Minimum MAS output (u64)
+     * @param deadline - Transaction deadline (u64)
+     * @param to - Recipient address
+     */
+    swapTokensForMAS(
+        tokenIn: Address,
+        amountIn: u256,
+        minAmountOut: u64,
+        deadline: u64,
+        to: Address
+    ): u64 {
+        const args = new Args()
+            .add(tokenIn.toString())
+            .add(amountIn)  // u256
+            .add(minAmountOut)
+            .add(deadline)
+            .add(to.toString());
+
+        const result = call(this._origin, "swapTokensForMAS", args, 0);
+        const resultArgs = new Args(result);
+        return resultArgs.nextU64().unwrap();
+    }
 }

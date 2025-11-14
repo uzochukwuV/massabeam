@@ -1,7 +1,7 @@
 {
   "contracts": {
-    "massaBeam": "AS12fMhWMFHqTyvhQJiNquTXrxn5HnCseoUQ456zWW3fEoYMToxiM",
-    "limitOrders": "AS15FRhDuS52AnFyGwfSkucXLUJVksWGaQdnwtvAvQwbtCsDvMC4",
+    "massaBeam": "AS1qnVomo5fV8kCNM6eyjz8cdp7hWUA8Z7nTkx1bV4Q57eVbZaEq",
+    "limitOrders": "AS1Gdij1PxowoSN4jL5SsCyd3YteSBmGEQJE1axaWGEam2sB7yb8",
     "recurringOrders": "AS122i855WWmXHYpMAs7gnafgQ7BhkrCpoW2AR6DxBefs958Ke1NJ",
     "flashArbitrageBot": "AS12NVPTENpLj6f9G3Jm3zDpTtXW3msBD7spcSLeu1d8LuDJE7KWT",
     "smartSwap": "AS1w23mXtf6yksXJRYVUga3QyMerKN4WxxS4BweZ5fuXDXmUKwRT",

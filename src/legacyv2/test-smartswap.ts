@@ -132,8 +132,8 @@ async function testQuoteComparison(
   try {
     const amountIn = parseTokenAmount(test.amountIn, test.tokenIn.decimals);
 
-    Logger.log('Token In', test.tokenIn.symbol);
-    Logger.log('Token Out', test.tokenOut.symbol);
+    Logger.log('Token In', test.tokenIn.symbol!);
+    Logger.log('Token Out', test.tokenOut.symbol!);
     Logger.log('Amount In', `${test.amountIn} ${test.tokenIn.symbol}`);
 
     // Get best quote
@@ -141,17 +141,17 @@ async function testQuoteComparison(
     const quoteArgs = new Args()
       .addString(test.tokenIn.address)
       .addString(test.tokenOut.address)
-      .add(toU256(amountIn));
+      .addU256(toU256(amountIn));
 
     const result = await readContract(contract, 'getBestQuote', quoteArgs);
 
     if (result.value && result.value.length > 0) {
       const args = new Args(result.value);
-      const dex = args.nextString().unwrap();
-      const amountOut = fromU256(args.nextU256().unwrap());
-      const priceImpactBps = args.nextU64().unwrap();
-      const feeBps = args.nextU64().unwrap();
-      const reason = args.nextString().unwrap();
+      const dex = args.nextString()
+      const amountOut = fromU256(args.nextU256());
+      const priceImpactBps = args.nextU64()
+      const feeBps = args.nextU64()
+      const reason = args.nextString()
 
       Logger.section('📊 BEST QUOTE RESULTS');
       Logger.log('Selected DEX', dex);
@@ -168,18 +168,18 @@ async function testQuoteComparison(
         const cArgs = new Args(compareResult.value);
 
         // MassaBeam quote
-        const mbDex = cArgs.nextString().unwrap();
-        const mbOut = fromU256(cArgs.nextU256().unwrap());
-        const mbImpact = cArgs.nextU64().unwrap();
-        const mbFee = cArgs.nextU64().unwrap();
-        const mbGas = cArgs.nextU64().unwrap();
+        const mbDex = cArgs.nextString();
+        const mbOut = fromU256(cArgs.nextU256());
+        const mbImpact = cArgs.nextU64();
+        const mbFee = cArgs.nextU64();
+        const mbGas = cArgs.nextU64();
 
         // Dusa quote
-        const dusaDex = cArgs.nextString().unwrap();
-        const dusaOut = fromU256(cArgs.nextU256().unwrap());
-        const dusaImpact = cArgs.nextU64().unwrap();
-        const dusaFee = cArgs.nextU64().unwrap();
-        const dusaGas = cArgs.nextU64().unwrap();
+        const dusaDex = cArgs.nextString();
+        const dusaOut = fromU256(cArgs.nextU256());
+        const dusaImpact = cArgs.nextU64();
+        const dusaFee = cArgs.nextU64();
+        const dusaGas = cArgs.nextU64();
 
         Logger.section('⚖️  DEX COMPARISON');
         Logger.log('', 'MassaBeam vs Dusa');
@@ -221,9 +221,9 @@ async function executeFungibleSwap(
 
     const amountIn = parseTokenAmount(swap.amountIn, swap.tokenIn.decimals);
 
-    Logger.log('Token In', swap.tokenIn.symbol);
-    Logger.log('Token Out', swap.tokenOut.symbol);
-    Logger.log('Amount In', `${swap.amountIn} ${swap.tokenIn.symbol}`);
+    Logger.log('Token In', swap.tokenIn.symbol!);
+    Logger.log('Token Out', swap.tokenOut.symbol!);
+    Logger.log('Amount In', `${swap.amountIn} ${swap.tokenIn.symbol!}`);
     Logger.log('Max Slippage', `${swap.slippageBps / 100}%`);
 
     // Get quote
@@ -231,12 +231,12 @@ async function executeFungibleSwap(
     const quoteArgs = new Args()
       .addString(swap.tokenIn.address)
       .addString(swap.tokenOut.address)
-      .add(toU256(amountIn));
+      .addU256(toU256(amountIn));
 
     const quoteResult = await readContract(contract, 'getBestQuote', quoteArgs);
     const quoteArgs2 = new Args(quoteResult.value);
-    const selectedDex = quoteArgs2.nextString().unwrap();
-    const expectedOut = fromU256(quoteArgs2.nextU256().unwrap());
+    const selectedDex = quoteArgs2.nextString();
+    const expectedOut = fromU256(quoteArgs2.nextU256());
 
     const minAmountOut = calculateMinOutput(expectedOut, swap.slippageBps);
 
@@ -270,8 +270,8 @@ async function executeFungibleSwap(
     const swapArgs = new Args()
       .addString(swap.tokenIn.address)
       .addString(swap.tokenOut.address)
-      .add(toU256(amountIn))
-      .add(toU256(minAmountOut))
+      .addU256(toU256(amountIn))
+      .addU256(toU256(minAmountOut))
       .addU64(BigInt(deadline));
 
     await callContract(contract, 'smartSwap', swapArgs, '0.2', `SmartSwap ${swap.name}`);
@@ -300,19 +300,19 @@ async function executeMASSwap(
 
     if (swap.name.startsWith('MAS →')) {
       // MAS → Token swap
-      const masAmount = parseTokenAmount(swap.masAmount, 9); // MAS has 9 decimals
+      const masAmount = parseTokenAmount(swap.masAmount!, 9); // MAS has 9 decimals
       const minTokenOut = 0n; // Accept any amount for testing
 
       Logger.log('Sending', `${swap.masAmount} MAS`);
-      Logger.log('Receiving', swap.tokenOut.symbol);
+      Logger.log('Receiving', swap.tokenOut!.symbol!);
       Logger.log('Slippage', `${swap.slippageBps / 100}%`);
 
       const deadline = calculateDeadline(600);
 
       // Call swapMASForTokens with MAS sent as coins
       const swapArgs = new Args()
-        .addString(swap.tokenOut.address)
-        .add(toU256(minTokenOut))
+        .addString(swap.tokenOut!.address)
+        .addU256(toU256(minTokenOut))
         .addU64(BigInt(deadline));
 
       // Get MassaBeam contract (SmartSwap routes to it)
@@ -323,7 +323,7 @@ async function executeMASSwap(
         'swapMASForTokens',
         swapArgs,
         swap.masAmount, // Send MAS as coins
-        `Swap ${swap.masAmount} MAS to ${swap.tokenOut.symbol}`
+        `Swap ${swap.masAmount} MAS to ${swap.tokenOut!.symbol}`
       );
 
       Logger.success('MAS → Token swap executed!');
@@ -333,22 +333,22 @@ async function executeMASSwap(
       // Token → MAS swap
       const tokenIn = swap.tokenIn;
       const tokenAmount = parseTokenAmount(
-        swap.name.includes('USDC') ? swap.usdcAmount : swap.daiAmount,
-        tokenIn.decimals
+        swap!.name!.includes('USDC') ? swap!.usdcAmount : swap!.daiAmount,
+        tokenIn!.decimals
       );
 
-      Logger.log('Sending', formatTokenAmount(tokenAmount, tokenIn.decimals, tokenIn.symbol));
+      Logger.log('Sending', formatTokenAmount(tokenAmount, tokenIn!.decimals, tokenIn!.symbol));
       Logger.log('Receiving', 'MAS');
       Logger.log('Slippage', `${swap.slippageBps / 100}%`);
 
       // Validate and approve
       const validation = await validateTokenOperation(
         provider,
-        tokenIn.address,
+        tokenIn!.address,
         account.address.toString(),
         massaBeamAddress,
         tokenAmount,
-        tokenIn.symbol
+        tokenIn!.symbol
       );
 
       if (!validation.hasBalance) {
@@ -357,15 +357,15 @@ async function executeMASSwap(
       }
 
       if (validation.needsApproval) {
-        await approveToken(provider, tokenIn.address, massaBeamAddress, tokenAmount, tokenIn.symbol);
+        await approveToken(provider, tokenIn!.address, massaBeamAddress, tokenAmount, tokenIn!.symbol);
       }
 
       const deadline = calculateDeadline(600);
       const minMASOut = 0n; // Accept any amount for testing
 
       const swapArgs = new Args()
-        .addString(tokenIn.address)
-        .add(toU256(tokenAmount))
+        .addString(tokenIn!.address)
+        .addU256(toU256(tokenAmount))
         .addU64(minMASOut) // MAS output is u64
         .addU64(BigInt(deadline));
 
@@ -377,7 +377,7 @@ async function executeMASSwap(
         'swapTokensForMAS',
         swapArgs,
         '0.1',
-        `Swap ${tokenIn.symbol} to MAS`
+        `Swap ${tokenIn!.symbol} to MAS`
       );
 
       Logger.success('Token → MAS swap executed!');
@@ -401,11 +401,11 @@ async function displayRoutingStats(contract: SmartContract) {
 
     if (result.value && result.value.length > 0) {
       const args = new Args(result.value);
-      const totalSwaps = args.nextString().unwrap();
-      const dusaSwaps = args.nextString().unwrap();
-      const massabeamSwaps = args.nextString().unwrap();
-      const totalVolume = args.nextString().unwrap();
-      const totalSavings = args.nextString().unwrap();
+      const totalSwaps = args.nextString();
+      const dusaSwaps = args.nextString();
+      const massabeamSwaps = args.nextString();
+      const totalVolume = args.nextString();
+      const totalSavings = args.nextString();
 
       Logger.log('Total Swaps', totalSwaps);
       Logger.log('MassaBeam Swaps', massabeamSwaps);

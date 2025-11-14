@@ -19,10 +19,8 @@ import {
   SmartContract,
   JsonRpcProvider,
   bytesToStr,
-  bytesToU64,
-  bytesToU256,
+  U256
 } from '@massalabs/massa-web3';
-import { u256 } from 'as-bignum/assembly';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -280,7 +278,7 @@ export async function getTokenBalance(
 
     // ERC20 balanceOf returns u256
     const args = new Args(result.value);
-    const balance = args.nextU256().unwrap();
+    const balance = args.nextU256()
     return BigInt(balance.toString());
   } catch (error) {
     Logger.debug(`Failed to get token balance: ${error}`);
@@ -310,7 +308,7 @@ export async function getTokenAllowance(
 
     // ERC20 allowance returns u256
     const args = new Args(result.value);
-    const allowance = args.nextU256().unwrap();
+    const allowance = args.nextU256()
     return BigInt(allowance.toString());
   } catch (error) {
     Logger.debug(`Failed to get token allowance: ${error}`);
@@ -334,13 +332,13 @@ export async function approveToken(
     const tokenContract = new SmartContract(provider, tokenAddress);
 
     // Convert bigint to u256 for Args
-    const u256Amount = u256.fromString(amount.toString());
+    const u256Amount = amount
 
     await retryWithBackoff(
       async () => {
         await tokenContract.call(
           'increaseAllowance',
-          new Args().addString(spenderAddress).add(u256Amount),  // Use .add() for u256
+          new Args().addString(spenderAddress).addU256(u256Amount),  // Use .add() for u256
           { coins: Mas.fromString('0.01') }
         );
       },
@@ -493,7 +491,7 @@ export function getCurrentTimestamp(): number {
  * Calculate deadline (timestamp in seconds)
  */
 export function calculateDeadline(secondsFromNow: number): number {
-  return getCurrentTimestamp() + secondsFromNow;
+  return  secondsFromNow;
 }
 
 // ============================================================================
@@ -577,14 +575,14 @@ export function isValidDeadline(deadline: number): boolean {
 /**
  * Convert bigint to u256 for Args
  */
-export function toU256(amount: bigint): u256 {
-  return u256.fromString(amount.toString());
+export function toU256(amount: bigint): bigint {
+  return amount
 }
 
 /**
  * Convert u256 to bigint
  */
-export function fromU256(amount: u256): bigint {
+export function fromU256(amount: bigint): bigint {
   return BigInt(amount.toString());
 }
 
@@ -592,13 +590,13 @@ export function fromU256(amount: u256): bigint {
  * Create Args with u256 amount (helper for common pattern)
  */
 export function createArgsWithU256(amount: bigint): Args {
-  return new Args().add(toU256(amount));
+  return new Args().addU256(toU256(amount));
 }
 
 /**
  * Parse token amount string to u256 (e.g., "1.5" with 18 decimals)
  */
-export function parseToU256(amount: string, decimals: number): u256 {
+export function parseToU256(amount: string, decimals: number): bigint {
   const bigintAmount = parseTokenAmount(amount, decimals);
   return toU256(bigintAmount);
 }
@@ -606,7 +604,7 @@ export function parseToU256(amount: string, decimals: number): u256 {
 /**
  * Format u256 token amount to readable string
  */
-export function formatU256(amount: u256, decimals: number, symbol: string = ''): string {
+export function formatU256(amount: bigint, decimals: number, symbol: string = ''): string {
   const bigintAmount = fromU256(amount);
   return formatTokenAmount(bigintAmount, decimals, symbol);
 }

@@ -28,9 +28,12 @@
 
 import {
   Address,
+  asyncCall,
   Context,
   generateEvent,
+  Slot,
   Storage,
+  transferredCoins,
 } from '@massalabs/massa-as-sdk';
 import { Args, stringToBytes } from '@massalabs/as-types';
 import { u256 } from 'as-bignum/assembly/integer/u256';
@@ -41,6 +44,7 @@ import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
 // This allows limit orders to validate prices directly from pool reserves
 import { getPool } from './main';
 import { SafeMath256 } from '../libraries/SafeMath';
+
 
 
 // ============================================================================
@@ -727,6 +731,130 @@ export function createTakeProfitOrder(args: StaticArray<u8>): u64 {
 }
 
 /**
+ * Create a limit order with native MAS
+ * User sends MAS with transaction + provides token amount
+ *
+ * @param args Serialized arguments:
+ *   - token: Token to buy (pair with MAS)
+ *   - amountIn: Amount of MAS to swap (sent via transaction coins)
+ *   - minAmountOut: Minimum token output
+ *   - limitPrice: Target price in 18 decimals
+ *   - expiryTime: When order expires
+ */
+export function createMASLimitOrder(args: StaticArray<u8>): u64 {
+  whenNotPaused();
+
+  const sent = transferredCoins();
+  assert(sent > 0, 'No MAS sent');
+
+  const argument = new Args(args);
+  const token = new Address(argument.nextString().unwrap());
+  const minAmountOut = argument.nextU256().unwrap();
+  const limitPrice = argument.nextU256().unwrap();
+  const expiryTime = argument.nextU64().unwrap();
+
+  // Validation
+  assert(!minAmountOut.isZero(), 'Min output must be positive');
+  assert(!limitPrice.isZero(), 'Price must be positive');
+
+  const now = Context.timestamp();
+  assert(expiryTime > now, 'Expiry must be in the future');
+  assert(expiryTime <= now + MAX_ORDER_DURATION, 'Expiry too far in future');
+
+  // Create limit order with MAS as tokenIn
+  const caller = Context.caller();
+  const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
+  const orderId = orderCount + 1;
+
+  const amountInU256 = u256.fromU64(sent);
+
+  const order = new LimitOrder(
+    orderId,
+    caller,
+    new Address(''), // MAS doesn't have an address, use empty
+    token,
+    amountInU256,
+    minAmountOut,
+    limitPrice,
+    expiryTime,
+    100, // 1% max slippage
+    false, // no partial fills
+    true, // use TWAP
+    MEV_PROTECTION_DELAY,
+    MAX_PRICE_IMPACT,
+    ORDER_TYPE_LIMIT,
+    u256.Zero,
+    0,
+  );
+
+  // Store order
+  saveOrder(order);
+  addOrderToUser(caller, orderId);
+  Storage.set(ORDER_COUNT_KEY, orderId.toString());
+
+  generateEvent('MASLimitOrder:Created');
+  return orderId;
+}
+
+/**
+ * Create a stop-loss order with native MAS
+ * Sells MAS when token price drops below trigger
+ */
+export function createMASStopLossOrder(args: StaticArray<u8>): u64 {
+  whenNotPaused();
+
+  const sent = transferredCoins();
+  assert(sent > 0, 'No MAS sent');
+
+  const argument = new Args(args);
+  const token = new Address(argument.nextString().unwrap());
+  const triggerPrice = argument.nextU256().unwrap();
+  const minAmountOut = argument.nextU256().unwrap();
+  const expiryTime = argument.nextU64().unwrap();
+
+  // Validation
+  assert(!triggerPrice.isZero(), 'Trigger price must be positive');
+  assert(!minAmountOut.isZero(), 'Min output must be positive');
+
+  const now = Context.timestamp();
+  assert(expiryTime > now, 'Expiry must be in the future');
+  assert(expiryTime <= now + MAX_ORDER_DURATION, 'Expiry too far in future');
+
+  // Create stop-loss order with MAS
+  const caller = Context.caller();
+  const orderCount = u64(parseInt(Storage.get(ORDER_COUNT_KEY)));
+  const orderId = orderCount + 1;
+
+  const amountInU256 = u256.fromU64(sent);
+
+  const order = new LimitOrder(
+    orderId,
+    caller,
+    new Address(''), // MAS doesn't have an address
+    token,
+    amountInU256,
+    minAmountOut,
+    u256.Zero,
+    expiryTime,
+    100,
+    false,
+    true,
+    MEV_PROTECTION_DELAY,
+    MAX_PRICE_IMPACT,
+    ORDER_TYPE_STOP_LOSS,
+    triggerPrice,
+    0,
+  );
+
+  saveOrder(order);
+  addOrderToUser(caller, orderId);
+  Storage.set(ORDER_COUNT_KEY, orderId.toString());
+
+  generateEvent('MASStopLossOrder:Created');
+  return orderId;
+}
+
+/**
  * Create a trailing stop order
  * Stop loss that follows price up, triggers when price drops X% from peak
  */
@@ -1133,10 +1261,86 @@ export function advance(_: StaticArray<u8>): void {
  * This is how the bot.ts contract implements autonomous trading.
  */
 function callNextSlot(contractAddress: Address, functionName: string, gasBudget: u64): void {
-  // This would call the Massa SDK function:
-  // Context.callNextSlot(contractAddress, functionName, gasBudget);
-  //
-  // For now, this is a placeholder that demonstrates the pattern.
-  // In real deployment, use actual Massa callNextSlot function.
+      asyncCall(
+        contractAddress,
+        functionName,
+        new Slot(Context.timestamp() + 60, 1), // Start in 1 minute
+        new Slot(Context.timestamp() + 120, 2), // End slot (example: +120 seconds)
+        0,
+        0,
+        new Args().serialize()
+    );
   generateEvent('LimitOrder:NextSlotScheduled');
 }
+
+
+// example usage
+
+// // Autonomous execution functions using Massa's scheduling
+// function scheduleOrderExecution(orderId: u64, executionTime: u64): void {
+//     const args = new Args();
+//     args.add("executeOrderBatch");
+//     args.add([orderId]);
+    
+//     asyncCall(
+//         Context.callee(),
+//         "advance",
+//         new Slot(Context.timestamp() + 60, 1), // Start in 1 minute
+//         new Slot(Context.timestamp() + 120, 2), // End slot (example: +120 seconds)
+//         0,
+//         0,
+//         args.serialize()
+//     );
+// }
+
+// function scheduleDCAExecution(strategyId: u64, executionTime: u64): void {
+//     const args = new Args();
+//     args.add("executeDCA");
+//     args.add(strategyId);
+    
+//     asyncCall(
+//         Context.callee(),
+//         "autonomousExecution",
+//         new Slot(Context.timestamp() + 60, 1), // Start in 1 minute
+//         new Slot(Context.timestamp() + 120, 2), // End slot (example: +120 seconds)
+//         0,
+//         0,
+//         args.serialize()
+//     );
+// }
+
+// function scheduleHealthCheck(positionId: u64, executionTime: u64): void {
+//     const args = new Args();
+//     args.add("checkPositionHealth");
+//     args.add(positionId);
+    
+
+//      asyncCall(
+//         Context.callee(),
+//         "autonomousExecution",
+//         new Slot(Context.timestamp() + 60, 1), // Start in 1 minute
+//         new Slot(Context.timestamp() + 120, 2), // End slot (example: +120 seconds)
+//         0,
+//         0,
+//         args.serialize()
+//     );
+// }
+
+// // Autonomous execution handler
+// export function autonomousExecution(args: StaticArray<u8>): void {
+//     const argsObj = new Args(args);
+//     const functionName = argsObj.nextString().unwrap();
+    
+//     if (functionName == "executeOrderBatch") {
+//         const orderIds = argsObj.nextFixedSizeArray<u64>().unwrapOrDefault();
+//         executeOrderBatch(orderIds);
+//     } else if (functionName == "executeDCA") {
+//         const strategyId = argsObj.nextU64().unwrap();
+//         executeDCA(strategyId);
+//     } else if (functionName == "checkPositionHealth") {
+//         const positionId = argsObj.nextU64().unwrap();
+//         checkPositionHealth(positionId);
+//     } else if (functionName == "arbitrageExecution") {
+//         executeAutonomousArbitrage();
+//     }
+// }

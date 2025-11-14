@@ -292,20 +292,39 @@ function sqrt(x: u64): u64 {
 /**
  * Safe square root for u256 (for initial liquidity calculation)
  * Returns sqrt(x * y)
+ * Uses f64 for simplicity and gas efficiency (like beam.ts pattern)
  */
 export function safeSqrt(x: u256, y: u256): u256 {
   if (x.isZero() || y.isZero()) return u256.Zero;
 
-  // For large values, use u256 math
-  // Simple binary search sqrt for u256
-  const product = SafeMath256.mul(x, y);
-  let z = u256.Zero;
-  let guess = SafeMath256.add(product, u256.One);
-  guess = u256.shr(guess, 1);  // guess = (product + 1) / 2
+  // For large u256 values, we need to be careful with conversion
+  // Check if both fit in u64 range for simple f64 calculation
+  const maxU64 = u256.fromU64(u64.MAX_VALUE);
 
-  while (guess < product) {
+  if (x <= maxU64 && y <= maxU64) {
+    // Simple case: both fit in u64, use f64 math
+    const xf = f64(x.toU64());
+    const yf = f64(y.toU64());
+    const product = xf * yf;
+    const result = Math.sqrt(product);
+    return u256.fromF64(result);
+  }
+
+  // For large values: use Newton's method with u256
+  const product = SafeMath256.mul(x, y);
+  let guess = SafeMath256.add(product, u256.One);
+  guess = u256.shr(guess, 1);
+  let z = guess;
+
+  // Limited iterations to prevent excessive gas usage
+  let iterations = 0;
+  const MAX_ITERATIONS = 32;
+
+  while (iterations < MAX_ITERATIONS && guess < product) {
     z = guess;
-    guess = u256.shr(SafeMath256.add(SafeMath256.div(product, guess), guess), 1);
+    const quotient = SafeMath256.div(product, guess);
+    guess = u256.shr(SafeMath256.add(quotient, guess), 1);
+    iterations++;
   }
 
   return z.isZero() ? u256.One : z;
@@ -541,7 +560,7 @@ export function createPool(args: StaticArray<u8>): void {
   savePool(pool);
 
   // Update registry
-  const poolCount = u64(parseInt(Storage.get('pool_count')));
+  const poolCount = u64(parseInt(Storage.has('pool_count') ? Storage.get('pool_count') : '0'));
   Storage.set('pool_index:' + poolCount.toString(), poolKey);
   Storage.set('pool_count', (poolCount + 1).toString());
 
@@ -639,12 +658,155 @@ export function addLiquidity(args: StaticArray<u8>): void {
   const lpTokenKey = LP_PREFIX + getPoolKey(tokenA, tokenB) + ':' + caller.toString();
   const currentBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
   // Parse u256 from string
-  const currentBalance = u256.fromBytes(currentBalanceStr);
+  const currentBalance = u256.fromF64(parseInt(currentBalanceStr));
   const newBalance = SafeMath256.add(currentBalance, liquidity);
   Storage.set(lpTokenKey, newBalance.toString());
 
   endNonReentrant();
   generateEvent(`Liquidity added: ${amountA.toString()}/${amountB.toString()} - LP tokens: ${liquidity.toString()}`);
+}
+
+/**
+ * Create pool with native MAS
+ * User sends MAS with transaction + provides token amount
+ */
+export function createPoolWithMAS(args: StaticArray<u8>): void {
+  whenNotPaused();
+  nonReentrant();
+
+  const sent = transferredCoins();
+  assert(sent > 0, 'No MAS sent');
+
+  const argument = new Args(args);
+  const token = new Address(argument.nextString().unwrap());
+  const tokenAmount = argument.nextU256().unwrap();
+  const deadline = argument.nextU64().unwrap();
+
+  validDeadline(deadline + Context.timestamp());
+  assert(!tokenAmount.isZero(), 'Invalid token amount');
+
+  const caller = Context.caller();
+  const wmas = getWMASAddress();
+  const poolKey = getPoolKey(wmas, token);
+
+  assert(!Storage.has(stringToBytes(POOL_PREFIX + poolKey)), 'Pool already exists');
+  validateTokenPair(wmas, token);
+
+  const masAmount = u256.fromU64(sent);
+  validateAmounts(masAmount, tokenAmount);
+
+  // Transfer token from user
+  assert(safeTransferFrom(token, caller, Context.callee(), tokenAmount), 'Token transfer failed');
+
+  // Calculate initial liquidity
+  const liquidity = safeSqrt(masAmount, tokenAmount);
+  const minLiquidity = u256.fromU64(MIN_LIQUIDITY);
+  assert(liquidity > minLiquidity, 'Insufficient liquidity');
+
+  // Create pool (MAS is treated as WMAS in reserves)
+  const pool = new Pool(wmas, token, masAmount, tokenAmount, liquidity, DEFAULT_FEE_RATE, Context.timestamp());
+  updateCumulativePrices(pool);
+  savePool(pool);
+
+  // Update registry
+  const poolCount = u64(parseInt(Storage.has('pool_count') ? Storage.get('pool_count') : '0'));
+  Storage.set('pool_index:' + poolCount.toString(), poolKey);
+  Storage.set('pool_count', (poolCount + 1).toString());
+
+  // Mint LP tokens
+  const lpTokenKey = LP_PREFIX + poolKey + ':' + caller.toString();
+  const userLiquidity = SafeMath256.sub(liquidity, minLiquidity);
+  Storage.set(lpTokenKey, userLiquidity.toString());
+  Storage.set(LP_PREFIX + poolKey + ':MINIMUM_LIQUIDITY', minLiquidity.toString());
+
+  endNonReentrant();
+  generateEvent(`Pool created with MAS: ${sent} MAS + ${tokenAmount.toString()} tokens - Liquidity: ${liquidity.toString()}`);
+}
+
+/**
+ * Add liquidity with native MAS
+ * User sends MAS with transaction + provides token amount
+ */
+export function addLiquidityWithMAS(args: StaticArray<u8>): void {
+  whenNotPaused();
+  nonReentrant();
+
+  const sent = transferredCoins();
+  assert(sent > 0, 'No MAS sent');
+
+  const argument = new Args(args);
+  const token = new Address(argument.nextString().unwrap());
+  const tokenAmountDesired = argument.nextU256().unwrap();
+  const tokenAmountMin = argument.nextU256().unwrap();
+  const masAmountMin = u256.fromU64(argument.nextU64().unwrap());
+  const deadline = argument.nextU64().unwrap();
+
+  validDeadline(deadline + Context.timestamp());
+
+  const caller = Context.caller();
+  const wmas = getWMASAddress();
+  const pool = getPool(wmas, token);
+
+  assert(pool != null, 'Pool does not exist');
+  assert(pool!.isActive, 'Pool is not active');
+
+  const masAmount = u256.fromU64(sent);
+  let tokenAmount: u256;
+
+  // Determine which token is WMAS
+  const wmasIsA = pool!.tokenA.toString() == wmas.toString();
+  const masReserve = wmasIsA ? pool!.reserveA : pool!.reserveB;
+  const tokenReserve = wmasIsA ? pool!.reserveB : pool!.reserveA;
+
+  // Calculate optimal token amount
+  const tokenAmountOptimal = SafeMath256.div(
+    SafeMath256.mul(masAmount, tokenReserve),
+    masReserve
+  );
+
+  if (tokenAmountOptimal <= tokenAmountDesired) {
+    assert(tokenAmountOptimal >= tokenAmountMin, 'Insufficient token amount');
+    tokenAmount = tokenAmountOptimal;
+  } else {
+    const masAmountOptimal = SafeMath256.div(
+      SafeMath256.mul(tokenAmountDesired, masReserve),
+      tokenReserve
+    );
+    assert(masAmountOptimal <= masAmount && masAmountOptimal >= masAmountMin, 'Insufficient MAS amount');
+    tokenAmount = tokenAmountDesired;
+  }
+
+  // Transfer token from user
+  assert(safeTransferFrom(token, caller, Context.callee(), tokenAmount), 'Token transfer failed');
+
+  // Calculate liquidity to mint
+  const liquidity = SafeMath256.div(
+    SafeMath256.mul(masAmount, pool!.totalSupply),
+    masReserve
+  );
+  assert(!liquidity.isZero(), 'Insufficient liquidity minted');
+
+  // Update pool state
+  if (wmasIsA) {
+    pool!.reserveA = SafeMath256.add(pool!.reserveA, masAmount);
+    pool!.reserveB = SafeMath256.add(pool!.reserveB, tokenAmount);
+  } else {
+    pool!.reserveB = SafeMath256.add(pool!.reserveB, masAmount);
+    pool!.reserveA = SafeMath256.add(pool!.reserveA, tokenAmount);
+  }
+  pool!.totalSupply = SafeMath256.add(pool!.totalSupply, liquidity);
+  updateCumulativePrices(pool!);
+  savePool(pool!);
+
+  // Update user LP balance
+  const lpTokenKey = LP_PREFIX + getPoolKey(wmas, token) + ':' + caller.toString();
+  const currentBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
+  const currentBalance = u256.fromF64(parseInt(currentBalanceStr));
+  const newBalance = SafeMath256.add(currentBalance, liquidity);
+  Storage.set(lpTokenKey, newBalance.toString());
+
+  endNonReentrant();
+  generateEvent(`Liquidity added with MAS: ${sent} MAS + ${tokenAmount.toString()} tokens - LP tokens: ${liquidity.toString()}`);
 }
 
 /**
@@ -674,7 +836,7 @@ export function removeLiquidity(args: StaticArray<u8>): void {
   // Check user LP balance
   const lpTokenKey = LP_PREFIX + getPoolKey(tokenA, tokenB) + ':' + caller.toString();
   const userBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
-  const userBalance = u256.fromBytes(userBalanceStr);
+  const userBalance = u256.fromF64(parseInt(userBalanceStr));
   assert(userBalance >= liquidity, 'Insufficient LP balance');
 
   // Calculate amounts with slippage protection using u256
@@ -710,6 +872,84 @@ export function removeLiquidity(args: StaticArray<u8>): void {
 
   endNonReentrant();
   generateEvent(`Liquidity removed: ${amountA.toString()}/${amountB.toString()} - LP tokens: ${liquidity.toString()}`);
+}
+
+/**
+ * Remove liquidity and receive native MAS
+ * Burns LP tokens and returns MAS + tokens to user
+ */
+export function removeLiquidityWithMAS(args: StaticArray<u8>): void {
+  whenNotPaused();
+  nonReentrant();
+
+  const argument = new Args(args);
+  const token = new Address(argument.nextString().unwrap());
+  const liquidity = argument.nextU256().unwrap();
+  const tokenAmountMin = argument.nextU256().unwrap();
+  const masAmountMin = u256.fromU64(argument.nextU64().unwrap());
+  const deadline = argument.nextU64().unwrap();
+
+  validDeadline(deadline + Context.timestamp());
+  assert(!liquidity.isZero(), 'Insufficient liquidity');
+
+  const caller = Context.caller();
+  const wmas = getWMASAddress();
+  const pool = getPool(wmas, token);
+  
+  assert(pool != null, 'Pool does not exist');
+  assert(pool!.isActive, 'Pool is not active');
+
+  // Check user LP balance
+  const lpTokenKey = LP_PREFIX + getPoolKey(wmas, token) + ':' + caller.toString();
+  const userBalanceStr = Storage.has(lpTokenKey) ? Storage.get(lpTokenKey) : '0';
+  const userBalance = u256.fromF64(parseInt(userBalanceStr));
+  assert(userBalance >= liquidity, 'Insufficient LP balance');
+
+  // Determine which token is WMAS
+  const wmasIsA = pool!.tokenA.toString() == wmas.toString();
+  const masReserve = wmasIsA ? pool!.reserveA : pool!.reserveB;
+  const tokenReserve = wmasIsA ? pool!.reserveB : pool!.reserveA;
+
+  // Calculate amounts
+  const masAmount = SafeMath256.div(
+    SafeMath256.mul(liquidity, masReserve),
+    pool!.totalSupply
+  );
+  const tokenAmount = SafeMath256.div(
+    SafeMath256.mul(liquidity, tokenReserve),
+    pool!.totalSupply
+  );
+
+  assert(masAmount >= masAmountMin, 'Insufficient MAS amount');
+  assert(tokenAmount >= tokenAmountMin, 'Insufficient token amount');
+  assert(!masAmount.isZero() && !tokenAmount.isZero(), 'Insufficient liquidity burned');
+
+  // Update pool state
+  if (wmasIsA) {
+    pool!.reserveA = SafeMath256.sub(pool!.reserveA, masAmount);
+    pool!.reserveB = SafeMath256.sub(pool!.reserveB, tokenAmount);
+  } else {
+    pool!.reserveB = SafeMath256.sub(pool!.reserveB, masAmount);
+    pool!.reserveA = SafeMath256.sub(pool!.reserveA, tokenAmount);
+  }
+  pool!.totalSupply = SafeMath256.sub(pool!.totalSupply, liquidity);
+  updateCumulativePrices(pool!);
+  savePool(pool!);
+
+  // Update user LP balance
+  const newBalance = SafeMath256.sub(userBalance, liquidity);
+  Storage.set(lpTokenKey, newBalance.toString());
+
+  // Transfer token
+  assert(safeTransfer(token, caller, tokenAmount), 'Token transfer failed');
+
+  // Transfer MAS (convert u256 to u64)
+  assert(masAmount <= u256.fromU64(u64.MAX_VALUE), 'MAS amount exceeds u64 max');
+  const masAmountU64 = masAmount.toU64();
+  transferCoins(caller, masAmountU64);
+
+  endNonReentrant();
+  generateEvent(`Liquidity removed with MAS: ${masAmountU64} MAS + ${tokenAmount.toString()} tokens - LP tokens: ${liquidity.toString()}`);
 }
 
 // ============================================================================
@@ -778,7 +1018,7 @@ export function swapMASForTokens(args: StaticArray<u8>): void {
     u256.fromU64(10000)
   );
   const totalFeesStr = Storage.get('total_fees');
-  const totalFees = totalFeesStr ? u256.fromBytes(totalFeesStr) : u256.Zero;
+  const totalFees = totalFeesStr ? u256.fromF64(parseInt(totalFeesStr)) : u256.Zero;
   Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   transferRemainingMAS(balanceBefore, balance(), sent, Context.caller());
@@ -852,7 +1092,7 @@ export function swapTokensForMAS(args: StaticArray<u8>): void {
     u256.fromU64(10000)
   );
   const totalFeesStr = Storage.get('total_fees');
-  const totalFees = totalFeesStr ? u256.fromBytes(totalFeesStr) : u256.Zero;
+  const totalFees = totalFeesStr ? u256.fromF64(parseInt(totalFeesStr)) : u256.Zero;
   Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   endNonReentrant();
@@ -931,7 +1171,7 @@ export function swap(args: StaticArray<u8>): void {
 
   // Update statistics (u256)
   const totalVolumeStr = Storage.get('total_volume');
-  const totalVolume = totalVolumeStr ? u256.fromBytes(totalVolumeStr) : u256.Zero;
+  const totalVolume = totalVolumeStr ? u256.fromF64(parseInt(totalVolumeStr)) : u256.Zero;
   Storage.set('total_volume', SafeMath256.add(totalVolume, amountIn).toString());
 
   // Calculate fee: (amountIn * fee) / 10000
@@ -940,7 +1180,7 @@ export function swap(args: StaticArray<u8>): void {
     u256.fromU64(10000)
   );
   const totalFeesStr = Storage.get('total_fees');
-  const totalFees = totalFeesStr ? u256.fromBytes(totalFeesStr) : u256.Zero;
+  const totalFees = totalFeesStr ? u256.fromF64(parseInt(totalFeesStr)) : u256.Zero;
   Storage.set('total_fees', SafeMath256.add(totalFees, feeAmount).toString());
 
   endNonReentrant();
@@ -1026,13 +1266,13 @@ export function flashLoan(args: StaticArray<u8>): void {
 
   // Update flash loan statistics (u256)
   const flashLoanVolumeStr = Storage.has('flash_loan_volume') ? Storage.get('flash_loan_volume') : '0';
-  const flashLoanVolume = u256.fromBytes(flashLoanVolumeStr);
+  const flashLoanVolume = u256.fromF64(parseInt(flashLoanVolumeStr));
 
   const flashLoanCountStr = Storage.has('flash_loan_count') ? Storage.get('flash_loan_count') : '0';
   const flashLoanCount = u64(parseInt(flashLoanCountStr));
 
   const flashLoanFeesStr = Storage.has('flash_loan_fees') ? Storage.get('flash_loan_fees') : '0';
-  const flashLoanFees = u256.fromBytes(flashLoanFeesStr);
+  const flashLoanFees = u256.fromF64(parseInt(flashLoanFeesStr));
 
   Storage.set('flash_loan_volume', SafeMath256.add(flashLoanVolume, amount).toString());
   Storage.set('flash_loan_count', (flashLoanCount + 1).toString());
@@ -1192,28 +1432,32 @@ export function readPoolKey(args: StaticArray<u8>): StaticArray<u8> {
  * Read pool count
  */
 export function readPoolCount(): StaticArray<u8> {
-  return stringToBytes(Storage.get('pool_count'));
+  const count = Storage.has('pool_count') ? Storage.get('pool_count') : '0';
+  return stringToBytes(count);
 }
 
 /**
  * Read total volume
  */
 export function readTotalVolume(): StaticArray<u8> {
-  return stringToBytes(Storage.get('total_volume'));
+  const volume = Storage.has('total_volume') ? Storage.get('total_volume') : '0';
+  return stringToBytes(volume);
 }
 
 /**
  * Read protocol fee rate
  */
 export function readProtocolFeeRate(): StaticArray<u8> {
-  return stringToBytes(Storage.get('protocol_fee_rate'));
+  const rate = Storage.has('protocol_fee_rate') ? Storage.get('protocol_fee_rate') : '0';
+  return stringToBytes(rate);
 }
 
 /**
  * Read initialization status
  */
 export function readInitialized(): StaticArray<u8> {
-  return stringToBytes(Storage.get('initialized'));
+  const init = Storage.has('initialized') ? Storage.get('initialized') : 'false';
+  return stringToBytes(init);
 }
 
 /**
@@ -1303,6 +1547,11 @@ export function readSafeSqrt(args: StaticArray<u8>): StaticArray<u8> {
   return stringToBytes(result.toString());
 }
 
+
+export function readU256Bytes(args: StaticArray<u8>): StaticArray<u8> {
+  return stringToBytes(u256.fromF64(parseInt("25")).toString())
+}
+
 // ============================================================================
 // MAS & WMAS UTILITIES
 // ============================================================================
@@ -1336,23 +1585,7 @@ function isWMAS(token: Address): bool {
   return token.toString() == Storage.get(WMAS_ADDRESS_KEY);
 }
 
-/**
- * Wrap MAS to WMAS and transfer to recipient
- * Pattern from Dusa Router
- */
-function wmasDepositAndTransfer(to: Address, amount: u64): void {
-  const wmas = getWMASAddress();
-  const wmasContract = new IERC20(wmas);
 
-  // Deposit MAS to WMAS (WMAS contract should have deposit() function)
-  const depositArgs = new Args();
-  const callee = Context.callee();
-
-  // Transfer wrapped tokens to recipient
-  wmasContract.transfer(to, u256.fromU64(amount));
-
-  generateEvent(`WMAS: Wrapped ${amount} MAS and sent to ${to.toString()}`);
-}
 
 /**
  * Transfer remaining MAS back to sender
@@ -1374,6 +1607,9 @@ function transferRemainingMAS(
   }
 }
 
+
+
+
 /**
  * Receive MAS for storage fees and transactions
  */
@@ -1381,4 +1617,83 @@ export function receiveCoins(_: StaticArray<u8>): void {
   // Allow contract to receive MAS
   const sent = transferredCoins();
   generateEvent(`Received ${sent} MAS`);
+}
+
+// ============================================================================
+// TESTING & DEBUG FUNCTIONS
+// ============================================================================
+
+/**
+ * Manipulate pool reserves for testing (ADMIN ONLY)
+ * Used to test limit orders by changing prices
+ *
+ * @param args Serialized:
+ *   - tokenA: First token in pool
+ *   - tokenB: Second token in pool
+ *   - newReserveA: New reserve for tokenA
+ *   - newReserveB: New reserve for tokenB
+ */
+export function setPoolReserves(args: StaticArray<u8>): void {
+  onlyRole(ADMIN_ROLE);
+
+  const argument = new Args(args);
+  const tokenA = new Address(argument.nextString().unwrap());
+  const tokenB = new Address(argument.nextString().unwrap());
+  const newReserveA = argument.nextU256().unwrap();
+  const newReserveB = argument.nextU256().unwrap();
+
+  const pool = getPool(tokenA, tokenB);
+  assert(pool != null, 'Pool does not exist');
+
+  // Update reserves
+  pool!.reserveA = newReserveA;
+  pool!.reserveB = newReserveB;
+  updateCumulativePrices(pool!);
+  savePool(pool!);
+
+  generateEvent(`Pool reserves updated: A=${newReserveA.toString()}, B=${newReserveB.toString()}`);
+}
+
+/**
+ * Simulate price change by swapping within the pool (for testing)
+ * This swaps a specific amount to move the price
+ *
+ * @param args Serialized:
+ *   - tokenIn: Token to swap in
+ *   - tokenOut: Token to swap out
+ *   - amountIn: Amount to swap in
+ */
+export function simulatePriceChange(args: StaticArray<u8>): void {
+  onlyRole(ADMIN_ROLE);
+  whenNotPaused();
+
+  const argument = new Args(args);
+  const tokenIn = new Address(argument.nextString().unwrap());
+  const tokenOut = new Address(argument.nextString().unwrap());
+  const amountIn = argument.nextU256().unwrap();
+
+  const pool = getPool(tokenIn, tokenOut);
+  assert(pool != null, 'Pool does not exist');
+
+  // Determine reserve order
+  const tokenInIsA = pool!.tokenA.toString() == tokenIn.toString();
+  const reserveIn = tokenInIsA ? pool!.reserveA : pool!.reserveB;
+  const reserveOut = tokenInIsA ? pool!.reserveB : pool!.reserveA;
+
+  // Calculate output
+  const amountOut = getAmountOut(amountIn, reserveIn, reserveOut, pool!.fee);
+
+  // Update reserves
+  if (tokenInIsA) {
+    pool!.reserveA = SafeMath256.add(pool!.reserveA, amountIn);
+    pool!.reserveB = SafeMath256.sub(pool!.reserveB, amountOut);
+  } else {
+    pool!.reserveB = SafeMath256.add(pool!.reserveB, amountIn);
+    pool!.reserveA = SafeMath256.sub(pool!.reserveA, amountOut);
+  }
+
+  updateCumulativePrices(pool!);
+  savePool(pool!);
+
+  generateEvent(`Price simulation: Swapped ${amountIn.toString()} for ${amountOut.toString()}`);
 }

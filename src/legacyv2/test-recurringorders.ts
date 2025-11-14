@@ -232,8 +232,8 @@ async function createBuyOnIncreaseOrder(
     .addString(config.tokenIn.address)
     .addString(config.tokenOut.address)
     .addU64(BigInt(config.triggerPercentage))
-    .add(toU256(amountPerExecution))
-    .add(toU256(minAmountOut))
+    .addU256(toU256(amountPerExecution))
+    .addU256(toU256(minAmountOut))
     .addU64(BigInt(config.maxExecutions));
 
   Logger.info('Creating buy on increase order...');
@@ -252,7 +252,7 @@ async function createBuyOnIncreaseOrder(
     // Get order count to find order ID
     const orderCountResult = await readContract(recurringOrdersContract, 'getOrderCount');
     const orderCountArgs = new Args(orderCountResult.value);
-    const orderCountStr = orderCountArgs.nextString().unwrap();
+    const orderCountStr = orderCountArgs.nextString();
     const orderId = parseInt(orderCountStr);
 
     Logger.success(`Order created with ID: ${orderId}`);
@@ -306,8 +306,8 @@ async function createSellOnDecreaseOrder(
     .addString(config.tokenIn.address)
     .addString(config.tokenOut.address)
     .addU64(BigInt(config.triggerPercentage))
-    .add(toU256(amountPerExecution))
-    .add(toU256(minAmountOut));
+    .addU256(toU256(amountPerExecution))
+    .addU256(toU256(minAmountOut));
 
   Logger.info('Creating sell on decrease order...');
 
@@ -324,7 +324,7 @@ async function createSellOnDecreaseOrder(
 
     const orderCountResult = await readContract(recurringOrdersContract, 'getOrderCount');
     const orderCountArgs = new Args(orderCountResult.value);
-    const orderCountStr = orderCountArgs.nextString().unwrap();
+    const orderCountStr = orderCountArgs.nextString();
     const orderId = parseInt(orderCountStr);
 
     Logger.success(`Order created with ID: ${orderId}`);
@@ -380,8 +380,8 @@ async function createDCAOrder(
     .addString(config.tokenIn.address)
     .addString(config.tokenOut.address)
     .addU64(BigInt(config.executionInterval))
-    .add(toU256(amountPerExecution))
-    .add(toU256(minAmountOut))
+    .addU256(toU256(amountPerExecution))
+    .addU256(toU256(minAmountOut))
     .addU64(BigInt(config.maxExecutions));
 
   Logger.info('Creating DCA order...');
@@ -393,7 +393,7 @@ async function createDCAOrder(
 
     const orderCountResult = await readContract(recurringOrdersContract, 'getOrderCount');
     const orderCountArgs = new Args(orderCountResult.value);
-    const orderCountStr = orderCountArgs.nextString().unwrap();
+    const orderCountStr = orderCountArgs.nextString();
     const orderId = parseInt(orderCountStr);
 
     Logger.success(`DCA order created with ID: ${orderId}`);
@@ -460,10 +460,10 @@ async function createGridOrder(
   // Add grid levels and amounts
   for (let i = 0; i < config.gridLevels.length; i++) {
     orderArgs.addU64(BigInt(config.gridLevels[i]));
-    orderArgs.add(toU256(gridAmountsParsed[i]));
+    orderArgs.addU256(toU256(gridAmountsParsed[i]));
   }
 
-  orderArgs.add(toU256(minAmountOut));
+  orderArgs.addU256(toU256(minAmountOut));
 
   Logger.info('Creating grid order...');
 
@@ -474,7 +474,7 @@ async function createGridOrder(
 
     const orderCountResult = await readContract(recurringOrdersContract, 'getOrderCount');
     const orderCountArgs = new Args(orderCountResult.value);
-    const orderCountStr = orderCountArgs.nextString().unwrap();
+    const orderCountStr = orderCountArgs.nextString();
     const orderId = parseInt(orderCountStr);
 
     Logger.success(`Grid order created with ID: ${orderId}`);
@@ -630,14 +630,14 @@ async function testAutonomousBot(recurringOrdersContract: SmartContract): Promis
 
     if (statsResult.value && statsResult.value.length > 0) {
       const statsArgs = new Args(statsResult.value);
-      const totalOrders = statsArgs.nextU64().unwrap();
-      const activeOrders = statsArgs.nextU64().unwrap();
-      const completedOrders = statsArgs.nextU64().unwrap();
-      const pausedOrders = statsArgs.nextU64().unwrap();
-      const cancelledOrders = statsArgs.nextU64().unwrap();
-      const totalExecutions = statsArgs.nextU64().unwrap();
-      const isBotRunning = statsArgs.nextBool().unwrap();
-      const botCounter = statsArgs.nextU64().unwrap();
+      const totalOrders = statsArgs.nextU64();
+      const activeOrders = statsArgs.nextU64();
+      const completedOrders = statsArgs.nextU64();
+      const pausedOrders = statsArgs.nextU64();
+      const cancelledOrders = statsArgs.nextU64();
+      const totalExecutions = statsArgs.nextU64();
+      const isBotRunning = statsArgs.nextBool();
+      const botCounter = statsArgs.nextU64();
 
       Logger.log('Total Orders', totalOrders.toString());
       Logger.log('Active Orders', activeOrders.toString());
@@ -679,14 +679,14 @@ async function displayOrderStats(recurringOrdersContract: SmartContract): Promis
 
     if (statsResult.value && statsResult.value.length > 0) {
       const statsArgs = new Args(statsResult.value);
-      const totalOrders = statsArgs.nextU64().unwrap();
-      const activeOrders = statsArgs.nextU64().unwrap();
-      const completedOrders = statsArgs.nextU64().unwrap();
-      const pausedOrders = statsArgs.nextU64().unwrap();
-      const cancelledOrders = statsArgs.nextU64().unwrap();
-      const totalExecutions = statsArgs.nextU64().unwrap();
-      const isBotRunning = statsArgs.nextBool().unwrap();
-      const botCounter = statsArgs.nextU64().unwrap();
+      const totalOrders = statsArgs.nextU64();
+      const activeOrders = statsArgs.nextU64();
+      const completedOrders = statsArgs.nextU64();
+      const pausedOrders = statsArgs.nextU64();
+      const cancelledOrders = statsArgs.nextU64();
+      const totalExecutions = statsArgs.nextU64();
+      const isBotRunning = statsArgs.nextBool();
+      const botCounter = statsArgs.nextU64();
 
       Logger.log('Total Orders', totalOrders.toString());
       Logger.log('Active Orders', activeOrders.toString());
@@ -723,17 +723,17 @@ async function displayOrderDetails(recurringOrdersContract: SmartContract, order
     }
 
     const args = new Args(orderDetailsResult.value);
-    const id = args.nextU64().unwrap();
-    const user = args.nextString().unwrap();
-    const orderType = args.nextU8().unwrap();
-    const executionMode = args.nextU8().unwrap();
-    const status = args.nextU8().unwrap();
-    const tokenIn = args.nextString().unwrap();
-    const tokenOut = args.nextString().unwrap();
-    const entryPrice = args.nextU256().unwrap();
-    const triggerPercentage = args.nextU64().unwrap();
-    const maxExecutions = args.nextU64().unwrap();
-    const executionCount = args.nextU64().unwrap();
+    const id = args.nextU64();
+    const user = args.nextString();
+    const orderType = args.nextU8();
+    const executionMode = args.nextU8();
+    const status = args.nextU8();
+    const tokenIn = args.nextString();
+    const tokenOut = args.nextString();
+    const entryPrice = args.nextU256();
+    const triggerPercentage = args.nextU64();
+    const maxExecutions = args.nextU64();
+    const executionCount = args.nextU64();
 
     const orderTypeMap: { [key: number]: string } = {
       0: 'BUY_ON_INCREASE',
@@ -784,7 +784,7 @@ async function getCurrentPrice(
 
     if (priceResult.value && priceResult.value.length > 0) {
       const priceArgs = new Args(priceResult.value);
-      const price = priceArgs.nextU256().unwrap();
+      const price = priceArgs.nextU256();
 
       Logger.log('Price', formatTokenAmount(fromU256(price), 18));
       Logger.info('Price is in 18 decimals (1e18 = 1.0)');
