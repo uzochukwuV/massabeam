@@ -524,13 +524,14 @@
 
                 <div class="dca-container">
                     <div class="dca-create-panel">
-                        <div class="create-dca-card">
+                        <!-- DCA Form -->
+                        <div class="create-dca-card" id="dcaFormCard">
                             <div class="card-header">
                                 <h3 class="card-title">Create DCA Strategy</h3>
                                 <div class="card-subtitle">Dollar-Cost Average with Smart Automation</div>
                             </div>
 
-                            <form class="dca-form" id="dcaForm">
+                            <form class="dca-form" id="dcaForm" onsubmit="handleCreateDCA(event)">
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label class="form-label">From Token</label>
@@ -624,11 +625,211 @@
                                 </button>
                             </form>
                         </div>
+
+                        <!-- Buy on Increase Form -->
+                        <div class="create-dca-card hidden" id="buyIncreaseFormCard">
+                            <div class="card-header">
+                                <h3 class="card-title">Buy on Price Increase</h3>
+                                <div class="card-subtitle">Automatically buy when price rises by a certain percentage</div>
+                            </div>
+
+                            <form class="dca-form" id="buyIncreaseForm" onsubmit="handleCreateBuyIncrease(event)">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">From Token</label>
+                                        <select class="form-select" id="buyIncreaseTokenIn">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">To Token</label>
+                                        <select class="form-select" id="buyIncreaseTokenOut">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Trigger Percentage (%)</label>
+                                    <input type="number" id="buyIncreaseTrigger" placeholder="2.0" step="0.1" min="0.1" class="form-input">
+                                    <div class="input-hint">Buy when price increases by this percentage (e.g., 2% = buy when price goes up 2%)</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Amount Per Execution</label>
+                                    <input type="number" id="buyIncreaseAmount" placeholder="100" class="form-input">
+                                    <div class="input-hint">Amount to buy each time the trigger is hit</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Max Executions</label>
+                                    <input type="number" id="buyIncreaseMaxExec" placeholder="10" min="0" class="form-input">
+                                    <div class="input-hint">Maximum number of executions (0 = unlimited)</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Min Amount Out (Slippage)</label>
+                                    <input type="number" id="buyIncreaseMinOut" placeholder="95" class="form-input">
+                                    <div class="input-hint">Minimum amount to receive (slippage protection)</div>
+                                </div>
+
+                                <div class="order-summary">
+                                    <div class="summary-header">
+                                        <h4 class="summary-title">Order Summary</h4>
+                                    </div>
+                                    <div class="summary-content">
+                                        <div class="summary-row">
+                                            <span class="summary-label">Entry Price</span>
+                                            <span class="summary-value" id="buyIncreaseEntryPrice">-</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="summary-label">Total Amount</span>
+                                            <span class="summary-value" id="buyIncreaseTotalAmount">0 TOKEN</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="primary-btn full-width" id="createBuyIncreaseBtn">
+                                    <span>Create Buy on Increase Order</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Sell on Decrease Form -->
+                        <div class="create-dca-card hidden" id="sellDecreaseFormCard">
+                            <div class="card-header">
+                                <h3 class="card-title">Sell on Price Decrease</h3>
+                                <div class="card-subtitle">Automatically sell when price drops (stop loss / take profit)</div>
+                            </div>
+
+                            <form class="dca-form" id="sellDecreaseForm" onsubmit="handleCreateSellDecrease(event)">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">From Token</label>
+                                        <select class="form-select" id="sellDecreaseTokenIn">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">To Token</label>
+                                        <select class="form-select" id="sellDecreaseTokenOut">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Trigger Percentage (%)</label>
+                                    <input type="number" id="sellDecreaseTrigger" placeholder="5.0" step="0.1" min="0.1" class="form-input">
+                                    <div class="input-hint">Sell when price decreases by this percentage (e.g., 5% = sell when price drops 5%)</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Amount Per Execution</label>
+                                    <input type="number" id="sellDecreaseAmount" placeholder="100" class="form-input">
+                                    <div class="input-hint">Amount to sell each time</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Min Amount Out (Slippage)</label>
+                                    <input type="number" id="sellDecreaseMinOut" placeholder="95" class="form-input">
+                                    <div class="input-hint">Minimum amount to receive</div>
+                                </div>
+
+                                <div class="order-summary">
+                                    <div class="summary-header">
+                                        <h4 class="summary-title">Order Summary</h4>
+                                    </div>
+                                    <div class="summary-content">
+                                        <div class="summary-row">
+                                            <span class="summary-label">Entry Price</span>
+                                            <span class="summary-value" id="sellDecreaseEntryPrice">-</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="summary-label">Trigger Price</span>
+                                            <span class="summary-value" id="sellDecreaseTriggerPrice">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="primary-btn full-width" id="createSellDecreaseBtn">
+                                    <span>Create Sell on Decrease Order</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Grid Trading Form -->
+                        <div class="create-dca-card hidden" id="gridFormCard">
+                            <div class="card-header">
+                                <h3 class="card-title">Grid Trading</h3>
+                                <div class="card-subtitle">Place multiple buy/sell orders at different price levels</div>
+                            </div>
+
+                            <form class="dca-form" id="gridForm" onsubmit="handleCreateGrid(event)">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">From Token</label>
+                                        <select class="form-select" id="gridTokenIn">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">To Token</label>
+                                        <select class="form-select" id="gridTokenOut">
+                                            <option value="">Select Token</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Number of Grid Levels</label>
+                                    <input type="number" id="gridLevelCount" placeholder="3" min="1" max="10" class="form-input">
+                                    <div class="input-hint">How many price levels (e.g., 3 = buy at -2%, -4%, -6%)</div>
+                                </div>
+
+                                <div id="gridLevelsContainer">
+                                    <!-- Grid levels will be added dynamically -->
+                                </div>
+
+                                <button type="button" class="secondary-btn full-width" onclick="generateGridLevels()" style="margin-bottom: 1rem;">
+                                    <span>Generate Grid Levels</span>
+                                </button>
+
+                                <div class="form-group">
+                                    <label class="form-label">Min Amount Out (Slippage)</label>
+                                    <input type="number" id="gridMinOut" placeholder="95" class="form-input">
+                                    <div class="input-hint">Minimum amount to receive per level</div>
+                                </div>
+
+                                <div class="order-summary">
+                                    <div class="summary-header">
+                                        <h4 class="summary-title">Grid Summary</h4>
+                                    </div>
+                                    <div class="summary-content">
+                                        <div class="summary-row">
+                                            <span class="summary-label">Total Levels</span>
+                                            <span class="summary-value" id="gridTotalLevels">0</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="summary-label">Total Amount</span>
+                                            <span class="summary-value" id="gridTotalAmount">0 TOKEN</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="primary-btn full-width" id="createGridBtn">
+                                    <span>Create Grid Order</span>
+                                    <div class="btn-glow"></div>
+                                </button>
+                            </form>
+                        </div>
                     </div>
 
                     <div class="dca-list-panel">
                         <div class="strategies-header">
-                            <h3 class="strategies-title">Your Strategies</h3>
+                            <h3 class="strategies-title" id="recurringOrdersTitle">Your DCA Strategies</h3>
                             <div class="strategies-stats">
                                 <div class="stat-item">
                                     <span class="stat-value" id="activeDCACount">0</span>

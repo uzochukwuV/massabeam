@@ -68,6 +68,14 @@ export async function initializeApp() {
       'liquidityTokenB',
       'orderTokenIn',
       'orderTokenOut',
+      'dcaTokenIn',
+      'dcaTokenOut',
+      'buyIncreaseTokenIn',
+      'buyIncreaseTokenOut',
+      'sellDecreaseTokenIn',
+      'sellDecreaseTokenOut',
+      'gridTokenIn',
+      'gridTokenOut',
     ]);
     console.log('✓ UI populated');
 
@@ -1048,6 +1056,364 @@ function displayEmptyOrders() {
     `;
   }
 }
+
+// ============================================================================
+// RECURRING ORDERS HANDLERS
+// ============================================================================
+
+/**
+ * Switch between recurring order types (DCA, Buy on Increase, Sell on Decrease, Grid)
+ */
+window.switchRecurringOrderType = function(type) {
+  console.log('Switching to recurring order type:', type);
+
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn[data-order-type]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.orderType === type);
+  });
+
+  // Hide all form cards
+  document.getElementById('dcaFormCard')?.classList.add('hidden');
+  document.getElementById('buyIncreaseFormCard')?.classList.add('hidden');
+  document.getElementById('sellDecreaseFormCard')?.classList.add('hidden');
+  document.getElementById('gridFormCard')?.classList.add('hidden');
+
+  // Show selected form
+  const formMap = {
+    'dca': 'dcaFormCard',
+    'buy-increase': 'buyIncreaseFormCard',
+    'sell-decrease': 'sellDecreaseFormCard',
+    'grid': 'gridFormCard'
+  };
+
+  const formId = formMap[type];
+  if (formId) {
+    document.getElementById(formId)?.classList.remove('hidden');
+  }
+
+  // Update title
+  const titleMap = {
+    'dca': 'Your DCA Strategies',
+    'buy-increase': 'Your Buy on Rise Orders',
+    'sell-decrease': 'Your Sell on Drop Orders',
+    'grid': 'Your Grid Trading Orders'
+  };
+
+  const titleEl = document.getElementById('recurringOrdersTitle');
+  if (titleEl && titleMap[type]) {
+    titleEl.textContent = titleMap[type];
+  }
+};
+
+/**
+ * Handle DCA order creation
+ */
+window.handleCreateDCA = async function(event) {
+  if (event) event.preventDefault();
+
+  try {
+    const tokenIn = document.getElementById('dcaTokenIn')?.value;
+    const tokenOut = document.getElementById('dcaTokenOut')?.value;
+    const amountPerPeriod = document.getElementById('dcaAmountPerPeriod')?.value;
+    const frequency = document.getElementById('dcaFrequency')?.value;
+    const totalPeriods = document.getElementById('dcaTotalPeriods')?.value;
+
+    if (!tokenIn || !tokenOut || !amountPerPeriod || !frequency || !totalPeriods) {
+      showError('Please fill in all required fields');
+      return;
+    }
+
+    // Import RecurringOrdersContract
+    const { RecurringOrdersContract } = await import('./recurring-orders.js');
+
+    loadingOverlay.show('Creating DCA order...');
+
+    // Call contract (minAmountOut should be calculated based on slippage)
+    const minAmountOut = parseFloat(amountPerPeriod) * 0.95; // 5% slippage tolerance
+
+    await RecurringOrdersContract.createDCA(
+      tokenIn,
+      tokenOut,
+      parseInt(frequency),
+      amountPerPeriod,
+      minAmountOut.toString(),
+      parseInt(totalPeriods)
+    );
+
+    loadingOverlay.hide();
+    showSuccess('DCA order created successfully!');
+
+    // Refresh orders list
+    await refreshRecurringOrders();
+
+    // Reset form
+    document.getElementById('dcaForm')?.reset();
+  } catch (error) {
+    loadingOverlay.hide();
+    showError(`Failed to create DCA order: ${error.message}`);
+    console.error('Create DCA error:', error);
+  }
+};
+
+/**
+ * Handle Buy on Increase order creation
+ */
+window.handleCreateBuyIncrease = async function(event) {
+  if (event) event.preventDefault();
+
+  try {
+    const tokenIn = document.getElementById('buyIncreaseTokenIn')?.value;
+    const tokenOut = document.getElementById('buyIncreaseTokenOut')?.value;
+    const trigger = document.getElementById('buyIncreaseTrigger')?.value;
+    const amount = document.getElementById('buyIncreaseAmount')?.value;
+    const maxExec = document.getElementById('buyIncreaseMaxExec')?.value;
+    const minOut = document.getElementById('buyIncreaseMinOut')?.value;
+
+    if (!tokenIn || !tokenOut || !trigger || !amount || !minOut) {
+      showError('Please fill in all required fields');
+      return;
+    }
+
+    const { RecurringOrdersContract } = await import('./recurring-orders.js');
+
+    loadingOverlay.show('Creating Buy on Increase order...');
+
+    // Convert percentage to basis points (2% = 200 basis points)
+    const triggerBps = Math.floor(parseFloat(trigger) * 100);
+
+    await RecurringOrdersContract.createBuyOnIncrease(
+      tokenIn,
+      tokenOut,
+      triggerBps,
+      amount,
+      minOut,
+      parseInt(maxExec) || 0
+    );
+
+    loadingOverlay.hide();
+    showSuccess('Buy on Increase order created successfully!');
+
+    await refreshRecurringOrders();
+    document.getElementById('buyIncreaseForm')?.reset();
+  } catch (error) {
+    loadingOverlay.hide();
+    showError(`Failed to create order: ${error.message}`);
+    console.error('Create Buy on Increase error:', error);
+  }
+};
+
+/**
+ * Handle Sell on Decrease order creation
+ */
+window.handleCreateSellDecrease = async function(event) {
+  if (event) event.preventDefault();
+
+  try {
+    const tokenIn = document.getElementById('sellDecreaseTokenIn')?.value;
+    const tokenOut = document.getElementById('sellDecreaseTokenOut')?.value;
+    const trigger = document.getElementById('sellDecreaseTrigger')?.value;
+    const amount = document.getElementById('sellDecreaseAmount')?.value;
+    const minOut = document.getElementById('sellDecreaseMinOut')?.value;
+
+    if (!tokenIn || !tokenOut || !trigger || !amount || !minOut) {
+      showError('Please fill in all required fields');
+      return;
+    }
+
+    const { RecurringOrdersContract } = await import('./recurring-orders.js');
+
+    loadingOverlay.show('Creating Sell on Decrease order...');
+
+    const triggerBps = Math.floor(parseFloat(trigger) * 100);
+
+    // Sell on Decrease doesn't have maxExecutions parameter in the simplified version
+    await RecurringOrdersContract.createSellOnDecrease?.(
+      tokenIn,
+      tokenOut,
+      triggerBps,
+      amount,
+      minOut
+    );
+
+    loadingOverlay.hide();
+    showSuccess('Sell on Decrease order created successfully!');
+
+    await refreshRecurringOrders();
+    document.getElementById('sellDecreaseForm')?.reset();
+  } catch (error) {
+    loadingOverlay.hide();
+    showError(`Failed to create order: ${error.message}`);
+    console.error('Create Sell on Decrease error:', error);
+  }
+};
+
+/**
+ * Generate grid level inputs dynamically
+ */
+window.generateGridLevels = function() {
+  const levelCount = parseInt(document.getElementById('gridLevelCount')?.value || 0);
+
+  if (levelCount < 1 || levelCount > 10) {
+    showError('Please enter a valid number of grid levels (1-10)');
+    return;
+  }
+
+  const container = document.getElementById('gridLevelsContainer');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  for (let i = 0; i < levelCount; i++) {
+    const levelDiv = document.createElement('div');
+    levelDiv.className = 'form-row';
+    levelDiv.style.marginBottom = '1rem';
+    levelDiv.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Level ${i + 1} - Percentage (%)</label>
+        <input type="number" id="gridLevel${i}Pct" placeholder="${(i + 1) * 2}" step="0.1" class="form-input grid-level-pct">
+        <div class="input-hint">Price change percentage (e.g., ${(i + 1) * 2}% = ±${(i + 1) * 2}%)</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Level ${i + 1} - Amount</label>
+        <input type="number" id="gridLevel${i}Amount" placeholder="100" class="form-input grid-level-amount">
+        <div class="input-hint">Amount to trade at this level</div>
+      </div>
+    `;
+    container.appendChild(levelDiv);
+  }
+
+  showSuccess(`Generated ${levelCount} grid levels`);
+};
+
+/**
+ * Handle Grid order creation
+ */
+window.handleCreateGrid = async function(event) {
+  if (event) event.preventDefault();
+
+  try {
+    const tokenIn = document.getElementById('gridTokenIn')?.value;
+    const tokenOut = document.getElementById('gridTokenOut')?.value;
+    const minOut = document.getElementById('gridMinOut')?.value;
+    const levelCount = parseInt(document.getElementById('gridLevelCount')?.value || 0);
+
+    if (!tokenIn || !tokenOut || !minOut || levelCount < 1) {
+      showError('Please fill in all required fields and generate grid levels');
+      return;
+    }
+
+    // Collect grid levels and amounts
+    const gridLevels = [];
+    const gridAmounts = [];
+
+    for (let i = 0; i < levelCount; i++) {
+      const pct = document.getElementById(`gridLevel${i}Pct`)?.value;
+      const amount = document.getElementById(`gridLevel${i}Amount`)?.value;
+
+      if (!pct || !amount) {
+        showError(`Please fill in all grid level fields`);
+        return;
+      }
+
+      // Convert percentage to basis points
+      gridLevels.push(Math.floor(parseFloat(pct) * 100));
+      gridAmounts.push(amount);
+    }
+
+    const { RecurringOrdersContract } = await import('./recurring-orders.js');
+
+    loadingOverlay.show('Creating Grid order...');
+
+    await RecurringOrdersContract.createGrid?.(
+      tokenIn,
+      tokenOut,
+      gridLevels,
+      gridAmounts,
+      minOut
+    );
+
+    loadingOverlay.hide();
+    showSuccess(`Grid order created with ${levelCount} levels!`);
+
+    await refreshRecurringOrders();
+    document.getElementById('gridForm')?.reset();
+    document.getElementById('gridLevelsContainer').innerHTML = '';
+  } catch (error) {
+    loadingOverlay.hide();
+    showError(`Failed to create grid order: ${error.message}`);
+    console.error('Create Grid error:', error);
+  }
+};
+
+/**
+ * Refresh recurring orders list
+ */
+window.refreshRecurringOrders = async function() {
+  try {
+    if (!getUserAddress()) {
+      console.log('User not connected');
+      return;
+    }
+
+    const { RecurringOrdersContract } = await import('./recurring-orders.js');
+
+    // Get user orders
+    const orderIds = await RecurringOrdersContract.getUserOrders(getUserAddress());
+
+    console.log('User recurring orders:', orderIds);
+
+    // TODO: Display orders in the list
+    // For now, just update the count
+    const countEl = document.getElementById('activeDCACount');
+    if (countEl) {
+      countEl.textContent = orderIds.length.toString();
+    }
+
+    // If no orders, show empty state
+    if (orderIds.length === 0) {
+      const listEl = document.getElementById('dcaStrategiesList');
+      if (listEl) {
+        listEl.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">📈</div>
+            <p>No recurring orders yet</p>
+            <button class="secondary-btn" onclick="switchRecurringOrderType('dca')">Create Your First Order</button>
+          </div>
+        `;
+      }
+    } else {
+      // TODO: Fetch and display each order
+      console.log('TODO: Display recurring orders');
+    }
+  } catch (error) {
+    console.error('Failed to refresh recurring orders:', error);
+  }
+};
+
+/**
+ * Handle cancel recurring order
+ */
+window.handleCancelRecurringOrder = async function(orderId) {
+  if (!confirm(`Are you sure you want to cancel order #${orderId}?`)) {
+    return;
+  }
+
+  try {
+    const { RecurringOrdersContract } = await import('./recurring-orders.js');
+
+    loadingOverlay.show('Cancelling order...');
+
+    await RecurringOrdersContract.cancelOrder(orderId);
+
+    loadingOverlay.hide();
+    showSuccess(`Order #${orderId} cancelled successfully!`);
+
+    await refreshRecurringOrders();
+  } catch (error) {
+    loadingOverlay.hide();
+    showError(`Failed to cancel order: ${error.message}`);
+  }
+};
 
 // ============================================================================
 // EXPORT FOR GLOBAL ACCESS
