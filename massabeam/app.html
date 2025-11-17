@@ -75,11 +75,11 @@
                         <span class="nav-icon">🎯</span>
                         <span class="nav-text">Limit Orders</span>
                     </button>
-                    <!-- <button class="nav-item" data-section="dca">
-                        <span class="nav-icon">📈</span>
-                        <span class="nav-text">DCA Strategies</span>
+                    <button class="nav-item" data-section="recurring">
+                        <span class="nav-icon">🔄</span>
+                        <span class="nav-text">Recurring Orders</span>
                     </button>
-                    <button class="nav-item" data-section="yield">
+                    <!-- <button class="nav-item" data-section="yield">
                         <span class="nav-icon">🌾</span>
                         <span class="nav-text">Yield Farming</span>
                     </button>
@@ -487,14 +487,39 @@
             </section>
 
             <!-- DCA Strategies Section -->
-            <section id="dca" class="section">
+            <section id="recurring" class="section">
                 <div class="section-header">
-                    <h1 class="section-title">DCA Strategies</h1>
+                    <h1 class="section-title">Recurring Orders</h1>
                     <div class="section-actions">
-                        <button class="primary-btn" onclick="openCreateDCAModal()">
-                            <span>Create Strategy</span>
+                        <button class="secondary-btn" onclick="refreshRecurringOrders()">
+                            <span class="refresh-icon">🔄</span>
+                            Refresh
                         </button>
                     </div>
+                </div>
+
+                <!-- Order Type Tabs -->
+                <div class="order-type-tabs">
+                    <button class="tab-btn active" data-order-type="dca" onclick="switchRecurringOrderType('dca')">
+                        <span class="tab-icon">📊</span>
+                        <span class="tab-text">DCA</span>
+                        <div class="tab-desc">Dollar Cost Average</div>
+                    </button>
+                    <button class="tab-btn" data-order-type="buy-increase" onclick="switchRecurringOrderType('buy-increase')">
+                        <span class="tab-icon">📈</span>
+                        <span class="tab-text">Buy on Rise</span>
+                        <div class="tab-desc">Buy when price increases</div>
+                    </button>
+                    <button class="tab-btn" data-order-type="sell-decrease" onclick="switchRecurringOrderType('sell-decrease')">
+                        <span class="tab-icon">📉</span>
+                        <span class="tab-text">Sell on Drop</span>
+                        <div class="tab-desc">Sell when price decreases</div>
+                    </button>
+                    <button class="tab-btn" data-order-type="grid" onclick="switchRecurringOrderType('grid')">
+                        <span class="tab-icon">⚡</span>
+                        <span class="tab-text">Grid Trading</span>
+                        <div class="tab-desc">Multiple price levels</div>
+                    </button>
                 </div>
 
                 <div class="dca-container">
