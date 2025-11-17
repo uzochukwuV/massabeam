@@ -34,6 +34,8 @@ export const DEPLOYED_CONTRACTS = {
   AMM: "AS123iK1bQATxAVw2WE5vojCLFnU4ESuTanHsGkyUnpn8xqF6Yfnk",
   DCA: "AS12Z8eKEdKv6mJiBFrh53gWFLY3K5LnKnxuFymCCXEBpk3rMD7Ua",
   ENGINE: "AS1QXNZ6MB9GV3zmtSLgEKFAXs3Sxcp4qnCtupLXku942QgxBn4P",
+  LIMIT_ORDERS: null, // TODO: Deploy limit_orders_autonomous.ts contract
+  RECURRING_ORDERS: null, // TODO: Deploy recurring_orders.ts contract
 
   // Deployment Info
   DEPLOYER: "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
@@ -1292,7 +1294,7 @@ export const LimitOrdersContract = {
       console.log("Cancelling order:", orderId);
 
       const args = new Args().addU64(BigInt(orderId));
-      await callContract(CONTRACTS.LIMIT_ORDERS, 'cancelLimitOrder', args.serialize());
+      await callContract(CONTRACTS.LIMIT_ORDERS, 'cancelOrder', args.serialize());
 
       showSuccess(`Order ${orderId} cancelled successfully!`);
       return true;
@@ -1338,7 +1340,7 @@ export const LimitOrdersContract = {
   async getOrderDetails(orderId) {
     try {
       const args = new Args().addU64(BigInt(orderId));
-      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'getOrderDetails', args.serialize());
+      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'readOrder', args.serialize());
 
       if (!result || result.length === 0) {
         return null;
@@ -1431,7 +1433,7 @@ export const LimitOrdersContract = {
    */
   async getOrderCount() {
     try {
-      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'getOrderCount');
+      const result = await readContract(CONTRACTS.LIMIT_ORDERS, 'readOrderCount');
       const countStr = bytesToStr(result);
       return parseInt(countStr) || 0;
     } catch (error) {
