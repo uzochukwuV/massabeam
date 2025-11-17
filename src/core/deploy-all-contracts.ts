@@ -178,7 +178,7 @@ async function deployLimitOrders(
   logSection('2️⃣  LIMIT ORDERS DEPLOYMENT');
 
   try {
-    const wasmPath = getWasmPath('limit_orders.wasm');
+    const wasmPath = getWasmPath('limit_orders_autonomous.wasm');
     const wasmBuffer = fs.readFileSync(wasmPath);
 
     log('WASM Size:', `${(wasmBuffer.length / 1024).toFixed(2)} KB`);
@@ -472,7 +472,7 @@ async function main(): Promise<void> {
     // Deploy contracts in order
     const startTime = Date.now();
 
-    const massaBeamAddress = await deployMassaBeam(provider, account);
+    const massaBeamAddress = "AS12j28AMC3gsffnB5PsrkK1jA4iZS8CLvT6koNCD4kSd6GaRzi28" // await deployMassaBeam(provider, account);
     const limitOrdersAddress = await deployLimitOrders(provider, account, massaBeamAddress);
     const recurringOrdersAddress = await deployRecurringOrders(provider, account, massaBeamAddress);
     const flashArbitrageBotAddress = await deployFlashArbitrageBot(

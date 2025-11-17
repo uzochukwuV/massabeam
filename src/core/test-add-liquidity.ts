@@ -1,8 +1,8 @@
 /**
- * Remove Liquidity Test
- * Tests removeLiquidity function for existing ERC20/ERC20 pool
+ * Add Liquidity Test
+ * Tests addLiquidity function for existing ERC20/ERC20 pool
  *
- * Usage: npx tsx src/test-remove-liquidity.ts
+ * Usage: npx tsx src/test-add-liquidity.ts
  */
 
 import 'dotenv/config';
@@ -12,7 +12,6 @@ import {
   Mas,
   SmartContract,
   JsonRpcProvider,
-  bytesToStr,
 } from '@massalabs/massa-web3';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -38,7 +37,7 @@ function logSection(title: string): void {
 }
 
 async function main(): Promise<void> {
-  logSection('🧪 TEST: REMOVE LIQUIDITY FROM ERC20/ERC20 POOL');
+  logSection('🧪 TEST: ADD LIQUIDITY TO ERC20/ERC20 POOL');
 
   try {
     // Setup
@@ -64,42 +63,57 @@ async function main(): Promise<void> {
     log(`Token B: ${TOKEN_B}`);
 
     const ammContract = new SmartContract(provider, massaBeamAddress);
+    const tokenAContract = new SmartContract(provider, TOKEN_A);
+    const tokenBContract = new SmartContract(provider, TOKEN_B);
 
-    const lpBalanceBytes = await ammContract.read(
-          'readLPBalance',
-          new Args()
-            .addString(TOKEN_A)
-            .addString(TOKEN_B)
-            .addString(account.address.toString())
-        );
-    
-        const lpBalanceStr = bytesToStr(lpBalanceBytes.value);
-        const lpBalance = BigInt(lpBalanceStr);
+    // Add liquidity amounts
+    const amountADesired = 100n * 10n ** 6n;  // 100 tokens (6 decimals)
+    const amountBDesired = 2n * 10n ** 6n;   // 2 tokens (6 decimals)
+    const amountAMin = 90n * 10n ** 6n;      // 90 tokens minimum
+    const amountBMin = 1n * 10n ** 6n;       // 1 token minimum
 
-    // Remove liquidity amounts
-    // User must specify how many LP tokens to burn
-    // For this test, we'll remove a small portion
-    const liquidityToRemove = lpBalance;    // 1 million LP tokens
-    const amountAMin = 1n * 10n ** 5n;           // 0.1 Token A minimum
-    const amountBMin = 1n * 10n ** 3n;           // 0.001 Token B minimum
+    logSection('💧 ADDING LIQUIDITY');
+    log(`Desired Amount A: ${amountADesired} (100 tokens)`);
+    log(`Desired Amount B: ${amountBDesired} (2 tokens)`);
+    log(`Minimum Amount A: ${amountAMin} (90 tokens)`);
+    log(`Minimum Amount B: ${amountBMin} (1 token)`);
 
-    logSection('🏊 REMOVING LIQUIDITY');
-    log(`LP Tokens to Burn: ${liquidityToRemove} (1M LP tokens)`);
-    log(`Minimum Amount A: ${amountAMin} (0.1 tokens)`);
-    log(`Minimum Amount B: ${amountBMin} (0.001 tokens)`);
+    // Step 1: Approve Token A
+    log('\n1️⃣ Approving Token A...');
+    await tokenAContract.call(
+      'increaseAllowance',
+      new Args()
+        .addString(massaBeamAddress)
+        .addU256(amountADesired),
+      { coins: Mas.fromString('0.01') }
+    );
+    log('✅ Token A approved');
 
-    log('\n1️⃣ Removing liquidity from pool...');
-    const deadline = 3600000n; // 1 hour in ms
+    // Step 2: Approve Token B
+    log('\n2️⃣ Approving Token B...');
+    await tokenBContract.call(
+      'increaseAllowance',
+      new Args()
+        .addString(massaBeamAddress)
+        .addU256(amountBDesired),
+      { coins: Mas.fromString('0.01') }
+    );
+    log('✅ Token B approved');
 
-    const removeLiquidityArgs = new Args()
+    // Step 3: Add liquidity
+    log('\n3️⃣ Adding liquidity to pool...');
+    const deadline = BigInt(Math.floor(Date.now())) + 3600000n; // Current time + 1 hour in ms
+
+    const addLiquidityArgs = new Args()
       .addString(TOKEN_A)
       .addString(TOKEN_B)
-      .addU256(liquidityToRemove)
+      .addU256(amountADesired)
+      .addU256(amountBDesired)
       .addU256(amountAMin)
       .addU256(amountBMin)
       .addU64(deadline);
 
-    const tx = await ammContract.call('removeLiquidity', removeLiquidityArgs, {
+    const tx = await ammContract.call('addLiquidity', addLiquidityArgs, {
       coins: Mas.fromString('0.5'),
       maxGas: BigInt(4000000000),
     });
@@ -108,10 +122,9 @@ async function main(): Promise<void> {
     const events = await tx.getFinalEvents();
     console.log(events);
 
-    log('✅ Liquidity removed successfully!');
-    log(`   Burned LP tokens and received:`)
-    log(`   - Token A`);
-    log(`   - Token B`);
+    log('✅ Liquidity added successfully!');
+    log(`   Added: 100 Token A + 2 Token B`);
+    log(`   Received LP tokens proportional to liquidity share`);
 
     logSection('✨ TEST COMPLETE');
 

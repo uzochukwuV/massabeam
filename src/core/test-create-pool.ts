@@ -102,7 +102,7 @@ async function main(): Promise<void> {
 
     // Step 2: Create pool with native MAS
     log('\n2️⃣ Creating pool with native MAS...');
-    const deadline = 3600000n; // 1 hour in ms
+    const deadline =  3600000n; // Current time + 1 hour in ms
     const masToSend = 2; // 100 MAS
     
     const createPoolArgs = new Args()

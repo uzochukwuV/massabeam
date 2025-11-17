@@ -130,6 +130,88 @@ const MASSABEAM_GAS_ESTIMATE: u64 = 500_000; // Lower gas for simple swap
 const DUSA_GAS_ESTIMATE: u64 = 1_200_000; // Higher gas for concentrated liquidity
 
 // ============================================================================
+// STORAGE HELPER FUNCTIONS - Consistent Key Management
+// ============================================================================
+
+/**
+ * Get a counter value from storage
+ */
+function getCounter(key: string): u64 {
+  const keyBytes = stringToBytes(key);
+  if (!Storage.has(keyBytes)) {
+    return 0;
+  }
+  return u64(parseInt(Storage.get(keyBytes)));
+}
+
+/**
+ * Set a counter value in storage
+ */
+function setCounter(key: string, value: u64): void {
+  Storage.set(stringToBytes(key), value.toString());
+}
+
+/**
+ * Increment a counter by 1 and return new value
+ */
+function incrementCounter(key: string): u64 {
+  const current = getCounter(key);
+  const next = current + 1;
+  setCounter(key, next);
+  return next;
+}
+
+/**
+ * Get a string value from storage
+ */
+function getString(key: string): string {
+  const keyBytes = stringToBytes(key);
+  if (!Storage.has(keyBytes)) {
+    return '';
+  }
+  return Storage.get(keyBytes);
+}
+
+/**
+ * Set a string value in storage
+ */
+function setString(key: string, value: string): void {
+  Storage.set(stringToBytes(key), value);
+}
+
+/**
+ * Get a boolean value from storage
+ */
+function getBool(key: string): bool {
+  return getString(key) === 'true';
+}
+
+/**
+ * Set a boolean value in storage
+ */
+function setBool(key: string, value: bool): void {
+  setString(key, value ? 'true' : 'false');
+}
+
+/**
+ * Get a u256 value from storage (stored as string)
+ */
+function getU256(key: string): u256 {
+  const str = getString(key);
+  if (str.length === 0) {
+    return u256.Zero;
+  }
+  return u256.fromString(str);
+}
+
+/**
+ * Set a u256 value in storage (stored as string)
+ */
+function setU256(key: string, value: u256): void {
+  setString(key, value.toString());
+}
+
+// ============================================================================
 // CONSTRUCTOR
 // ============================================================================
 

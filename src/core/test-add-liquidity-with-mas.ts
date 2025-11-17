@@ -147,7 +147,7 @@ async function main(): Promise<void> {
 
     // Step 2: Add liquidity with MAS
     log('\n2️⃣ Adding liquidity with MAS...');
-    const deadline = 3600000n; // 1 hour in ms
+    const deadline = BigInt(Math.floor(Date.now())) + 3600000n; // Current time + 1 hour in ms
 
     const addLiquidityWithMASArgs = new Args()
       .addString(TOKEN)              // token address (USDC)

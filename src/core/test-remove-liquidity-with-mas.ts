@@ -97,7 +97,7 @@ async function main(): Promise<void> {
     log(`(Removing 10% of user's LP balance)`);
 
     log('\n1️⃣ Removing liquidity with MAS...');
-    const deadline = 3600000n; // 1 hour in ms
+    const deadline =  3600000n; // Current time + 1 hour in ms
 
     const removeLiquidityWithMASArgs = new Args()
       .addString(TOKEN)              // token address (USDC)

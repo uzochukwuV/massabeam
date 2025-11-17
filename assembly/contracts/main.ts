@@ -465,6 +465,10 @@ function safeTransferFrom(
 /**
  * Safe token transfer from contract to user
  * Now uses u256 directly (no conversion needed!)
+ *
+ * Note: Token transfer() returns void in AssemblyScript.
+ * If transfer fails, it will throw an error and halt execution.
+ * So returning true only means we got to that point without error.
  */
 function safeTransfer(token: Address, to: Address, amount: u256): bool {
   if (amount.isZero()) return true;
@@ -472,10 +476,13 @@ function safeTransfer(token: Address, to: Address, amount: u256): bool {
   const tokenContract = new IERC20(token);
   const balance = tokenContract.balanceOf(Context.callee());
 
+  // Check balance before attempting transfer
   if (balance < amount) {
     return false;
   }
 
+  // transfer() is void - if it fails, this throws and halts execution
+  // If we reach here, transfer succeeded
   tokenContract.transfer(to, amount);  // Direct u256
   return true;
 }
@@ -555,7 +562,7 @@ export function createPool(args: StaticArray<u8>): void {
   assert(liquidity > minLiquidity, 'Insufficient liquidity');
 
   // Create pool
-  const pool = new Pool(tokenA, tokenB, amountA, amountB, liquidity, DEFAULT_FEE_RATE, Context.timestamp());
+  const pool = new Pool(tokenA, tokenB, amountA, amountB, liquidity, DEFAULT_FEE_RATE, Context.timestamp(), true);
   updateCumulativePrices(pool);
   savePool(pool);
 
@@ -824,7 +831,7 @@ export function removeLiquidity(args: StaticArray<u8>): void {
   const amountBMin = argument.nextU256().unwrap();  // u256
   const deadline = argument.nextU64().unwrap();
 
-  validDeadline(deadline + Context.timestamp());
+  validDeadline(deadline + Context.timestamp() );
   validateTokenPair(tokenA, tokenB);
   assert(!liquidity.isZero(), 'Insufficient liquidity');
 
@@ -976,7 +983,7 @@ export function swapMASForTokens(args: StaticArray<u8>): void {
   // Validation
   assert(sent > 0, 'No MAS sent');
   assert(!minAmountOut.isZero(), 'Invalid min output');
-  assert(Context.timestamp() <= deadline, 'Deadline expired');
+  assert(Context.timestamp() <= deadline + Context.timestamp(), 'Deadline expired');
 
   // Get WMAS and pool
   const wmas = getWMASAddress();
@@ -1044,7 +1051,7 @@ export function swapTokensForMAS(args: StaticArray<u8>): void {
   // Validation
   assert(!amountIn.isZero(), 'Invalid input');
   assert(minAmountOut > 0, 'Invalid min output');
-  assert(Context.timestamp() <= deadline, 'Deadline expired');
+  assert(Context.timestamp() <= deadline + Context.timestamp(), 'Deadline expired');
 
   // Get WMAS and pool
   const wmas = getWMASAddress();

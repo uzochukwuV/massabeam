@@ -1,14 +1,14 @@
 {
   "contracts": {
-    "massaBeam": "AS12fMhWMFHqTyvhQJiNquTXrxn5HnCseoUQ456zWW3fEoYMToxiM",
-    "limitOrders": "AS15FRhDuS52AnFyGwfSkucXLUJVksWGaQdnwtvAvQwbtCsDvMC4",
-    "recurringOrders": "AS122i855WWmXHYpMAs7gnafgQ7BhkrCpoW2AR6DxBefs958Ke1NJ",
-    "flashArbitrageBot": "AS12NVPTENpLj6f9G3Jm3zDpTtXW3msBD7spcSLeu1d8LuDJE7KWT",
-    "smartSwap": "AS1w23mXtf6yksXJRYVUga3QyMerKN4WxxS4BweZ5fuXDXmUKwRT",
-    "arbitrageEngine": "AS12kbZ6ByXUFLt1wQ92pweQnMJBeCuNcz8DZb5Rj8jWLoE2KKiW5"
+    "massaBeam": "AS12j28AMC3gsffnB5PsrkK1jA4iZS8CLvT6koNCD4kSd6GaRzi28",
+    "limitOrders": "AS12Qaj8pyWVSzXD5qy6GLhhVBsPP2f6BFPH3DwrFyngBQ3Dq5vfK",
+    "recurringOrders": "AS122HcenNpd8pSCKkTwJFPzp7W5EQVGQc2UDdNWfRKQsWAKAUvWt",
+    "flashArbitrageBot": "AS1Ae56Jv9cMtGXgS9yfFK6SH8mwoweuKdBeGv7X8qfG3e8MNNeL",
+    "smartSwap": "AS1ukvaXHuhJdngBNCLZbRw8jNQuKNaYKtecNPcSRwa84Yrtkqzo",
+    "arbitrageEngine": "AS12atCGHSnGkPrg4yBW5uRVKo4ns16CLBpjvpZw5EjW98qEs2r3Q"
   },
   "deployment": {
-    "timestamp": "2025-11-13T14:27:50.340Z",
+    "timestamp": "2025-11-17T00:20:51.363Z",
     "network": "buildnet",
     "account": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
     "totalGasUsed": "~12 MAS"

@@ -54,7 +54,7 @@ export class IMassaBeamAMM {
             .add(tokenA.toString())
             .add(tokenB.toString());
 
-        return call(this._origin, "getPool", args, 0);
+        return call(this._origin, "readPool", args, 0);
     }
 
     /**
@@ -82,6 +82,9 @@ export class IMassaBeamAMM {
     flashLoan(args: StaticArray<u8>): void {
         call(this._origin, "flashLoan", new Args().add(args), 0);
     }
+
+
+
 
     /**
      * Set pool reserves for testing (ADMIN ONLY)

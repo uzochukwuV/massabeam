@@ -9,7 +9,7 @@
         "clean": "rimraf build",
         "deploy": "npm run build && tsx src/deploy.ts",
         "deploy:full": "npm run build && tsx src/deploy-full.ts",
-        "deploy:all": "npm run build && tsx src/deploy-all-contracts.ts",
+        "deploy:all": "npm run build && tsx src/core/deploy-all-contracts.ts",
         "deploy:smartrouter": "npm run build && tsx src/deploy-smartrouter.ts",
         "test:amm": "tsx src/test-amm.ts",
         "test:smartswap": "tsx src/test-smartswap.ts",

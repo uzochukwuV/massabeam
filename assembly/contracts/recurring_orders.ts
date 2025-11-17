@@ -27,11 +27,13 @@
 
 import {
   Address,
+  asyncCall,
   Context,
   generateEvent,
+  Slot,
   Storage,
 } from '@massalabs/massa-as-sdk';
-import { Args, stringToBytes } from '@massalabs/as-types';
+import { Args, stringToBytes, bytesToString } from '@massalabs/as-types';
 import { u256 } from 'as-bignum/assembly/integer/u256';
 import { IERC20 } from './interfaces/IERC20';
 import { IMassaBeamAMM } from './interfaces/IMassaBeamAMM';
@@ -70,6 +72,11 @@ const RECURRING_ORDER_PREFIX = 'recurring_order:';
 const RECURRING_ORDER_COUNT_KEY = 'recurring_order_count';
 const USER_RECURRING_ORDERS_PREFIX = 'user_recurring_orders:';
 const PRICE_HISTORY_PREFIX = 'price_history:';
+const ACTIVE_ORDER_COUNT_KEY = 'active_recurring_count';       // Status counter
+const COMPLETED_ORDER_COUNT_KEY = 'completed_recurring_count'; // Status counter
+const PAUSED_ORDER_COUNT_KEY = 'paused_recurring_count';       // Status counter
+const CANCELLED_ORDER_COUNT_KEY = 'cancelled_recurring_count'; // Status counter
+const TOTAL_EXECUTION_COUNT_KEY = 'total_execution_count';     // Execution tracker
 const MASSABEAM_ADDRESS_KEY = 'massabeam_address';
 const PAUSED_KEY = 'paused';
 const BOT_ENABLED_KEY = 'bot_enabled';
@@ -81,6 +88,76 @@ const BOT_CHECK_INTERVAL: u64 = 5; // Check every 5 slots (~5 seconds)
 const BOT_MAX_ORDERS_PER_CYCLE: u64 = 20; // Process max 20 orders per cycle
 const PRICE_HISTORY_WINDOW: u64 = 3600; // Keep 1 hour of price history
 const GAS_COST_PER_EXECUTION: u64 = 500_000_000;
+
+// ============================================================================
+// STORAGE HELPER FUNCTIONS - Consistent Key Management
+// ============================================================================
+
+/**
+ * Get a counter value from storage
+ */
+function getCounter(key: string): u64 {
+  const keyBytes = stringToBytes(key);
+  if (!Storage.has(keyBytes)) {
+    return 0;
+  }
+  return u64(parseInt(bytesToString(Storage.get<StaticArray<u8>>(keyBytes))));
+}
+
+/**
+ * Set a counter value in storage
+ */
+function setCounter(key: string, value: u64): void {
+  Storage.set<StaticArray<u8>>(
+    stringToBytes(key),
+    stringToBytes(value.toString())
+  );
+}
+
+/**
+ * Increment a counter by 1
+ */
+function incrementCounter(key: string): u64 {
+  const current = getCounter(key);
+  const next = current + 1;
+  setCounter(key, next);
+  return next;
+}
+
+/**
+ * Get a string value from storage
+ */
+function getString(key: string): string {
+  const keyBytes = stringToBytes(key);
+  if (!Storage.has(keyBytes)) {
+    return '';
+  }
+  return bytesToString(Storage.get<StaticArray<u8>>(keyBytes));
+}
+
+/**
+ * Set a string value in storage
+ */
+function setString(key: string, value: string): void {
+  Storage.set<StaticArray<u8>>(
+    stringToBytes(key),
+    stringToBytes(value)
+  );
+}
+
+/**
+ * Get a boolean value from storage
+ */
+function getBool(key: string): bool {
+  return getString(key) === 'true';
+}
+
+/**
+ * Set a boolean value in storage
+ */
+function setBool(key: string, value: bool): void {
+  setString(key, value ? 'true' : 'false');
+}
 
 // ============================================================================
 // DATA STRUCTURES
@@ -330,7 +407,7 @@ function requireRole(role: string): void {
  * Helper: Ensure contract not paused
  */
 function whenNotPaused(): void {
-  assert(!Storage.has(PAUSED_KEY), 'Contract is paused');
+  assert(!getBool(PAUSED_KEY), 'Contract is paused');
 }
 
 /**
@@ -352,6 +429,29 @@ function saveRecurringOrder(order: RecurringOrder): void {
   Storage.set<StaticArray<u8>>(key, order.serialize());
 }
 
+/**
+ * Track order for user (add to user's order list)
+ */
+function addOrderToUser(user: Address, orderId: u64): void {
+  const key = stringToBytes(USER_RECURRING_ORDERS_PREFIX + user.toString());
+  let data = new StaticArray<u8>(0);
+  if (Storage.has(key)) {
+    data = Storage.get<StaticArray<u8>>(key);
+  }
+
+  let ids: u64[] = [];
+  if (data.length > 0) {
+    const args = new Args(data);
+    ids = args.nextFixedSizeArray<u64>().unwrapOrDefault();
+  }
+
+  ids.push(orderId);
+
+  const newArgs = new Args();
+  newArgs.add(ids);
+  Storage.set<StaticArray<u8>>(key, newArgs.serialize());
+}
+
 // ============================================================================
 // CONSTRUCTOR & INITIALIZATION
 // ============================================================================
@@ -365,14 +465,19 @@ export function constructor(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const massaBeamAddress = argument.nextString().unwrap();
 
-  Storage.set(MASSABEAM_ADDRESS_KEY, massaBeamAddress);
-  Storage.set(RECURRING_ORDER_COUNT_KEY, '0');
+  setString(MASSABEAM_ADDRESS_KEY, massaBeamAddress);
+  setCounter(RECURRING_ORDER_COUNT_KEY, 0);
+  setCounter(ACTIVE_ORDER_COUNT_KEY, 0);
+  setCounter(COMPLETED_ORDER_COUNT_KEY, 0);
+  setCounter(PAUSED_ORDER_COUNT_KEY, 0);
+  setCounter(CANCELLED_ORDER_COUNT_KEY, 0);
+  setCounter(TOTAL_EXECUTION_COUNT_KEY, 0);
 
   // Grant admin to deployer
   const deployer = Context.caller();
-  Storage.set(stringToBytes(ADMIN_ROLE + ':' + deployer.toString()), stringToBytes('true'));
-  Storage.set(stringToBytes(KEEPER_ROLE + ':' + deployer.toString()), stringToBytes('true'));
-  Storage.set(stringToBytes(PAUSER_ROLE + ':' + deployer.toString()), stringToBytes('true'));
+  setBool(ADMIN_ROLE + ':' + deployer.toString(), true);
+  setBool(KEEPER_ROLE + ':' + deployer.toString(), true);
+  setBool(PAUSER_ROLE + ':' + deployer.toString(), true);
 
   generateEvent('RecurringOrders: Contract initialized with MassaBeam integration');
 }
@@ -408,9 +513,8 @@ export function createBuyOnIncreaseOrder(args: StaticArray<u8>): u64 {
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
   assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
-  // Get order count
-  const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
-  const orderId = orderCount + 1;
+  // Get order count and increment
+  const orderId = incrementCounter(RECURRING_ORDER_COUNT_KEY);
 
   // Create order
   const order = new RecurringOrder(
@@ -442,7 +546,10 @@ export function createBuyOnIncreaseOrder(args: StaticArray<u8>): u64 {
 
   // Store order
   saveRecurringOrder(order);
-  Storage.set(RECURRING_ORDER_COUNT_KEY, orderId.toString());
+  addOrderToUser(Context.caller(), orderId);
+
+  // Update status counter
+  incrementCounter(ACTIVE_ORDER_COUNT_KEY);
 
   generateEvent('RecurringOrder:BuyOnIncreaseCreated');
 
@@ -472,8 +579,7 @@ export function createSellOnDecreaseOrder(args: StaticArray<u8>): u64 {
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
   assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
-  const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
-  const orderId = orderCount + 1;
+  const orderId = incrementCounter(RECURRING_ORDER_COUNT_KEY);
 
   const order = new RecurringOrder(
     orderId,
@@ -498,7 +604,10 @@ export function createSellOnDecreaseOrder(args: StaticArray<u8>): u64 {
   );
 
   saveRecurringOrder(order);
-  Storage.set(RECURRING_ORDER_COUNT_KEY, orderId.toString());
+  addOrderToUser(Context.caller(), orderId);
+
+  // Update status counter
+  incrementCounter(ACTIVE_ORDER_COUNT_KEY);
 
   generateEvent('RecurringOrder:SellOnDecreaseCreated');
 
@@ -525,8 +634,7 @@ export function createDCAOrder(args: StaticArray<u8>): u64 {
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
   assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
-  const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
-  const orderId = orderCount + 1;
+  const orderId = incrementCounter(RECURRING_ORDER_COUNT_KEY);
 
   const order = new RecurringOrder(
     orderId,
@@ -553,7 +661,10 @@ export function createDCAOrder(args: StaticArray<u8>): u64 {
   );
 
   saveRecurringOrder(order);
-  Storage.set(RECURRING_ORDER_COUNT_KEY, orderId.toString());
+  addOrderToUser(Context.caller(), orderId);
+
+  // Update status counter
+  incrementCounter(ACTIVE_ORDER_COUNT_KEY);
 
   generateEvent('RecurringOrder:DCACreated');
 
@@ -591,8 +702,24 @@ export function cancelRecurringOrder(args: StaticArray<u8>): bool {
     tokenContract.transfer(order!.user, remainingAmount);
   }
 
+  // Update status counters BEFORE changing status
+  const currentStatus = order!.status;
+  if (currentStatus == ORDER_STATUS_ACTIVE) {
+    let activeCount = getCounter(ACTIVE_ORDER_COUNT_KEY);
+    if (activeCount > 0) {
+      setCounter(ACTIVE_ORDER_COUNT_KEY, activeCount - 1);
+    }
+  } else if (currentStatus == ORDER_STATUS_PAUSED) {
+    let pausedCount = getCounter(PAUSED_ORDER_COUNT_KEY);
+    if (pausedCount > 0) {
+      setCounter(PAUSED_ORDER_COUNT_KEY, pausedCount - 1);
+    }
+  }
+
   order!.status = ORDER_STATUS_CANCELLED;
   saveRecurringOrder(order!);
+
+  incrementCounter(CANCELLED_ORDER_COUNT_KEY);
 
   generateEvent('RecurringOrder:Cancelled');
 
@@ -612,9 +739,9 @@ export function startBot(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const maxIterations = argument.nextU64().unwrapOrDefault() || 1000;
 
-  Storage.set(BOT_ENABLED_KEY, 'true');
-  Storage.set(BOT_COUNTER_KEY, '0');
-  Storage.set(BOT_MAX_ITERATIONS, maxIterations.toString());
+  setBool(BOT_ENABLED_KEY, true);
+  setCounter(BOT_COUNTER_KEY, 0);
+  setCounter(BOT_MAX_ITERATIONS, maxIterations);
 
   generateEvent('RecurringOrder:BotStarted');
 
@@ -626,7 +753,8 @@ export function startBot(args: StaticArray<u8>): void {
  */
 export function stopBot(_: StaticArray<u8>): void {
   requireRole(ADMIN_ROLE);
-  Storage.set(BOT_COUNTER_KEY, Storage.get(BOT_MAX_ITERATIONS));
+  const maxIterations = getCounter(BOT_MAX_ITERATIONS);
+  setCounter(BOT_COUNTER_KEY, maxIterations);
   generateEvent('RecurringOrder:BotStopped');
 }
 
@@ -640,18 +768,18 @@ export function stopBot(_: StaticArray<u8>): void {
  * Schedules itself for next cycle via callNextSlot
  */
 export function advance(_: StaticArray<u8>): void {
-  if (!Storage.has(stringToBytes(BOT_ENABLED_KEY))) {
+  if (!getBool(BOT_ENABLED_KEY)) {
     return;
   }
 
-  let botCounter = u64(parseInt(Storage.has(stringToBytes(BOT_COUNTER_KEY)) ? Storage.get(BOT_COUNTER_KEY) : '0'));
-  const maxIterations = u64(parseInt(Storage.get(BOT_MAX_ITERATIONS)));
+  let botCounter = getCounter(BOT_COUNTER_KEY);
+  const maxIterations = getCounter(BOT_MAX_ITERATIONS);
 
   if (botCounter >= maxIterations) {
     return;
   }
 
-  const totalOrders = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
+  const totalOrders = getCounter(RECURRING_ORDER_COUNT_KEY);
   const callee = Context.callee();
 
   let executedCount: u64 = 0;
@@ -703,7 +831,7 @@ export function advance(_: StaticArray<u8>): void {
 
   // Update counter
   botCounter += 1;
-  Storage.set(BOT_COUNTER_KEY, botCounter.toString());
+  setCounter(BOT_COUNTER_KEY, botCounter);
 
   generateEvent('RecurringOrder:BotCycleComplete');
 
@@ -717,7 +845,7 @@ export function advance(_: StaticArray<u8>): void {
  * Execute a recurring order
  */
 function executeRecurringOrder(order: RecurringOrder): void {
-  const massaBeamAddress = new Address(Storage.get(MASSABEAM_ADDRESS_KEY));
+  const massaBeamAddress = new Address(getString(MASSABEAM_ADDRESS_KEY));
   const massaBeam = new IMassaBeamAMM(massaBeamAddress);
 
   // Handle grid trading
@@ -789,7 +917,7 @@ function executeGridOrder(order: RecurringOrder, massaBeam: IMassaBeamAMM): void
 
       const tokenInContract = new IERC20(order.tokenIn);
       tokenInContract.increaseAllowance(
-        new Address(Storage.get(MASSABEAM_ADDRESS_KEY)),
+        new Address(getString(MASSABEAM_ADDRESS_KEY)),
         amount
       );
 
@@ -829,13 +957,34 @@ function executeGridOrder(order: RecurringOrder, massaBeam: IMassaBeamAMM): void
 
 /**
  * Wrapper for callNextSlot (Massa ASC feature)
+ * Schedules autonomous execution in the next slot
  */
 function callNextSlot(contractAddress: Address, functionName: string, gasBudget: u64): void {
-  // In production, this would use Massa's callNextSlot feature
-  // For now, we log the event
+  // Get current period and thread
+  const currentPeriod = Context.currentPeriod();
+  const currentThread = Context.currentThread();
+
+  // Calculate next slot (next thread in current period, or first thread in next period)
+  let nextPeriod = currentPeriod;
+  let nextThread = currentThread + 1;
+
+  if (nextThread >= 32) {
+    nextPeriod = currentPeriod + 1;
+    nextThread = 0;
+  }
+
+  // Schedule async call for next slot
+  asyncCall(
+    contractAddress,
+    functionName,
+    new Slot(nextPeriod, nextThread),
+    new Slot(nextPeriod + 5, nextThread), // End slot = 5 periods later
+    gasBudget,
+    0, // Coins to send
+    new Args().serialize()
+  );
+
   generateEvent(`RecurringOrder:NextSlotScheduled:${functionName}:${gasBudget.toString()}`);
-  // TODO: Uncomment when deploying to Massa:
-  // call(contractAddress, functionName, new Args().serialize(), gasBudget);
 }
 
 // ============================================================================
@@ -861,7 +1010,7 @@ export function getOrderDetails(args: StaticArray<u8>): StaticArray<u8> {
  * Get order count
  */
 export function getOrderCount(): StaticArray<u8> {
-  const count = Storage.get(RECURRING_ORDER_COUNT_KEY);
+  const count = getCounter(RECURRING_ORDER_COUNT_KEY);
   return new Args().add(count).serialize();
 }
 
@@ -917,8 +1066,7 @@ export function createGridOrder(args: StaticArray<u8>): u64 {
   const entryPrice = getCurrentPoolPrice(tokenIn, tokenOut);
   assert(!entryPrice.isZero(), 'Pool not found or no liquidity');
 
-  const orderCount = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
-  const orderId = orderCount + 1;
+  const orderId = incrementCounter(RECURRING_ORDER_COUNT_KEY);
 
   const order = new RecurringOrder(
     orderId,
@@ -955,7 +1103,10 @@ export function createGridOrder(args: StaticArray<u8>): u64 {
   );
 
   saveRecurringOrder(order);
-  Storage.set(RECURRING_ORDER_COUNT_KEY, orderId.toString());
+  addOrderToUser(Context.caller(), orderId);
+
+  // Update status counter
+  incrementCounter(ACTIVE_ORDER_COUNT_KEY);
 
   generateEvent(`RecurringOrder:GridCreated:${numLevels}levels`);
 
@@ -988,6 +1139,14 @@ export function pauseOrder(args: StaticArray<u8>): bool {
   order!.status = ORDER_STATUS_PAUSED;
   saveRecurringOrder(order!);
 
+  // Update status counters
+  let activeCount = getCounter(ACTIVE_ORDER_COUNT_KEY);
+  if (activeCount > 0) {
+    setCounter(ACTIVE_ORDER_COUNT_KEY, activeCount - 1);
+  }
+
+  incrementCounter(PAUSED_ORDER_COUNT_KEY);
+
   generateEvent(`RecurringOrder:Paused:${orderId.toString()}`);
 
   return true;
@@ -1015,6 +1174,14 @@ export function resumeOrder(args: StaticArray<u8>): bool {
   order!.status = ORDER_STATUS_ACTIVE;
   saveRecurringOrder(order!);
 
+  // Update status counters
+  let pausedCount = getCounter(PAUSED_ORDER_COUNT_KEY);
+  if (pausedCount > 0) {
+    setCounter(PAUSED_ORDER_COUNT_KEY, pausedCount - 1);
+  }
+
+  incrementCounter(ACTIVE_ORDER_COUNT_KEY);
+
   generateEvent(`RecurringOrder:Resumed:${orderId.toString()}`);
 
   return true;
@@ -1027,7 +1194,7 @@ export function getUserOrders(args: StaticArray<u8>): StaticArray<u8> {
   const argument = new Args(args);
   const userAddress = new Address(argument.nextString().unwrap());
 
-  const totalOrders = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
+  const totalOrders = getCounter(RECURRING_ORDER_COUNT_KEY);
   const userOrders: u64[] = [];
 
   for (let i: u64 = 1; i <= totalOrders; i++) {
@@ -1060,8 +1227,7 @@ export function grantRole(args: StaticArray<u8>): void {
   const role = argument.nextString().unwrap();
   const account = new Address(argument.nextString().unwrap());
 
-  const key = stringToBytes(role + ':' + account.toString());
-  Storage.set(key, stringToBytes('true'));
+  setBool(role + ':' + account.toString(), true);
 
   generateEvent(`RecurringOrder:RoleGranted:${role}`);
 }
@@ -1103,7 +1269,7 @@ export function checkRole(args: StaticArray<u8>): StaticArray<u8> {
  */
 export function pause(_: StaticArray<u8>): void {
   requireRole(PAUSER_ROLE);
-  Storage.set(PAUSED_KEY, 'true');
+  setBool(PAUSED_KEY, true);
   generateEvent('RecurringOrder:ContractPaused');
 }
 
@@ -1112,7 +1278,7 @@ export function pause(_: StaticArray<u8>): void {
  */
 export function unpause(_: StaticArray<u8>): void {
   requireRole(ADMIN_ROLE);
-  Storage.del(PAUSED_KEY);
+  setBool(PAUSED_KEY, false);
   generateEvent('RecurringOrder:ContractUnpaused');
 }
 
@@ -1120,7 +1286,7 @@ export function unpause(_: StaticArray<u8>): void {
  * Check if contract is paused
  */
 export function isPaused(): StaticArray<u8> {
-  const paused = Storage.has(PAUSED_KEY);
+  const paused = getBool(PAUSED_KEY);
   return new Args().add(paused).serialize();
 }
 
@@ -1129,10 +1295,100 @@ export function isPaused(): StaticArray<u8> {
 // ============================================================================
 
 /**
+ * Get bot count (always 0 or 1)
+ * Returns 1 if bot is enabled, 0 if disabled
+ *
+ * @returns Serialized u64: 1 if bot is running, 0 if not
+ */
+export function getBotCount(): StaticArray<u8> {
+  const isEnabled = getBool(BOT_ENABLED_KEY);
+  const count = isEnabled ? u64(1) : u64(0);
+  return new Args().add(count).serialize();
+}
+
+/**
+ * Get bot status information
+ *
+ * @returns Serialized struct with:
+ *   - isEnabled: bool
+ *   - counter: u64
+ *   - maxIterations: u64
+ */
+export function getBotStatus(): StaticArray<u8> {
+  const args = new Args();
+
+  const isEnabled = getBool(BOT_ENABLED_KEY);
+  args.add(isEnabled);
+
+  const counter = getCounter(BOT_COUNTER_KEY);
+  args.add(counter);
+
+  const maxIterations = getCounter(BOT_MAX_ITERATIONS);
+  args.add(maxIterations);
+
+  return args.serialize();
+}
+
+/**
+ * Get count of active orders (status = ORDER_STATUS_ACTIVE)
+ * Uses storage counter for O(1) efficiency (no iteration, max 20)
+ *
+ * @returns Serialized u64 count of active orders
+ */
+export function getActiveOrderCount(): StaticArray<u8> {
+  const count = getCounter(ACTIVE_ORDER_COUNT_KEY);
+  return new Args().add(count).serialize();
+}
+
+/**
+ * Get count of completed orders (status = ORDER_STATUS_COMPLETED)
+ * Uses storage counter for O(1) efficiency (no iteration, max 20)
+ *
+ * @returns Serialized u64 count of completed orders
+ */
+export function getCompletedOrderCount(): StaticArray<u8> {
+  const count = getCounter(COMPLETED_ORDER_COUNT_KEY);
+  return new Args().add(count).serialize();
+}
+
+/**
+ * Get count of paused orders (status = ORDER_STATUS_PAUSED)
+ * Uses storage counter for O(1) efficiency (no iteration, max 20)
+ *
+ * @returns Serialized u64 count of paused orders
+ */
+export function getPausedOrderCount(): StaticArray<u8> {
+  const count = getCounter(PAUSED_ORDER_COUNT_KEY);
+  return new Args().add(count).serialize();
+}
+
+/**
+ * Get count of cancelled orders (status = ORDER_STATUS_CANCELLED)
+ * Uses storage counter for O(1) efficiency (no iteration, max 20)
+ *
+ * @returns Serialized u64 count of cancelled orders
+ */
+export function getCancelledOrderCount(): StaticArray<u8> {
+  const count = getCounter(CANCELLED_ORDER_COUNT_KEY);
+  return new Args().add(count).serialize();
+}
+
+/**
+ * Get total execution count across all orders
+ * Uses storage counter for O(1) efficiency (no iteration, max 20)
+ *
+ * @returns Serialized u64 total number of executions
+ */
+export function getTotalExecutionCount(): StaticArray<u8> {
+  const count = getCounter(TOTAL_EXECUTION_COUNT_KEY);
+  return new Args().add(count).serialize();
+}
+
+/**
  * Get contract statistics
  */
 export function getStatistics(_: StaticArray<u8>): StaticArray<u8> {
-  const totalOrders = u64(parseInt(Storage.get(RECURRING_ORDER_COUNT_KEY)));
+  const totalOrders = getCounter(RECURRING_ORDER_COUNT_KEY);
 
   let activeOrders: u64 = 0;
   let completedOrders: u64 = 0;
@@ -1152,10 +1408,8 @@ export function getStatistics(_: StaticArray<u8>): StaticArray<u8> {
     }
   }
 
-  const isBotRunning = Storage.has(stringToBytes(BOT_ENABLED_KEY));
-  const botCounter = isBotRunning
-    ? u64(parseInt(Storage.get(BOT_COUNTER_KEY)))
-    : 0;
+  const isBotRunning = getBool(BOT_ENABLED_KEY);
+  const botCounter = getCounter(BOT_COUNTER_KEY);
 
   const result = new Args();
   result.add(totalOrders);
