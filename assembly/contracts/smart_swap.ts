@@ -707,7 +707,7 @@ function recordSwap(decision: RoutingDecision, amountIn: u256): void {
 export function updateAddresses(args: StaticArray<u8>): void {
   const caller = Context.caller();
   const roleKey = ADMIN_ROLE + ':' + caller.toString();
-  assert(Storage.has(stringToBytes(roleKey)), 'Admin only');
+  assert(getBool(roleKey), 'Admin only');
 
   const argument = new Args(args);
   const dussaRouter = argument.nextString().unwrap();
@@ -730,14 +730,14 @@ export function updateAddresses(args: StaticArray<u8>): void {
 export function grantAdminRole(args: StaticArray<u8>): void {
   const caller = Context.caller();
   const roleKey = ADMIN_ROLE + ':' + caller.toString();
-  assert(Storage.has(stringToBytes(roleKey)), 'Admin only');
+  assert(getBool(roleKey), 'Admin only');
 
   const argument = new Args(args);
   const newAdmin = argument.nextString().unwrap();
 
   assert(newAdmin.length > 0, 'Invalid admin address');
 
-  Storage.set(ADMIN_ROLE + ':' + newAdmin, 'true');
+  setBool(ADMIN_ROLE + ':' + newAdmin, true);
 
   generateEvent(`Admin role granted to ${newAdmin}`);
 }
@@ -748,7 +748,7 @@ export function grantAdminRole(args: StaticArray<u8>): void {
 export function revokeAdminRole(args: StaticArray<u8>): void {
   const caller = Context.caller();
   const roleKey = ADMIN_ROLE + ':' + caller.toString();
-  assert(Storage.has(stringToBytes(roleKey)), 'Admin only');
+  assert(getBool(roleKey), 'Admin only');
 
   const argument = new Args(args);
   const adminToRevoke = argument.nextString().unwrap();
@@ -760,7 +760,7 @@ export function revokeAdminRole(args: StaticArray<u8>): void {
   );
 
   const revokeKey = ADMIN_ROLE + ':' + adminToRevoke;
-  Storage.del(stringToBytes(revokeKey));
+  setBool(revokeKey, false);
 
   generateEvent(`Admin role revoked from ${adminToRevoke}`);
 }

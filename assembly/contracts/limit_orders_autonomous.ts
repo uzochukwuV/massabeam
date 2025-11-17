@@ -704,3 +704,147 @@ export function readContractStatus(): StaticArray<u8> {
     .add(count)
     .serialize();
 }
+
+/**
+ * Get all orders for a specific user
+ */
+export function getUserOrders(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const userAddress = new Address(argument.nextString().unwrap());
+
+  const totalOrders = getOrderCount();
+  const userOrders: u64[] = [];
+
+  // Iterate through all orders and find user's orders
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null && order.user.toString() == userAddress.toString()) {
+      userOrders.push(i);
+    }
+  }
+
+  // Serialize the order IDs
+  const result = new Args();
+  result.add(u64(userOrders.length));
+  for (let i = 0; i < userOrders.length; i++) {
+    result.add(userOrders[i]);
+  }
+
+  return result.serialize();
+}
+
+/**
+ * Check if an order is eligible for execution
+ * Returns: [isEligible: bool, reason: string]
+ */
+export function isOrderEligible(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const orderId = argument.nextU64().unwrap();
+
+  const order = getOrder(orderId);
+
+  if (order === null) {
+    return new Args()
+      .add(false)
+      .add('Order not found')
+      .serialize();
+  }
+
+  // Check if order is active
+  if (order.status !== ORDER_STATUS_ACTIVE) {
+    return new Args()
+      .add(false)
+      .add('Order not active')
+      .serialize();
+  }
+
+  // Check if expired
+  if (order.isExpired()) {
+    return new Args()
+      .add(false)
+      .add('Order expired')
+      .serialize();
+  }
+
+  // Check if price condition is met
+  const massaBeamAddress = getMassaBeamAddress();
+  const massaBeam = new IMassaBeam(massaBeamAddress);
+
+  const currentPriceData = massaBeam.readQuoteSwapExactInput(
+    order.tokenIn,
+    order.tokenOut,
+    order.amountIn
+  );
+
+  if (currentPriceData.length === 0) {
+    return new Args()
+      .add(false)
+      .add('Cannot determine current price')
+      .serialize();
+  }
+
+  const priceArgs = new Args(currentPriceData);
+  const currentPrice = priceArgs.nextU256().unwrap();
+
+  if (!order.isPriceConditionMet(currentPrice)) {
+    return new Args()
+      .add(false)
+      .add(`Price not met: current=${currentPrice.toString()}, limit=${order.limitPrice.toString()}`)
+      .serialize();
+  }
+
+  // Order is eligible
+  return new Args()
+    .add(true)
+    .add('Order is eligible for execution')
+    .serialize();
+}
+
+/**
+ * Get all active orders (for monitoring/analytics)
+ */
+export function getActiveOrders(_: StaticArray<u8>): StaticArray<u8> {
+  const totalOrders = getOrderCount();
+  const activeOrderIds: u64[] = [];
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null && order.status === ORDER_STATUS_ACTIVE && !order.isExpired()) {
+      activeOrderIds.push(i);
+    }
+  }
+
+  const result = new Args();
+  result.add(u64(activeOrderIds.length));
+  for (let i = 0; i < activeOrderIds.length; i++) {
+    result.add(activeOrderIds[i]);
+  }
+
+  return result.serialize();
+}
+
+/**
+ * Get orders by status
+ */
+export function getOrdersByStatus(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const status = argument.nextU8().unwrap();
+
+  const totalOrders = getOrderCount();
+  const matchingOrders: u64[] = [];
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null && order.status === status) {
+      matchingOrders.push(i);
+    }
+  }
+
+  const result = new Args();
+  result.add(u64(matchingOrders.length));
+  for (let i = 0; i < matchingOrders.length; i++) {
+    result.add(matchingOrders[i]);
+  }
+
+  return result.serialize();
+}
