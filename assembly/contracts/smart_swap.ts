@@ -137,18 +137,17 @@ const DUSA_GAS_ESTIMATE: u64 = 1_200_000; // Higher gas for concentrated liquidi
  * Get a counter value from storage
  */
 function getCounter(key: string): u64 {
-  const keyBytes = stringToBytes(key);
-  if (!Storage.has(keyBytes)) {
+  if (!Storage.has(key)) {
     return 0;
   }
-  return u64(parseInt(Storage.get(keyBytes)));
+  return u64(parseInt(Storage.get(key)));
 }
 
 /**
  * Set a counter value in storage
  */
 function setCounter(key: string, value: u64): void {
-  Storage.set(stringToBytes(key), value.toString());
+  Storage.set(key, value.toString());
 }
 
 /**
@@ -162,53 +161,39 @@ function incrementCounter(key: string): u64 {
 }
 
 /**
- * Get a string value from storage
- */
-function getString(key: string): string {
-  const keyBytes = stringToBytes(key);
-  if (!Storage.has(keyBytes)) {
-    return '';
-  }
-  return Storage.get(keyBytes);
-}
-
-/**
- * Set a string value in storage
- */
-function setString(key: string, value: string): void {
-  Storage.set(stringToBytes(key), value);
-}
-
-/**
  * Get a boolean value from storage
  */
 function getBool(key: string): bool {
-  return getString(key) === 'true';
+  if (!Storage.has(key)) {
+    return false;
+  }
+  return Storage.get(key) === 'true';
 }
 
 /**
  * Set a boolean value in storage
  */
 function setBool(key: string, value: bool): void {
-  setString(key, value ? 'true' : 'false');
+  Storage.set(key, value ? 'true' : 'false');
 }
 
 /**
  * Get a u256 value from storage (stored as string)
  */
 function getU256(key: string): u256 {
-  const str = getString(key);
-  if (str.length === 0) {
+  if (!Storage.has(key)) {
     return u256.Zero;
   }
-  return u256.fromString(str);
+  const str = Storage.get(key);
+  // Parse string to u256
+  return u256.from(str);
 }
 
 /**
  * Set a u256 value in storage (stored as string)
  */
 function setU256(key: string, value: u256): void {
-  setString(key, value.toString());
+  Storage.set(key, value.toString());
 }
 
 // ============================================================================
@@ -237,14 +222,14 @@ export function constructor(args: StaticArray<u8>): void {
 
   // Initialize admin
   const deployer = Context.caller();
-  Storage.set(ADMIN_ROLE + ':' + deployer.toString(), 'true');
+  setBool(ADMIN_ROLE + ':' + deployer.toString(), true);
 
   // Initialize statistics
-  Storage.set('total_swaps', '0');
-  Storage.set('dusa_swaps', '0');
-  Storage.set('massabeam_swaps', '0');
-  Storage.set('total_volume', '0');
-  Storage.set('total_savings', '0');
+  setCounter('total_swaps', 0);
+  setCounter('dusa_swaps', 0);
+  setCounter('massabeam_swaps', 0);
+  setU256('total_volume', u256.Zero);
+  setU256('total_savings', u256.Zero);
 
   generateEvent(
     'SmartSwap Router deployed: MassaBeam + Dusa integration active',
@@ -369,11 +354,11 @@ export function compareQuotes(args: StaticArray<u8>): StaticArray<u8> {
  * Get routing statistics
  */
 export function getStatistics(_: StaticArray<u8>): StaticArray<u8> {
-  const totalSwaps = Storage.get('total_swaps');
-  const dusaSwaps = Storage.get('dusa_swaps');
-  const massabeamSwaps = Storage.get('massabeam_swaps');
-  const totalVolume = Storage.get('total_volume');
-  const totalSavings = Storage.get('total_savings');
+  const totalSwaps = getCounter('total_swaps');
+  const dusaSwaps = getCounter('dusa_swaps');
+  const massabeamSwaps = getCounter('massabeam_swaps');
+  const totalVolume = getU256('total_volume');
+  const totalSavings = getU256('total_savings');
 
   const result = new Args()
     .add(totalSwaps)
@@ -699,19 +684,16 @@ function selectBestRoute(
  */
 function recordSwap(decision: RoutingDecision, amountIn: u256): void {
   // Update total swaps
-  const totalSwaps = u64(parseInt(Storage.get('total_swaps')));
-  Storage.set('total_swaps', (totalSwaps + 1).toString());
+  incrementCounter('total_swaps');
 
   // Update DEX-specific counter
   const dexKey = decision.selectedDex == 'DUSA' ? 'dusa_swaps' : 'massabeam_swaps';
-  const dexSwaps = u64(parseInt(Storage.get(dexKey)));
-  Storage.set(dexKey, (dexSwaps + 1).toString());
+  incrementCounter(dexKey);
 
   // Update volume (u256 string-based storage)
-  const totalVolumeStr = Storage.get('total_volume');
-  const totalVolume = u256.fromBytes(totalVolumeStr);
+  const totalVolume = getU256('total_volume');
   const newVolume = u256.add(totalVolume, amountIn);
-  Storage.set('total_volume', newVolume.toString());
+  setU256('total_volume', newVolume);
 }
 
 // ============================================================================
