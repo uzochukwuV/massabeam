@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recurring Orders - Massa DeFi</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "@massalabs/massa-web3": "https://unpkg.com/@massalabs/massa-web3@latest/dist/index.js",
+            "@massalabs/wallet-provider": "https://unpkg.com/@massalabs/wallet-provider@latest/dist/index.js",
+            "@dusalabs/sdk": "https://unpkg.com/@dusalabs/sdk@latest/dist/index.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-container">
+                <div class="header-left">
+                    <a href="index.html" class="brand">
+                        <div class="brand-icon">
+                            <div class="massa-logo"></div>
+                        </div>
+                        <span class="brand-text">Massa DeFi</span>
+                    </a>
+                    <div class="network-status">
+                        <div class="status-indicator" id="networkStatus"></div>
+                        <span class="status-text">Buildnet</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="gas-price">
+                        <span class="gas-label">Gas:</span>
+                        <span class="gas-value" id="gasPrice">1000</span>
+                    </div>
+                    <button class="wallet-btn" id="walletBtn">
+                        <span class="wallet-text">Connect Wallet</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <div class="nav-container">
+                <div class="nav-items">
+                    <a href="index.html" class="nav-item">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                    <a href="amm.html" class="nav-item">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">AMM Trade</span>
+                    </a>
+                    <a href="limit-orders.html" class="nav-item">
+                        <span class="nav-icon">🎯</span>
+                        <span class="nav-text">Limit Orders</span>
+                    </a>
+                    <a href="recurring-orders.html" class="nav-item active">
+                        <span class="nav-icon">🔄</span>
+                        <span class="nav-text">Recurring Orders</span>
+                    </a>
+                    <a href="grid-orders.html" class="nav-item">
+                        <span class="nav-icon">📈</span>
+                        <span class="nav-text">Grid Orders</span>
+                    </a>
+                    <a href="liquidity.html" class="nav-item">
+                        <span class="nav-icon">💧</span>
+                        <span class="nav-text">Liquidity</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div class="section-header">
+                <h1 class="section-title">Recurring Orders</h1>
+                <div class="section-actions">
+                    <button class="primary-btn" onclick="openCreateRecurringModal()">
+                        <span>+ Create Order</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="recurring-container">
+                <!-- Left Panel: Create Order -->
+                <div class="recurring-panel">
+                    <!-- Mode Selector: DCA vs Trigger -->
+                    <div class="mode-selector-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Select Execution Mode</h3>
+                        </div>
+                        <div class="mode-tabs">
+                            <button class="mode-tab active" data-mode="dca" onclick="switchMode('dca')">
+                                <span class="mode-icon">📊</span>
+                                <span class="mode-text">DCA</span>
+                                <span class="mode-hint">Dollar Cost Averaging</span>
+                            </button>
+                            <button class="mode-tab" data-mode="trigger" onclick="switchMode('trigger')">
+                                <span class="mode-icon">⚡</span>
+                                <span class="mode-text">Trigger-Based</span>
+                                <span class="mode-hint">Price-Based Execution</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- DCA Order Form -->
+                    <div class="create-order-card" id="dcaForm" style="display: block;">
+                        <div class="card-header">
+                            <h3 class="card-title">DCA Order (Dollar Cost Averaging)</h3>
+                        </div>
+
+                        <form class="order-form" id="dcaOrderForm">
+                            <div class="form-group">
+                                <label class="form-label">Token Pair</label>
+                                <div class="token-pair-selector">
+                                    <select class="token-select-dropdown" id="dcaTokenIn">
+                                        <option value="">Select Token In</option>
+                                    </select>
+                                    <span class="pair-arrow">→</span>
+                                    <select class="token-select-dropdown" id="dcaTokenOut">
+                                        <option value="">Select Token Out</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Amount Per Execution</label>
+                                <input type="number" id="dcaAmountPerExec" placeholder="0.0" class="form-input">
+                                <div class="input-hint">
+                                    Amount to swap in each cycle
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Execution Interval</label>
+                                <select class="form-select" id="dcaInterval">
+                                    <option value="3600">Hourly (1 hour)</option>
+                                    <option value="86400">Daily (24 hours)</option>
+                                    <option value="604800" selected>Weekly (7 days)</option>
+                                    <option value="2592000">Monthly (30 days)</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Number of Executions</label>
+                                <input type="number" id="dcaMaxExec" placeholder="0" class="form-input" min="1" max="365">
+                                <div class="input-hint">
+                                    Total times to execute
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Order Duration</label>
+                                <select class="form-select" id="dcaDuration">
+                                    <option value="604800">1 Week</option>
+                                    <option value="2592000">1 Month</option>
+                                    <option value="7776000">3 Months</option>
+                                    <option value="31536000" selected>1 Year</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="submit-btn" onclick="createDCAOrder(event)">
+                                <span class="btn-text">Create DCA Order</span>
+                                <div class="btn-glow"></div>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Trigger-Based Order Form -->
+                    <div class="create-order-card" id="triggerForm" style="display: none;">
+                        <div class="card-header">
+                            <h3 class="card-title">Trigger-Based Order</h3>
+                        </div>
+
+                        <form class="order-form" id="triggerOrderForm">
+                            <div class="form-group">
+                                <label class="form-label">Token Pair</label>
+                                <div class="token-pair-selector">
+                                    <select class="token-select-dropdown" id="triggerTokenIn">
+                                        <option value="">Select Token In</option>
+                                    </select>
+                                    <span class="pair-arrow">→</span>
+                                    <select class="token-select-dropdown" id="triggerTokenOut">
+                                        <option value="">Select Token Out</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Order Type</label>
+                                <div class="order-type-buttons">
+                                    <button type="button" class="order-type-btn active" data-type="buy" onclick="setTriggerType('buy')">Buy</button>
+                                    <button type="button" class="order-type-btn" data-type="sell" onclick="setTriggerType('sell')">Sell</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Amount Per Execution</label>
+                                <input type="number" id="triggerAmountPerExec" placeholder="0.0" class="form-input">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Trigger Price Change (%)</label>
+                                <input type="number" id="triggerPercentage" placeholder="5" class="form-input" min="0.1" max="100" step="0.1">
+                                <div class="input-hint">
+                                    Price change needed to trigger execution
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Max Executions</label>
+                                <input type="number" id="triggerMaxExec" placeholder="0" class="form-input" min="1">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Order Duration</label>
+                                <select class="form-select" id="triggerDuration">
+                                    <option value="604800">1 Week</option>
+                                    <option value="2592000">1 Month</option>
+                                    <option value="7776000">3 Months</option>
+                                    <option value="31536000" selected>1 Year</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="submit-btn" onclick="createTriggerOrder(event)">
+                                <span class="btn-text">Create Trigger Order</span>
+                                <div class="btn-glow"></div>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Orders & Bot Status -->
+                <div class="recurring-info-panel">
+                    <!-- Active Recurring Orders -->
+                    <div class="active-recurring-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Active Orders</h3>
+                            <span class="order-count" id="activeRecurringCount">0</span>
+                        </div>
+                        <div class="orders-list" id="activeRecurringList">
+                            <div class="empty-state">
+                                <div class="empty-icon">🔄</div>
+                                <p>No active orders</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recurring Bot Status -->
+                    <div class="recurring-bot-status-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Bot Status</h3>
+                            <div class="bot-indicator" id="recurringBotIndicator">
+                                <div class="indicator-dot" id="recurringIndicatorDot"></div>
+                                <span id="recurringBotStatusText">Inactive</span>
+                            </div>
+                        </div>
+                        <div class="bot-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Enabled</span>
+                                <span class="stat-value" id="recurringBotEnabled">No</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Cycles Run</span>
+                                <span class="stat-value" id="recurringBotCycles">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Orders Executed</span>
+                                <span class="stat-value" id="recurringBotExecuted">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Max Iterations</span>
+                                <span class="stat-value" id="recurringBotMaxIter">0</span>
+                            </div>
+                        </div>
+                        <div class="bot-controls">
+                            <button class="btn-secondary" onclick="startRecurringBot()">Start Bot</button>
+                            <button class="btn-secondary" onclick="stopRecurringBot()">Stop Bot</button>
+                        </div>
+                    </div>
+
+                    <!-- Execution Statistics -->
+                    <div class="execution-stats-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Execution Statistics</h3>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <span class="stat-label">Total Orders</span>
+                                <span class="stat-value" id="totalRecurringOrders">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Active</span>
+                                <span class="stat-value" id="activeRecurringOrders">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Completed</span>
+                                <span class="stat-value" id="completedRecurringOrders">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Paused</span>
+                                <span class="stat-value" id="pausedRecurringOrders">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Metrics -->
+                    <div class="performance-metrics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Performance Metrics</h3>
+                        </div>
+                        <div class="metrics-content">
+                            <div class="metric-item">
+                                <span class="metric-label">Avg. Price Bought</span>
+                                <span class="metric-value" id="avgPriceBought">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Total Spent</span>
+                                <span class="metric-value" id="totalSpent">$0</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Total Received</span>
+                                <span class="metric-value" id="totalReceived">$0</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Next Execution</span>
+                                <span class="metric-value" id="nextExecution">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="src/app/main.js" type="module"></script>
+    <script src="src/app/recurring-orders-page.js" type="module"></script>
+</body>
+</html>

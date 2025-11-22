@@ -880,61 +880,56 @@ function copyTradeToFollowers(
     }
 
     // Execute follower's trade
-    try {
-      const tokenInContract = new IERC20(tokenIn);
+    const tokenInContract = new IERC20(tokenIn);
 
-      // Approve and transfer from contract to MassaBeam
-      tokenInContract.transfer(massaBeamAddress, followerAmount);
+    // Approve and transfer from contract to MassaBeam
+    tokenInContract.transfer(massaBeamAddress, followerAmount);
 
-      // Calculate proportional minimum output
-      const followerMinOut = SafeMath256.div(
-        u256.mul(minAmountOut, followerAmount),
-        traderAmountIn
-      );
+    // Calculate proportional minimum output
+    const followerMinOut = SafeMath256.div(
+      u256.mul(minAmountOut, followerAmount),
+      traderAmountIn
+    );
 
-      // Execute swap
-      const followerAmountOut = massaBeam.swap(
-        tokenIn,
-        tokenOut,
-        followerAmount,
-        followerMinOut,
-        deadline,
-        sub.follower
-      );
+    // Execute swap
+    const followerAmountOut = massaBeam.swap(
+      tokenIn,
+      tokenOut,
+      followerAmount,
+      followerMinOut,
+      deadline,
+      sub.follower
+    );
 
-      // Update subscription stats
-      sub.currentBalance = u256.sub(sub.currentBalance, followerAmount);
-      sub.totalTrades += 1;
-      sub.lastTradeAt = Context.timestamp();
+    // Update subscription stats
+    sub.currentBalance = u256.sub(sub.currentBalance, followerAmount);
+    sub.totalTrades += 1;
+    sub.lastTradeAt = Context.timestamp();
 
-      // Calculate and distribute performance fee
-      const profit = calculateProfit(followerAmount, followerAmountOut, traderAmountIn, traderAmountOut);
-      if (profit > u256.Zero) {
-        const fee = calculatePerformanceFee(profit, sub.trader);
-        if (!fee.isZero()) {
-          // Transfer fee to trader
-          const tokenOutContract = new IERC20(tokenOut);
-          tokenOutContract.transferFrom(sub.follower, sub.trader, fee);
+    // Calculate and distribute performance fee
+    const profit = calculateProfit(followerAmount, followerAmountOut, traderAmountIn, traderAmountOut);
+    if (profit > u256.Zero) {
+      const fee = calculatePerformanceFee(profit, sub.trader);
+      if (!fee.isZero()) {
+        // Transfer fee to trader
+        const tokenOutContract = new IERC20(tokenOut);
+        tokenOutContract.transferFrom(sub.follower, sub.trader, fee);
 
-          sub.totalFeesPaid = u256.add(sub.totalFeesPaid, fee);
+        sub.totalFeesPaid = u256.add(sub.totalFeesPaid, fee);
 
-          // Update trader's fee earnings
-          const trader = getTrader(sub.trader);
-          if (trader != null) {
-            trader.totalFeesEarned = u256.add(trader.totalFeesEarned, fee);
-            saveTrader(trader);
-          }
+        // Update trader's fee earnings
+        const trader = getTrader(sub.trader);
+        if (trader != null) {
+          trader.totalFeesEarned = u256.add(trader.totalFeesEarned, fee);
+          saveTrader(trader);
         }
       }
-
-      saveSubscription(sub);
-      copiedCount += 1;
-
-      generateEvent(`CopyTrading:TradeCopied|subId=${i}|amountIn=${followerAmount.toString()}|amountOut=${followerAmountOut.toString()}`);
-
-    } catch (e: any) {
-      generateEvent(`CopyTrading:CopyFailed|subId=${i}|error=${e.toString()}`);
     }
+
+    saveSubscription(sub);
+    copiedCount += 1;
+
+    generateEvent(`CopyTrading:TradeCopied|subId=${i}|amountIn=${followerAmount.toString()}|amountOut=${followerAmountOut.toString()}`);
   }
 
   generateEvent(`CopyTrading:CopyComplete|trader=${traderAddress.toString()}|copied=${copiedCount}`);

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limit Orders - Massa DeFi</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "@massalabs/massa-web3": "https://unpkg.com/@massalabs/massa-web3@latest/dist/index.js",
+            "@massalabs/wallet-provider": "https://unpkg.com/@massalabs/wallet-provider@latest/dist/index.js",
+            "@dusalabs/sdk": "https://unpkg.com/@dusalabs/sdk@latest/dist/index.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-container">
+                <div class="header-left">
+                    <a href="index.html" class="brand">
+                        <div class="brand-icon">
+                            <div class="massa-logo"></div>
+                        </div>
+                        <span class="brand-text">Massa DeFi</span>
+                    </a>
+                    <div class="network-status">
+                        <div class="status-indicator" id="networkStatus"></div>
+                        <span class="status-text">Buildnet</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="gas-price">
+                        <span class="gas-label">Gas:</span>
+                        <span class="gas-value" id="gasPrice">1000</span>
+                    </div>
+                    <button class="wallet-btn" id="walletBtn">
+                        <span class="wallet-text">Connect Wallet</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <div class="nav-container">
+                <div class="nav-items">
+                    <a href="index.html" class="nav-item">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                    <a href="amm.html" class="nav-item">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">AMM Trade</span>
+                    </a>
+                    <a href="limit-orders.html" class="nav-item active">
+                        <span class="nav-icon">🎯</span>
+                        <span class="nav-text">Limit Orders</span>
+                    </a>
+                    <a href="recurring-orders.html" class="nav-item">
+                        <span class="nav-icon">🔄</span>
+                        <span class="nav-text">Recurring Orders</span>
+                    </a>
+                    <a href="grid-orders.html" class="nav-item">
+                        <span class="nav-icon">📈</span>
+                        <span class="nav-text">Grid Orders</span>
+                    </a>
+                    <a href="liquidity.html" class="nav-item">
+                        <span class="nav-icon">💧</span>
+                        <span class="nav-text">Liquidity</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div class="section-header">
+                <h1 class="section-title">Limit Orders</h1>
+                <div class="section-actions">
+                    <button class="primary-btn" onclick="openCreateOrderModal()">
+                        <span>+ Create Order</span>
+                    </button>
+                    <button class="settings-btn" onclick="refreshOrders()">
+                        <span class="settings-icon">🔄</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="orders-container">
+                <!-- Left Panel: Create Order -->
+                <div class="orders-panel">
+                    <div class="create-order-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Create Limit Order</h3>
+                            <div class="order-type-selector">
+                                <button class="order-type-btn active" data-type="buy">Buy</button>
+                                <button class="order-type-btn" data-type="sell">Sell</button>
+                            </div>
+                        </div>
+
+                        <form class="order-form" id="orderForm">
+                            <div class="form-group">
+                                <label class="form-label">Token Pair</label>
+                                <div class="token-pair-selector">
+                                    <select class="token-select-dropdown" id="orderTokenIn">
+                                        <option value="">Select Token In</option>
+                                    </select>
+                                    <span class="pair-arrow">→</span>
+                                    <select class="token-select-dropdown" id="orderTokenOut">
+                                        <option value="">Select Token Out</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Amount In</label>
+                                <div class="input-with-max">
+                                    <input type="number" id="orderAmountIn" placeholder="0.0" class="form-input">
+                                    <button type="button" class="max-btn" onclick="setOrderMaxAmount()">MAX</button>
+                                </div>
+                                <div class="input-hint">
+                                    Balance: <span id="orderTokenInBalance">0</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Limit Price</label>
+                                <input type="number" id="orderLimitPrice" placeholder="0.0" class="form-input">
+                                <div class="input-hint">
+                                    Current Price: <span id="currentMarketPrice">-</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Minimum Out</label>
+                                <input type="number" id="orderMinOut" placeholder="0.0" class="form-input">
+                                <div class="input-hint">
+                                    Slippage: <span id="orderSlippage">0.5%</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Expiry</label>
+                                <select class="form-select" id="orderExpiry">
+                                    <option value="3600">1 Hour</option>
+                                    <option value="86400">1 Day</option>
+                                    <option value="604800" selected>1 Week</option>
+                                    <option value="2592000">1 Month</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="submit-btn" onclick="createLimitOrder(event)">
+                                <span class="btn-text">Create Limit Order</span>
+                                <div class="btn-glow"></div>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Price Analysis for Order -->
+                    <div class="price-analysis-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Price Analysis</h3>
+                        </div>
+                        <div class="analysis-content">
+                            <div class="analysis-item">
+                                <span class="analysis-label">Current Price</span>
+                                <span class="analysis-value" id="orderCurrentPrice">-</span>
+                            </div>
+                            <div class="analysis-item">
+                                <span class="analysis-label">Limit Price</span>
+                                <span class="analysis-value" id="orderLimitPriceDisplay">-</span>
+                            </div>
+                            <div class="analysis-item">
+                                <span class="analysis-label">Price Difference</span>
+                                <span class="analysis-value" id="orderPriceDiff">-</span>
+                            </div>
+                            <div class="analysis-item">
+                                <span class="analysis-label">Estimated Output</span>
+                                <span class="analysis-value" id="orderEstOutput">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Orders List & Bot Status -->
+                <div class="orders-info-panel">
+                    <!-- Active Orders -->
+                    <div class="active-orders-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Active Orders</h3>
+                            <span class="order-count" id="activeOrderCount">0</span>
+                        </div>
+                        <div class="orders-list" id="activeOrdersList">
+                            <div class="empty-state">
+                                <div class="empty-icon">📋</div>
+                                <p>No active orders</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bot Status -->
+                    <div class="bot-status-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Bot Status</h3>
+                            <div class="bot-indicator" id="botIndicator">
+                                <div class="indicator-dot" id="indicatorDot"></div>
+                                <span id="botStatusText">Inactive</span>
+                            </div>
+                        </div>
+                        <div class="bot-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Enabled</span>
+                                <span class="stat-value" id="botEnabled">No</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Cycle Count</span>
+                                <span class="stat-value" id="botCycleCount">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total Executed</span>
+                                <span class="stat-value" id="botExecuted">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Max Iterations</span>
+                                <span class="stat-value" id="botMaxIter">0</span>
+                            </div>
+                        </div>
+                        <div class="bot-controls">
+                            <button class="btn-secondary" onclick="startLimitBot()">Start Bot</button>
+                            <button class="btn-secondary" onclick="stopLimitBot()">Stop Bot</button>
+                        </div>
+                    </div>
+
+                    <!-- Order Statistics -->
+                    <div class="order-stats-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Order Statistics</h3>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <span class="stat-label">Total Orders</span>
+                                <span class="stat-value" id="totalOrders">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Filled</span>
+                                <span class="stat-value" id="filledOrders">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Active</span>
+                                <span class="stat-value" id="activeOrders">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Expired</span>
+                                <span class="stat-value" id="expiredOrders">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Completed Orders -->
+                    <div class="completed-orders-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Recent Orders</h3>
+                        </div>
+                        <div class="orders-list" id="recentOrdersList">
+                            <div class="empty-state">
+                                <div class="empty-icon">✓</div>
+                                <p>No recent orders</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="src/app/main.js" type="module"></script>
+    <script src="src/app/limit-orders-page.js" type="module"></script>
+</body>
+</html>

@@ -219,7 +219,7 @@ async function deployRecurringOrders(
   logSection('3️⃣  RECURRING ORDERS & DCA DEPLOYMENT');
 
   try {
-    const wasmPath = getWasmPath('recurring_orders.wasm');
+    const wasmPath = getWasmPath('recurring_orders_focused.wasm');
     const wasmBuffer = fs.readFileSync(wasmPath);
 
     log('WASM Size:', `${(wasmBuffer.length / 1024).toFixed(2)} KB`);
@@ -472,7 +472,7 @@ async function main(): Promise<void> {
     // Deploy contracts in order
     const startTime = Date.now();
 
-    const massaBeamAddress = "AS12j28AMC3gsffnB5PsrkK1jA4iZS8CLvT6koNCD4kSd6GaRzi28" // await deployMassaBeam(provider, account);
+    const massaBeamAddress =  await deployMassaBeam(provider, account);
     const limitOrdersAddress = await deployLimitOrders(provider, account, massaBeamAddress);
     const recurringOrdersAddress = await deployRecurringOrders(provider, account, massaBeamAddress);
     const flashArbitrageBotAddress = await deployFlashArbitrageBot(
@@ -534,9 +534,13 @@ async function main(): Promise<void> {
       },
     };
 
-    const outputPath = path.join(__dirname, '..', 'deployed-addresses.json');
-    fs.writeFileSync(outputPath, JSON.stringify(deployedAddresses, null, 2));
-    log('Saved to:', outputPath);
+    const legacyOutputPath = path.join(__dirname, '..', 'deployed-addresses.json');
+    fs.writeFileSync(legacyOutputPath, JSON.stringify(deployedAddresses, null, 2));
+    log('Saved legacy file to:', legacyOutputPath);
+
+    const addressesJsonPath = path.join(__dirname, '..', '..', 'addresses.json');
+    fs.writeFileSync(addressesJsonPath, JSON.stringify(deployedAddresses, null, 2));
+    log('Saved primary address book to:', addressesJsonPath);
     logSuccess('Deployment info saved');
     await sleep(1000);
 

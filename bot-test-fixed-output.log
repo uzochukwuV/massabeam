@@ -1,0 +1,136 @@
+
+══════════════════════════════════════════════════════════════════════
+  🤖 LIMIT ORDERS BOT - FIXED TEST
+══════════════════════════════════════════════════════════════════════
+  Account: AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma
+  MassaBeam: AS12j28AMC3gsffnB5PsrkK1jA4iZS8CLvT6koNCD4kSd6GaRzi28
+  LimitOrders: AS12Qaj8pyWVSzXD5qy6GLhhVBsPP2f6BFPH3DwrFyngBQ3Dq5vfK
+
+══════════════════════════════════════════════════════════════════════
+  📊 STEP 1: Check Pool & Get Current Price
+══════════════════════════════════════════════════════════════════════
+  Reading pool...
+  ✅ Pool found
+  Reserve A: 100000000
+  Reserve B: 2000000
+  Current Price: 1 A = 0.0200000000 B
+
+══════════════════════════════════════════════════════════════════════
+  📝 STEP 2: Create Multiple Limit Orders
+══════════════════════════════════════════════════════════════════════
+  Expiry time: 1763637364592 (2025-11-20T11:16:04.592Z)
+  Current time: 1763636764592 (2025-11-20T11:06:04.592Z)
+  Delta: 600 seconds
+  🔍 
+Creating order 1...
+  Approving 1000000 tokens...
+  ✅ Approval sent
+  Sending order creation transaction...
+  🔍 Tx ID: O1DV9HgHYFp8zS54P2GamTMs6kgyhHDevAsgvqcFpejLuh9LAa4
+  🔍 Received 6 events
+  📤 LimitOrder:Creating|user=AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma|tokenIn=AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk|tokenOut=AS12N76WPYB3QNYKGhV2jZuQs1djdhNJLQgnm7m52pHWecvvj1fCQ
+  📤 LimitOrder:PoolVerified|poolExists=true
+  📤 LimitOrder:PriceCheck|currentPrice=13902|limitPrice=10000000000000000
+  📤 TRANSFER SUCCESS
+  📤 LimitOrder:TokensTransferred|amount=1000000
+  📤 LimitOrder:Created|id=1|user=AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma|tokenIn=AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk|tokenOut=AS12N76WPYB3QNYKGhV2jZuQs1djdhNJLQgnm7m52pHWecvvj1fCQ|amountIn=1000000|limitPrice=10000000000000000|currentPrice=13902
+  ✅ Order creation event found!
+  ✅ Extracted Order ID: 1
+  ✅ Order 1 transaction completed
+  🔍 
+Creating order 2...
+  Approving 1000000 tokens...
+  ✅ Approval sent
+  Sending order creation transaction...
+  🔍 Tx ID: O12V3GAyzFTYeD8oZehAHZVzZ1S87UgdwzM8WkbXXxr9qQGGRRdq
+  🔍 Received 6 events
+  📤 LimitOrder:Creating|user=AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma|tokenIn=AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk|tokenOut=AS12N76WPYB3QNYKGhV2jZuQs1djdhNJLQgnm7m52pHWecvvj1fCQ
+  📤 LimitOrder:PoolVerified|poolExists=true
+  📤 LimitOrder:PriceCheck|currentPrice=13902|limitPrice=10000000000000000
+  📤 TRANSFER SUCCESS
+  📤 LimitOrder:TokensTransferred|amount=1000000
+  📤 LimitOrder:Created|id=2|user=AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma|tokenIn=AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk|tokenOut=AS12N76WPYB3QNYKGhV2jZuQs1djdhNJLQgnm7m52pHWecvvj1fCQ|amountIn=1000000|limitPrice=10000000000000000|currentPrice=13902
+  ✅ Order creation event found!
+  ✅ Extracted Order ID: 2
+  ✅ Order 2 transaction completed
+  🔍 
+Creating order 3...
+  Approving 1000000 tokens...
+  ✅ Approval sent
+  Sending order creation transaction...
+  🔍 Tx ID: O1eJGTahn4rGN1C6YyzVc6K2x1fzppjMGnVFHbch46oJhjJdYeX
+  🔍 Received 6 events
+  📤 LimitOrder:Creating|user=AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma|tokenIn=AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk|tokenOut=AS12N76WPYB3QNYKGhV2jZuQs1djdhNJLQgnm7m52pHWecvvj1fCQ
+  📤 LimitOrder:PoolVerified|poolExists=true
+  📤 LimitOrder:PriceCheck|currentPrice=13902|limitPrice=10000000000000000
+  📤 TRANSFER SUCCESS
+  📤 LimitOrder:TokensTransferred|amount=1000000
+  📤 LimitOrder:Created|id=3|user=AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma|tokenIn=AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk|tokenOut=AS12N76WPYB3QNYKGhV2jZuQs1djdhNJLQgnm7m52pHWecvvj1fCQ|amountIn=1000000|limitPrice=10000000000000000|currentPrice=13902
+  ✅ Order creation event found!
+  ✅ Extracted Order ID: 3
+  ✅ Order 3 transaction completed
+  
+📊 Order Creation Summary:
+    Transactions sent: 3
+    Order IDs extracted: 3
+
+══════════════════════════════════════════════════════════════════════
+  📖 STEP 3: Check Active Orders
+══════════════════════════════════════════════════════════════════════
+  Getting active orders from contract...
+  ⚠️  No active orders returned (empty response)
+
+══════════════════════════════════════════════════════════════════════
+  🚀 STEP 4: Start Autonomous Bot
+══════════════════════════════════════════════════════════════════════
+  Starting bot with maxIterations=2500...
+  🔍 Bot start tx: O1ZdKfohcBTZVQw25zKpBnRwFzE7dwvVAZKcDDK2k7nP4hXZwUv
+  🔍 Received 15 bot start events
+  📤 LimitOrder:BotStarting|maxIterations=2500
+  📤 LimitOrder:BotStarted|maxIterations=2500|timestamp=1763636914000
+  📤 LimitOrder:BotAdvanceStarted
+  📤 LimitOrder:BotState|counter=0|maxIterations=2500
+  📤 LimitOrder:BotProcessing|totalOrders=3|maxPerCycle=10
+  📤 LimitOrder:BotCheckingOrders|start=1|end=3
+  📤 LimitOrder:BotCheckOrder|orderId=1|status=0
+  📤 LimitOrder:BotOrderExpired|orderId=1
+  📤 LimitOrder:BotCheckOrder|orderId=2|status=0
+  📤 LimitOrder:BotOrderExpired|orderId=2
+  📤 LimitOrder:BotCheckOrder|orderId=3|status=0
+  📤 LimitOrder:BotOrderExpired|orderId=3
+  📤 LimitOrder:BotCycleComplete|cycle=1|checked=3|executed=0|totalExecuted=0
+  📤 LimitOrder:BotSchedulingNext|cycle=1|nextCycle=2
+  ✅ Bot started
+
+══════════════════════════════════════════════════════════════════════
+  👀 STEP 5: Monitor Bot Execution
+══════════════════════════════════════════════════════════════════════
+  Bot is running autonomously...
+
+  [1/12] Cycle: 75/2500 | Executed: 0 | Enabled: ✅
+  [2/12] Cycle: 87/2500 | Executed: 0 | Enabled: ✅
+  [3/12] Cycle: 99/2500 | Executed: 0 | Enabled: ✅
+  [4/12] Cycle: 110/2500 | Executed: 0 | Enabled: ✅
+  [5/12] Cycle: 121/2500 | Executed: 0 | Enabled: ✅
+  [6/12] Cycle: 132/2500 | Executed: 0 | Enabled: ✅
+  [7/12] Cycle: 143/2500 | Executed: 0 | Enabled: ✅
+  [8/12] Cycle: 154/2500 | Executed: 0 | Enabled: ✅
+  [9/12] Cycle: 165/2500 | Executed: 0 | Enabled: ✅
+  [10/12] Cycle: 176/2500 | Executed: 0 | Enabled: ✅
+  [11/12] Cycle: 187/2500 | Executed: 0 | Enabled: ✅
+  [12/12] Cycle: 198/2500 | Executed: 0 | Enabled: ✅
+
+══════════════════════════════════════════════════════════════════════
+  📊 TEST RESULTS
+══════════════════════════════════════════════════════════════════════
+  
+✨ Autonomous Bot Test Summary:
+    Orders Created: 3
+    Bot Cycles: 198/2500
+    Orders Executed: 0
+    Bot Status: RUNNING
+    Pool Price: 1 A = 0.0200000000 B
+  ⚠️  ⚠️  Bot ran but did not execute orders (price condition not met)
+  To trigger execution:
+    1. Lower current price via setPoolReserves()
+    2. Or set limit price higher via new order

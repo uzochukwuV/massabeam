@@ -41,6 +41,10 @@ export const ORDER_STATUS_FILLED: u8 = 1;
 export const ORDER_STATUS_CANCELLED: u8 = 2;
 export const ORDER_STATUS_EXPIRED: u8 = 3;
 
+// Order type constants
+export const ORDER_TYPE_BUY: u8 = 0;
+export const ORDER_TYPE_SELL: u8 = 1;
+
 // Time constraints
 export const MIN_EXPIRY: u64 = 60;
 export const MAX_EXPIRY: u64 = 365 * 24 * 60 * 60;
@@ -152,6 +156,7 @@ export class LimitOrder {
   createdAt: u64;
   expiryAt: u64;
   status: u8;
+  orderType: u8; // BUY (0) or SELL (1)
 
   constructor(
     id: u64,
@@ -161,7 +166,8 @@ export class LimitOrder {
     amountIn: u256,
     minAmountOut: u256,
     limitPrice: u256,
-    expiryAt: u64
+    expiryAt: u64,
+    orderType: u8 = ORDER_TYPE_BUY
   ) {
     this.id = id;
     this.user = user;
@@ -173,6 +179,7 @@ export class LimitOrder {
     this.createdAt = Context.timestamp();
     this.expiryAt = expiryAt;
     this.status = ORDER_STATUS_ACTIVE;
+    this.orderType = orderType;
   }
 
   serialize(): StaticArray<u8> {
@@ -187,32 +194,67 @@ export class LimitOrder {
     args.add(this.createdAt);
     args.add(this.expiryAt);
     args.add(this.status);
+    args.add(this.orderType);
     return args.serialize();
   }
 
   static deserialize(data: StaticArray<u8>): LimitOrder {
     const args = new Args(data);
+    const id = args.nextU64().unwrap();
+    const user = new Address(args.nextString().unwrap());
+    const tokenIn = new Address(args.nextString().unwrap());
+    const tokenOut = new Address(args.nextString().unwrap());
+    const amountIn = args.nextU256().unwrap();
+    const minAmountOut = args.nextU256().unwrap();
+    const limitPrice = args.nextU256().unwrap();
+    const createdAt = args.nextU64().unwrap();
+    const expiryAt = args.nextU64().unwrap();
+    const status = args.nextU8().unwrap();
+
+    // Try to read orderType - if fails, this is an old format order
+    let orderType = ORDER_TYPE_BUY;
+    
+    const readType = args.nextU8().unwrap();
+    // Validate it's a valid order type
+    if (readType === ORDER_TYPE_BUY || readType === ORDER_TYPE_SELL) {
+      orderType = readType;
+    }
+    // If invalid value, keep orderType as BUY
+
+
     const order = new LimitOrder(
-      args.nextU64().unwrap(),
-      new Address(args.nextString().unwrap()),
-      new Address(args.nextString().unwrap()),
-      new Address(args.nextString().unwrap()),
-      args.nextU256().unwrap(),
-      args.nextU256().unwrap(),
-      args.nextU256().unwrap(),
-      args.nextU64().unwrap()
+      id,
+      user,
+      tokenIn,
+      tokenOut,
+      amountIn,
+      minAmountOut,
+      limitPrice,
+      expiryAt,
+      orderType
     );
-    order.createdAt = args.nextU64().unwrap();
-    order.status = args.nextU8().unwrap();
+    order.createdAt = createdAt;
+    order.status = status;
     return order;
   }
 
   isPriceConditionMet(currentPrice: u256): bool {
-    return currentPrice <= this.limitPrice;
+    if (this.orderType === ORDER_TYPE_BUY) {
+      // BUY order: execute when current price is lower or equal to limit price
+      return currentPrice <= this.limitPrice;
+    } else {
+      // SELL order: execute when current price is greater or equal to limit price
+      return currentPrice >= this.limitPrice;
+    }
   }
 
   isExpired(): bool {
     return Context.timestamp() > this.expiryAt;
+  }
+
+  isTimeValid(): bool {
+    const now = Context.timestamp();
+    return now <= this.expiryAt;
   }
 }
 
@@ -256,6 +298,25 @@ function getMassaBeamAddress(): Address {
   return new Address(address);
 }
 
+/**
+ * Validate order type
+ */
+function isValidOrderType(orderType: u8): bool {
+  return orderType === ORDER_TYPE_BUY || orderType === ORDER_TYPE_SELL;
+}
+
+/**
+ * Get order type name for events
+ */
+function getOrderTypeName(orderType: u8): string {
+  if (orderType === ORDER_TYPE_BUY) {
+    return 'BUY';
+  } else if (orderType === ORDER_TYPE_SELL) {
+    return 'SELL';
+  }
+  return 'UNKNOWN';
+}
+
 // ============================================================================
 // EXTERNAL FUNCTIONS
 // ============================================================================
@@ -281,6 +342,7 @@ export function constructor(args: StaticArray<u8>): void {
 
 /**
  * Create a limit order
+ * Args: tokenIn, tokenOut, amountIn, minAmountOut, limitPrice, duration, orderType
  */
 export function createLimitOrder(args: StaticArray<u8>): void {
   requireNotPaused();
@@ -291,19 +353,27 @@ export function createLimitOrder(args: StaticArray<u8>): void {
   const amountIn = argument.nextU256().unwrap();
   const minAmountOut = argument.nextU256().unwrap();
   const limitPrice = argument.nextU256().unwrap();
-  const expiryTime = argument.nextU64().unwrap();
+  const duration = argument.nextU64().unwrap();
+  const orderType = argument.nextU8().unwrapOrDefault() || ORDER_TYPE_BUY;
 
   assert(!amountIn.isZero(), 'Amount must be positive');
   assert(!minAmountOut.isZero(), 'Min output must be positive');
   assert(!limitPrice.isZero(), 'Limit price must be positive');
   assert(tokenIn.toString() !== tokenOut.toString(), 'Cannot swap same token');
+  assert(isValidOrderType(orderType), 'Invalid order type: must be BUY (0) or SELL (1)');
 
   const now = Context.timestamp();
-  const expiryDelta = expiryTime > now ? expiryTime - now : 0;
-  assert(expiryDelta >= MIN_EXPIRY, 'Expiry too soon');
-  assert(expiryDelta <= MAX_EXPIRY, 'Expiry too far in future');
 
-  generateEvent(`LimitOrder:Creating|user=${Context.caller().toString()}|tokenIn=${tokenIn.toString()}|tokenOut=${tokenOut.toString()}`);
+  assert(duration >= MIN_EXPIRY, `Order duration must be at least ${MIN_EXPIRY} seconds`);
+  assert(duration <= MAX_EXPIRY, `Order duration must not exceed ${MAX_EXPIRY} seconds`);
+
+  const expiryAt = now + duration;
+
+  generateEvent(
+    `LimitOrder:Creating|user=${Context.caller().toString()}|type=${getOrderTypeName(
+      orderType
+    )}|tokenIn=${tokenIn.toString()}|tokenOut=${tokenOut.toString()}`
+  );
 
   const massaBeamAddress = getMassaBeamAddress();
   const massaBeam = new IMassaBeam(massaBeamAddress);
@@ -333,7 +403,8 @@ export function createLimitOrder(args: StaticArray<u8>): void {
     amountIn,
     minAmountOut,
     limitPrice,
-    expiryTime
+    expiryAt,
+    orderType
   );
 
   const tokenContract = new IERC20(tokenIn);
@@ -344,7 +415,13 @@ export function createLimitOrder(args: StaticArray<u8>): void {
   saveOrder(order);
   // Note: getNextOrderId() already incremented the counter
 
-  generateEvent(`LimitOrder:Created|id=${orderId}|user=${Context.caller().toString()}|tokenIn=${tokenIn.toString()}|tokenOut=${tokenOut.toString()}|amountIn=${amountIn.toString()}|limitPrice=${limitPrice.toString()}|currentPrice=${currentPrice.toString()}`);
+  const eventMsg =
+    `LimitOrder:Created|id=${orderId}|user=${Context.caller().toString()}` +
+    `|type=${getOrderTypeName(orderType)}|tokenIn=${tokenIn.toString()}` +
+    `|tokenOut=${tokenOut.toString()}|amountIn=${amountIn.toString()}` +
+    `|limitPrice=${limitPrice.toString()}|currentPrice=${currentPrice.toString()}` +
+    `|expiryAt=${expiryAt}`;
+  generateEvent(eventMsg);
 }
 
 /**
@@ -428,26 +505,33 @@ export function advance(_: StaticArray<u8>): void {
   let checkCount: u64 = 0;
 
   for (let i = startOrderId; i <= endOrderId; i++) {
-    const order = getOrder(i);
+    const fetchedOrder = getOrder(i);
     checkCount += 1;
 
-    if (order == null) {
+    if (fetchedOrder == null) {
       generateEvent(`LimitOrder:BotOrderNotFound|orderId=${i}`);
       continue;
     }
 
-    generateEvent(`LimitOrder:BotCheckOrder|orderId=${i}|status=${order.status}`);
+    const currentOrder: LimitOrder = fetchedOrder;
 
-    if (order.status !== ORDER_STATUS_ACTIVE) {
-      generateEvent(`LimitOrder:BotOrderNotActive|orderId=${i}|status=${order.status}`);
+    const orderTypeStr = getOrderTypeName(currentOrder.orderType);
+    generateEvent(
+      `LimitOrder:BotCheckOrder|orderId=${i}|status=${currentOrder.status}|type=${orderTypeStr}`
+    );
+
+    if (currentOrder.status !== ORDER_STATUS_ACTIVE) {
+      generateEvent(
+        `LimitOrder:BotOrderNotActive|orderId=${i}|status=${currentOrder.status}`
+      );
       continue;
     }
 
     // Check expiry
-    if (order.isExpired()) {
-      generateEvent(`LimitOrder:BotOrderExpired|orderId=${i}`);
-      order.status = ORDER_STATUS_EXPIRED;
-      saveOrder(order);
+    if (currentOrder.isExpired()) {
+      generateEvent(`LimitOrder:BotOrderExpired|orderId=${i}|type=${orderTypeStr}`);
+      currentOrder.status = ORDER_STATUS_EXPIRED;
+      saveOrder(currentOrder);
       continue;
     }
 
@@ -456,9 +540,9 @@ export function advance(_: StaticArray<u8>): void {
     const massaBeam = new IMassaBeam(massaBeamAddress);
 
     const currentPriceData = massaBeam.readQuoteSwapExactInput(
-      order.tokenIn,
-      order.tokenOut,
-      order.amountIn
+      currentOrder.tokenIn,
+      currentOrder.tokenOut,
+      currentOrder.amountIn
     );
 
     if (currentPriceData.length === 0) {
@@ -469,35 +553,43 @@ export function advance(_: StaticArray<u8>): void {
     const priceArgs = new Args(currentPriceData);
     const currentPrice = priceArgs.nextU256().unwrap();
 
-    generateEvent(`LimitOrder:BotPriceCheck|orderId=${i}|currentPrice=${currentPrice.toString()}|limitPrice=${order.limitPrice.toString()}`);
+    const priceCheckMsg =
+      `LimitOrder:BotPriceCheck|orderId=${i}|type=${orderTypeStr}` +
+      `|currentPrice=${currentPrice.toString()}` +
+      `|limitPrice=${currentOrder.limitPrice.toString()}`;
+    generateEvent(priceCheckMsg);
 
-    if (!order.isPriceConditionMet(currentPrice)) {
-      generateEvent(`LimitOrder:BotPriceNotMet|orderId=${i}|current=${currentPrice.toString()}|limit=${order.limitPrice.toString()}`);
+    if (!currentOrder.isPriceConditionMet(currentPrice)) {
+      const priceNotMetMsg =
+        `LimitOrder:BotPriceNotMet|orderId=${i}|type=${orderTypeStr}` +
+        `|current=${currentPrice.toString()}` +
+        `|limit=${currentOrder.limitPrice.toString()}`;
+      generateEvent(priceNotMetMsg);
       continue;
     }
 
     // Execute order
     generateEvent(`LimitOrder:BotExecuting|orderId=${i}`);
 
-    const tokenInContract = new IERC20(order.tokenIn);
-    tokenInContract.increaseAllowance(massaBeamAddress, order.amountIn);
+    const tokenInContract = new IERC20(currentOrder.tokenIn);
+    tokenInContract.increaseAllowance(massaBeamAddress, currentOrder.amountIn);
 
-    generateEvent(`LimitOrder:BotSwapApproved|orderId=${i}|amount=${order!.amountIn.toString()}`);
+    generateEvent(`LimitOrder:BotSwapApproved|orderId=${i}|amount=${currentOrder.amountIn.toString()}`);
 
     massaBeam.swap(
-      order.tokenIn,
-      order.tokenOut,
-      order.amountIn,
-      order.minAmountOut,
-      order.expiryAt,
-      order.user
+      currentOrder.tokenIn,
+      currentOrder.tokenOut,
+      currentOrder.amountIn,
+      currentOrder.minAmountOut,
+      currentOrder.expiryAt,
+      currentOrder.user
     );
 
-    order.status = ORDER_STATUS_FILLED;
-    saveOrder(order);
+    currentOrder.status = ORDER_STATUS_FILLED;
+    saveOrder(currentOrder);
     executedCount += 1;
 
-    generateEvent(`LimitOrder:BotExecuted|orderId=${i}|user=${order.user.toString()}|amount=${order.amountIn.toString()}`);
+    generateEvent(`LimitOrder:BotExecuted|orderId=${i}|user=${currentOrder.user.toString()}|amount=${currentOrder.amountIn.toString()}`);
   }
 
   // Update counters
@@ -558,43 +650,67 @@ export function executeLimitOrder(args: StaticArray<u8>): void {
   const orderId = argument.nextU64().unwrap();
   const currentPrice = argument.nextU256().unwrap();
 
-  generateEvent(`LimitOrder:ManualExecute|orderId=${orderId}|currentPrice=${currentPrice.toString()}`);
+  const foundOrder = getOrder(orderId);
+  assert(foundOrder !== null, 'Order not found');
+  const existingOrder: LimitOrder = foundOrder as LimitOrder;
 
-  const order = getOrder(orderId);
-  assert(order !== null, 'Order not found');
-  const o = order!;
+  const orderTypeStr = getOrderTypeName(existingOrder.orderType);
+  generateEvent(
+    `LimitOrder:ManualExecute|orderId=${orderId}|type=${orderTypeStr}|currentPrice=${currentPrice.toString()}`
+  );
 
-  if (o.status !== ORDER_STATUS_ACTIVE) {
-    generateEvent(`LimitOrder:CannotExecute|orderId=${orderId}|status=${o.status}`);
+  if (existingOrder.status !== ORDER_STATUS_ACTIVE) {
+    generateEvent(
+      `LimitOrder:CannotExecute|orderId=${orderId}|status=${existingOrder.status}`
+    );
     return;
   }
 
-  if (o.isExpired()) {
-    o.status = ORDER_STATUS_EXPIRED;
-    saveOrder(o);
-    generateEvent(`LimitOrder:Expired|orderId=${orderId}`);
+  if (existingOrder.isExpired()) {
+    existingOrder.status = ORDER_STATUS_EXPIRED;
+    saveOrder(existingOrder);
+    generateEvent(
+      `LimitOrder:Expired|orderId=${orderId}|type=${orderTypeStr}`
+    );
     return;
   }
 
-  if (!o.isPriceConditionMet(currentPrice)) {
-    generateEvent(`LimitOrder:PriceNotMet|orderId=${orderId}|current=${currentPrice.toString()}|limit=${o.limitPrice.toString()}`);
+  if (!existingOrder.isPriceConditionMet(currentPrice)) {
+    const priceMsg =
+      `LimitOrder:PriceNotMet|orderId=${orderId}|type=${orderTypeStr}` +
+      `|current=${currentPrice.toString()}` +
+      `|limit=${existingOrder.limitPrice.toString()}`;
+    generateEvent(priceMsg);
     return;
   }
 
   const massaBeamAddress = getMassaBeamAddress();
   const massaBeam = new IMassaBeam(massaBeamAddress);
 
-  const tokenInContract = new IERC20(o.tokenIn);
-  tokenInContract.increaseAllowance(massaBeamAddress, o.amountIn);
+  const tokenInContract = new IERC20(existingOrder.tokenIn);
+  tokenInContract.increaseAllowance(
+    massaBeamAddress,
+    existingOrder.amountIn
+  );
 
   generateEvent(`LimitOrder:SwapApproved|orderId=${orderId}`);
 
-  massaBeam.swap(o.tokenIn, o.tokenOut, o.amountIn, o.minAmountOut, o.expiryAt, o.user);
+  massaBeam.swap(
+    existingOrder.tokenIn,
+    existingOrder.tokenOut,
+    existingOrder.amountIn,
+    existingOrder.minAmountOut,
+    existingOrder.expiryAt,
+    existingOrder.user
+  );
 
-  o.status = ORDER_STATUS_FILLED;
-  saveOrder(o);
+  existingOrder.status = ORDER_STATUS_FILLED;
+  saveOrder(existingOrder);
 
-  generateEvent(`LimitOrder:Executed|id=${orderId}|user=${o.user.toString()}|amount=${o.amountIn.toString()}`);
+  const execMsg =
+    `LimitOrder:Executed|id=${orderId}|user=${existingOrder.user.toString()}` +
+    `|type=${orderTypeStr}|amount=${existingOrder.amountIn.toString()}`;
+  generateEvent(execMsg);
 }
 
 /**
@@ -606,24 +722,24 @@ export function cancelOrder(args: StaticArray<u8>): void {
   const argument = new Args(args);
   const orderId = argument.nextU64().unwrap();
 
-  const order = getOrder(orderId);
-  assert(order !== null, 'Order not found');
-  const o = order!;
+  const foundOrder = getOrder(orderId);
+  assert(foundOrder !== null, 'Order not found');
+  const existingOrder: LimitOrder = foundOrder as LimitOrder;
 
-  assert(o.user.toString() === Context.caller().toString(), 'Only owner can cancel');
+  assert(existingOrder.user.toString() === Context.caller().toString(), 'Only owner can cancel');
 
-  if (o.status !== ORDER_STATUS_ACTIVE) {
-    generateEvent(`LimitOrder:CannotCancel|id=${orderId}|status=${o.status}`);
+  if (existingOrder.status !== ORDER_STATUS_ACTIVE) {
+    generateEvent(`LimitOrder:CannotCancel|id=${orderId}|status=${existingOrder.status}`);
     return;
   }
 
-  o.status = ORDER_STATUS_CANCELLED;
-  saveOrder(o);
+  existingOrder.status = ORDER_STATUS_CANCELLED;
+  saveOrder(existingOrder);
 
-  const tokenContract = new IERC20(o.tokenIn);
-  tokenContract.transfer(o.user, o.amountIn);
+  const tokenContract = new IERC20(existingOrder.tokenIn);
+  tokenContract.transfer(existingOrder.user, existingOrder.amountIn);
 
-  generateEvent(`LimitOrder:Cancelled|id=${orderId}|user=${o.user.toString()}`);
+  generateEvent(`LimitOrder:Cancelled|id=${orderId}|user=${existingOrder.user.toString()}`);
 }
 
 /**
@@ -787,17 +903,17 @@ export function isOrderEligible(args: StaticArray<u8>): StaticArray<u8> {
   const currentPrice = priceArgs.nextU256().unwrap();
 
   if (!order.isPriceConditionMet(currentPrice)) {
-    return new Args()
-      .add(false)
-      .add(`Price not met: current=${currentPrice.toString()}, limit=${order.limitPrice.toString()}`)
-      .serialize();
+    const reason =
+      `Price not met (${getOrderTypeName(order.orderType)} order): ` +
+      `current=${currentPrice.toString()}, ` +
+      `limit=${order.limitPrice.toString()}`;
+    return new Args().add(false).add(reason).serialize();
   }
 
   // Order is eligible
-  return new Args()
-    .add(true)
-    .add('Order is eligible for execution')
-    .serialize();
+  const eligibleMsg =
+    `Order eligible for execution (${getOrderTypeName(order.orderType)} order)`;
+  return new Args().add(true).add(eligibleMsg).serialize();
 }
 
 /**
@@ -837,6 +953,190 @@ export function getOrdersByStatus(args: StaticArray<u8>): StaticArray<u8> {
     const order = getOrder(i);
     if (order != null && order.status === status) {
       matchingOrders.push(i);
+    }
+  }
+
+  const result = new Args();
+  result.add(u64(matchingOrders.length));
+  for (let i = 0; i < matchingOrders.length; i++) {
+    result.add(matchingOrders[i]);
+  }
+
+  return result.serialize();
+}
+
+/**
+ * Get orders expiring soon (within next N seconds)
+ * Returns: [count: u64, orderId1: u64, orderId2: u64, ...]
+ */
+export function getExpiringLimitOrders(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const timeWindow = argument.nextU64().unwrap(); // Seconds
+
+  const totalOrders = getOrderCount();
+  const expiringOrders: u64[] = [];
+  const now = Context.timestamp();
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null && order.status === ORDER_STATUS_ACTIVE) {
+      if (order.expiryAt > now && order.expiryAt <= now + timeWindow) {
+        expiringOrders.push(i);
+      }
+    }
+  }
+
+  const result = new Args();
+  result.add(u64(expiringOrders.length));
+  for (let i = 0; i < expiringOrders.length; i++) {
+    result.add(expiringOrders[i]);
+  }
+
+  return result.serialize();
+}
+
+/**
+ * Get user's performance summary
+ * Returns: [totalOrders: u64, activeOrders: u64, filledOrders: u64, cancelledOrders: u64, expiredOrders: u64, fillRate: u64]
+ */
+export function getUserPerformance(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const userAddress = new Address(argument.nextString().unwrap());
+
+  const totalOrders = getOrderCount();
+
+  let userTotalOrders: u64 = 0;
+  let userActiveOrders: u64 = 0;
+  let userFilledOrders: u64 = 0;
+  let userCancelledOrders: u64 = 0;
+  let userExpiredOrders: u64 = 0;
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null && order.user.toString() == userAddress.toString()) {
+      userTotalOrders++;
+
+      if (order.status === ORDER_STATUS_ACTIVE) {
+        userActiveOrders++;
+      } else if (order.status === ORDER_STATUS_FILLED) {
+        userFilledOrders++;
+      } else if (order.status === ORDER_STATUS_CANCELLED) {
+        userCancelledOrders++;
+      } else if (order.status === ORDER_STATUS_EXPIRED) {
+        userExpiredOrders++;
+      }
+    }
+  }
+
+  // Calculate fill rate (filled vs total)
+  const fillRate = userTotalOrders > 0
+    ? (userFilledOrders * 10000) / userTotalOrders
+    : 0;
+
+  const result = new Args();
+  result.add(userTotalOrders);
+  result.add(userActiveOrders);
+  result.add(userFilledOrders);
+  result.add(userCancelledOrders);
+  result.add(userExpiredOrders);
+  result.add(fillRate); // In basis points
+
+  return result.serialize();
+}
+
+/**
+ * Get platform-wide statistics
+ * Returns comprehensive stats for the entire limit order system
+ */
+export function getPlatformStatistics(_: StaticArray<u8>): StaticArray<u8> {
+  const totalOrders = getOrderCount();
+
+  let activeOrders: u64 = 0;
+  let filledOrders: u64 = 0;
+  let cancelledOrders: u64 = 0;
+  let expiredOrders: u64 = 0;
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null) {
+      if (order.status === ORDER_STATUS_ACTIVE) {
+        activeOrders++;
+      } else if (order.status === ORDER_STATUS_FILLED) {
+        filledOrders++;
+      } else if (order.status === ORDER_STATUS_CANCELLED) {
+        cancelledOrders++;
+      } else if (order.status === ORDER_STATUS_EXPIRED) {
+        expiredOrders++;
+      }
+    }
+  }
+
+  const enabled = getBool(BOT_ENABLED_KEY);
+  const counter = getCounter(BOT_COUNTER_KEY);
+  const totalExecuted = getCounter(BOT_TOTAL_EXECUTED);
+
+  const result = new Args();
+  result.add(totalOrders);
+  result.add(activeOrders);
+  result.add(filledOrders);
+  result.add(cancelledOrders);
+  result.add(expiredOrders);
+  result.add(enabled);
+  result.add(counter);
+  result.add(totalExecuted);
+
+  return result.serialize();
+}
+
+/**
+ * Get orders by price range
+ * Returns orders where limitPrice is within specified range
+ */
+export function getOrdersByPriceRange(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const minPrice = argument.nextU256().unwrap();
+  const maxPrice = argument.nextU256().unwrap();
+
+  const totalOrders = getOrderCount();
+  const matchingOrders: u64[] = [];
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null && order.status === ORDER_STATUS_ACTIVE) {
+      if (order.limitPrice >= minPrice && order.limitPrice <= maxPrice) {
+        matchingOrders.push(i);
+      }
+    }
+  }
+
+  const result = new Args();
+  result.add(u64(matchingOrders.length));
+  for (let i = 0; i < matchingOrders.length; i++) {
+    result.add(matchingOrders[i]);
+  }
+
+  return result.serialize();
+}
+
+/**
+ * Get orders for specific token pair
+ * Returns all active orders for tokenIn/tokenOut pair
+ */
+export function getOrdersByTokenPair(args: StaticArray<u8>): StaticArray<u8> {
+  const argument = new Args(args);
+  const tokenIn = new Address(argument.nextString().unwrap());
+  const tokenOut = new Address(argument.nextString().unwrap());
+
+  const totalOrders = getOrderCount();
+  const matchingOrders: u64[] = [];
+
+  for (let i: u64 = 1; i <= totalOrders; i++) {
+    const order = getOrder(i);
+    if (order != null && order.status === ORDER_STATUS_ACTIVE) {
+      if (order.tokenIn.toString() == tokenIn.toString() &&
+          order.tokenOut.toString() == tokenOut.toString()) {
+        matchingOrders.push(i);
+      }
     }
   }
 

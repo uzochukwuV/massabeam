@@ -10,6 +10,7 @@ import { showSuccess, showError, loadingOverlay } from './ui.js';
 import { getAllTokens, populateTokenSelects, tokenService } from './token-service.js';
 import { AMMContract, getProtocolStats, getExchangeRate, estimateSlippage, LimitOrdersContract, ORDER_STATUS, ORDER_STATUS_NAMES, ORDER_STATUS_COLORS } from './main.js';
 import { callContract, readContract } from './contract-helpers.js';
+import { startPeriodicMonitoring, updateUserPerformanceMetrics, updatePlatformStatistics, checkExpiringOrders } from './analytics.js';
 
 // ============================================================================
 // APP STATE
@@ -94,6 +95,11 @@ export async function initializeApp() {
     setupSectionNavigation();
     console.log('✓ Section navigation configured');
 
+    // Step 7: Start periodic monitoring for analytics
+    console.log('Step 7: Starting analytics monitoring...');
+    startPeriodicMonitoring(60000); // Update every minute
+    console.log('✓ Analytics monitoring started');
+
     loadingOverlay.hide();
     showSuccess('Application initialized successfully!');
 
@@ -120,6 +126,13 @@ export async function refreshProtocolStats() {
       AppState.lastUpdate = new Date();
 
       updateProtocolStatsUI(stats);
+    }
+
+    // Update analytics and monitoring
+    if (AppState.isConnected) {
+      await updateUserPerformanceMetrics();
+      await updatePlatformStatistics();
+      await checkExpiringOrders(3600); // Check orders expiring within 1 hour
     }
   } catch (error) {
     console.error('Failed to refresh protocol stats:', error);

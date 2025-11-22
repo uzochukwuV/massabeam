@@ -19,14 +19,8 @@ import {
   SmartContract,
   JsonRpcProvider,
 } from '@massalabs/massa-web3';
-import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import { USDC } from '@dusalabs/sdk';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { loadAddresses } from './utils/address-book.js';
 
 // Token addresses
 const TOKEN_A = 'AS1nDAemyLSLUuNZ747Dt3NgzEC9WGCkmjRvY9hZwW2928Fxb4Fk';
@@ -67,12 +61,7 @@ async function main(): Promise<void> {
 
     log(`Account: ${account.address.toString()}`);
 
-    const addressesPath = path.join(__dirname, '', 'deployed-addresses.json');
-    if (!fs.existsSync(addressesPath)) {
-      throw new Error('deployed-addresses.json not found!');
-    }
-
-    const deployed = JSON.parse(fs.readFileSync(addressesPath, 'utf-8'));
+    const deployed = loadAddresses();
     const massaBeamAddress = deployed.contracts.massaBeam;
     const limitOrdersAddress = deployed.contracts.limitOrders;
 

@@ -83,15 +83,43 @@ function setupGlobalHandlers() {
   };
 
   // Liquidity handlers
-  window.addLiquidity = async () => {
-    const { handleAddLiquidity } = await import('./app-integration.js');
-    await handleAddLiquidity();
+  window.addLiquidity = async (event) => {
+    const { handleAddLiquidity } = await import('./liquidity.js');
+    await handleAddLiquidity(event);
+  };
+
+  window.removeLiquidity = async (event) => {
+    const { handleRemoveLiquidity } = await import('./liquidity.js');
+    await handleRemoveLiquidity(event);
   };
 
   // Pool handlers
-  window.createPool = async () => {
-    const { handleCreatePool } = await import('./app-integration.js');
-    await handleCreatePool();
+  window.createPool = async (event) => {
+    const { handleCreatePool } = await import('./liquidity.js');
+    await handleCreatePool(event);
+  };
+
+  window.refreshPools = async () => {
+    const { refreshPools } = await import('./liquidity.js');
+    await refreshPools();
+  };
+
+  window.switchLiquidityTab = (tab) => {
+    import('./liquidity.js').then(({ switchLiquidityTab }) => {
+      switchLiquidityTab(tab);
+    });
+  };
+
+  window.setRemovePercent = (percent) => {
+    import('./liquidity.js').then(({ setRemovePercent }) => {
+      setRemovePercent(percent);
+    });
+  };
+
+  window.updateRemoveLiquidityAmount = () => {
+    import('./liquidity.js').then(({ updateRemoveLiquidityAmount }) => {
+      updateRemoveLiquidityAmount();
+    });
   };
 
   // Refresh handlers

@@ -1,7 +1,7 @@
 /**
  * ERC20 to ERC20 Pool Creation Test
  * Tests createPool function with two ERC20 tokens
- * npx tsx src/test-create-pool-erc20.ts
+ * npx tsx src/core/test-create-pool-erc20.ts
  * Usage: 
  */
 

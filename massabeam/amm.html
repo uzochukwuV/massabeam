@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMM Trading - Massa DeFi</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "@massalabs/massa-web3": "https://unpkg.com/@massalabs/massa-web3@latest/dist/index.js",
+            "@massalabs/wallet-provider": "https://unpkg.com/@massalabs/wallet-provider@latest/dist/index.js",
+            "@dusalabs/sdk": "https://unpkg.com/@dusalabs/sdk@latest/dist/index.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-container">
+                <div class="header-left">
+                    <a href="index.html" class="brand">
+                        <div class="brand-icon">
+                            <div class="massa-logo"></div>
+                        </div>
+                        <span class="brand-text">Massa DeFi</span>
+                    </a>
+                    <div class="network-status">
+                        <div class="status-indicator" id="networkStatus"></div>
+                        <span class="status-text">Buildnet</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="gas-price">
+                        <span class="gas-label">Gas:</span>
+                        <span class="gas-value" id="gasPrice">1000</span>
+                    </div>
+                    <button class="wallet-btn" id="walletBtn">
+                        <span class="wallet-text">Connect Wallet</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <div class="nav-container">
+                <div class="nav-items">
+                    <a href="index.html" class="nav-item">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                    <a href="amm.html" class="nav-item active">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">AMM Trade</span>
+                    </a>
+                    <a href="limit-orders.html" class="nav-item">
+                        <span class="nav-icon">🎯</span>
+                        <span class="nav-text">Limit Orders</span>
+                    </a>
+                    <a href="recurring-orders.html" class="nav-item">
+                        <span class="nav-icon">🔄</span>
+                        <span class="nav-text">Recurring Orders</span>
+                    </a>
+                    <a href="grid-orders.html" class="nav-item">
+                        <span class="nav-icon">📈</span>
+                        <span class="nav-text">Grid Orders</span>
+                    </a>
+                    <a href="liquidity.html" class="nav-item">
+                        <span class="nav-icon">💧</span>
+                        <span class="nav-text">Liquidity</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div class="section-header">
+                <h1 class="section-title">AMM Trading</h1>
+                <div class="section-actions">
+                    <button class="settings-btn" onclick="openTradeSettings()">
+                        <span class="settings-icon">⚙️</span>
+                        Settings
+                    </button>
+                </div>
+            </div>
+
+            <div class="trade-container">
+                <!-- Left Panel: Swap Card -->
+                <div class="trade-panel">
+                    <div class="swap-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Swap Tokens</h3>
+                            <div class="slippage-display">
+                                Slippage: <span id="currentSlippage">0.5%</span>
+                            </div>
+                        </div>
+
+                        <div class="swap-form">
+                            <div class="token-input">
+                                <div class="input-header">
+                                    <span class="input-label">From</span>
+                                    <span class="balance">Balance: <span id="fromTokenBalance">0</span></span>
+                                </div>
+                                <div class="input-container">
+                                    <input type="number" id="fromAmount" placeholder="0.0" class="amount-input">
+                                    <select class="token-select" id="swapTokenIn">
+                                        <option value="">Select Token</option>
+                                    </select>
+                                </div>
+                                <div class="input-footer">
+                                    <span class="usd-value" id="fromUsdValue">$0.00</span>
+                                    <button class="max-btn" onclick="setMaxAmount()">MAX</button>
+                                </div>
+                            </div>
+
+                            <div class="swap-arrow">
+                                <button class="swap-direction-btn" onclick="swapTokens()">
+                                    <span class="arrow-icon">⇅</span>
+                                </button>
+                            </div>
+
+                            <div class="token-input">
+                                <div class="input-header">
+                                    <span class="input-label">To</span>
+                                    <span class="balance">Balance: <span id="toTokenBalance">0</span></span>
+                                </div>
+                                <div class="input-container">
+                                    <input type="number" id="toAmount" placeholder="0.0" class="amount-input" readonly>
+                                    <select class="token-select" id="swapTokenOut">
+                                        <option value="">Select Token</option>
+                                    </select>
+                                </div>
+                                <div class="input-footer">
+                                    <span class="usd-value" id="toUsdValue">$0.00</span>
+                                </div>
+                            </div>
+
+                            <div class="swap-info">
+                                <div class="info-row">
+                                    <span class="info-label">Rate</span>
+                                    <span class="info-value" id="swapRate">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Price Impact</span>
+                                    <span class="info-value" id="priceImpact">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Minimum Received</span>
+                                    <span class="info-value" id="minimumReceived">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Network Fee</span>
+                                    <span class="info-value" id="networkFee">-</span>
+                                </div>
+                            </div>
+
+                            <button class="swap-btn" id="swapBtn" onclick="executeSwap()">
+                                <span class="btn-text">Connect Wallet</span>
+                                <div class="btn-glow"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Market Data & Price Info -->
+                <div class="trade-info-panel">
+                    <!-- Price Chart -->
+                    <div class="price-chart-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Price Chart</h3>
+                            <div class="chart-controls">
+                                <button class="chart-timeframe active" data-timeframe="1H">1H</button>
+                                <button class="chart-timeframe" data-timeframe="4H">4H</button>
+                                <button class="chart-timeframe" data-timeframe="1D">1D</button>
+                                <button class="chart-timeframe" data-timeframe="1W">1W</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="priceChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Pool Information Card -->
+                    <div class="pool-info-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Pool Information</h3>
+                            <button class="refresh-btn" onclick="refreshPoolData()" title="Refresh Pool Data">
+                                <span>🔄</span>
+                            </button>
+                        </div>
+                        <div class="pool-stats" id="poolStats">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Liquidity</span>
+                                <span class="stat-value" id="poolLiquidity">$0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Reserve A</span>
+                                <span class="stat-value" id="poolReserveA">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Reserve B</span>
+                                <span class="stat-value" id="poolReserveB">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Pool Fee</span>
+                                <span class="stat-value" id="poolFee">0.3%</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">24h Est. Fees</span>
+                                <span class="stat-value" id="poolEstFees">$0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Is Active</span>
+                                <span class="stat-value" id="poolActive">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Price Analysis Card -->
+                    <div class="price-analysis-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Price Analysis</h3>
+                        </div>
+                        <div class="analysis-content">
+                            <div class="analysis-item">
+                                <span class="analysis-label">Current Price</span>
+                                <span class="analysis-value" id="currentPrice">-</span>
+                            </div>
+                            <div class="analysis-item">
+                                <span class="analysis-label">Spot Price</span>
+                                <span class="analysis-value" id="spotPrice">-</span>
+                            </div>
+                            <div class="analysis-item">
+                                <span class="analysis-label">Price Impact (1 Unit)</span>
+                                <span class="analysis-value" id="priceImpactAnalysis">-</span>
+                            </div>
+                            <div class="analysis-item">
+                                <span class="analysis-label">Slippage Risk</span>
+                                <span class="analysis-value" id="slippageRisk">Low</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Token Price Comparison -->
+                    <div class="token-price-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Token Prices</h3>
+                        </div>
+                        <div class="price-table">
+                            <table id="priceTable">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Price</th>
+                                        <th>Change %</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="priceTableBody">
+                                    <tr>
+                                        <td colspan="3" class="empty-state">Load a pool to see prices</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="src/app/main.js" type="module"></script>
+    <script src="src/app/amm-page.js" type="module"></script>
+</body>
+</html>

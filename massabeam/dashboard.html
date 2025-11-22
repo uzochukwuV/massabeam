@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Massa DeFi</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "@massalabs/massa-web3": "https://unpkg.com/@massalabs/massa-web3@latest/dist/index.js",
+            "@massalabs/wallet-provider": "https://unpkg.com/@massalabs/wallet-provider@latest/dist/index.js",
+            "@dusalabs/sdk": "https://unpkg.com/@dusalabs/sdk@latest/dist/index.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-container">
+                <div class="header-left">
+                    <div class="brand">
+                        <div class="brand-icon">
+                            <div class="massa-logo"></div>
+                        </div>
+                        <span class="brand-text">Massa DeFi</span>
+                    </div>
+                    <div class="network-status">
+                        <div class="status-indicator" id="networkStatus"></div>
+                        <span class="status-text">Buildnet</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="gas-price">
+                        <span class="gas-label">Gas:</span>
+                        <span class="gas-value" id="gasPrice">1000</span>
+                    </div>
+                    <button class="wallet-btn" id="walletBtn">
+                        <span class="wallet-text">Connect Wallet</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <div class="nav-container">
+                <div class="nav-items">
+                    <button class="nav-item active" data-section="dashboard">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </button>
+                    <a href="amm.html" class="nav-item">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">AMM Trade</span>
+                    </a>
+                    <a href="limit-orders.html" class="nav-item">
+                        <span class="nav-icon">🎯</span>
+                        <span class="nav-text">Limit Orders</span>
+                    </a>
+                    <a href="recurring-orders.html" class="nav-item">
+                        <span class="nav-icon">🔄</span>
+                        <span class="nav-text">Recurring Orders</span>
+                    </a>
+                    <a href="grid-orders.html" class="nav-item">
+                        <span class="nav-icon">📈</span>
+                        <span class="nav-text">Grid Orders</span>
+                    </a>
+                    <a href="liquidity.html" class="nav-item">
+                        <span class="nav-icon">💧</span>
+                        <span class="nav-text">Liquidity</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div class="section-header">
+                <h1 class="section-title">Dashboard</h1>
+                <div class="section-actions">
+                    <button class="refresh-btn" onclick="refreshDashboard()">
+                        <span class="refresh-icon">🔄</span>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Portfolio Overview -->
+            <div class="dashboard-grid">
+                <!-- Portfolio Summary Card -->
+                <div class="dashboard-card portfolio-summary">
+                    <div class="card-header">
+                        <h3 class="card-title">Portfolio Summary</h3>
+                        <div class="time-selector">
+                            <button class="time-btn active" data-period="24h">24h</button>
+                            <button class="time-btn" data-period="7d">7d</button>
+                            <button class="time-btn" data-period="30d">30d</button>
+                        </div>
+                    </div>
+                    <div class="portfolio-content">
+                        <div class="portfolio-value">
+                            <span class="value-label">Total Value</span>
+                            <span class="value-amount" id="totalValue">$0.00</span>
+                        </div>
+                        <div class="portfolio-change">
+                            <span class="change-label">24h Change</span>
+                            <span class="change-amount positive" id="portfolioChange">+0.00%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats Cards -->
+                <div class="dashboard-card quick-stats">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Stats</h3>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <span class="stat-label">Active Orders</span>
+                            <span class="stat-value" id="activeOrdersCount">0</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Total Executed</span>
+                            <span class="stat-value" id="totalExecuted">0</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Fees Earned</span>
+                            <span class="stat-value" id="feesEarned">$0</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">24h Volume</span>
+                            <span class="stat-value" id="volumeData">$0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Platform Stats -->
+                <div class="dashboard-card platform-stats">
+                    <div class="card-header">
+                        <h3 class="card-title">Platform Stats</h3>
+                    </div>
+                    <div class="stats-list">
+                        <div class="stat-row">
+                            <span class="stat-name">Total Value Locked</span>
+                            <span class="stat-value" id="platformTVL">$0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-name">Total Users</span>
+                            <span class="stat-value" id="platformUsers">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-name">Active Pools</span>
+                            <span class="stat-value" id="activePools">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-name">Protocol Fee Rate</span>
+                            <span class="stat-value" id="protocolFee">0.3%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bot Status Overview -->
+                <div class="dashboard-card bots-overview">
+                    <div class="card-header">
+                        <h3 class="card-title">Bot Status Overview</h3>
+                    </div>
+                    <div class="bots-grid">
+                        <div class="bot-status-item">
+                            <div class="bot-name">Limit Orders Bot</div>
+                            <div class="bot-indicator" id="limitBotStatus">
+                                <div class="indicator-dot"></div>
+                                <span class="status-text">Inactive</span>
+                            </div>
+                        </div>
+                        <div class="bot-status-item">
+                            <div class="bot-name">Recurring Bot</div>
+                            <div class="bot-indicator" id="recurringBotStatus">
+                                <div class="indicator-dot active"></div>
+                                <span class="status-text">Active</span>
+                            </div>
+                        </div>
+                        <div class="bot-status-item">
+                            <div class="bot-name">Grid Bot</div>
+                            <div class="bot-indicator" id="gridBotStatus">
+                                <div class="indicator-dot"></div>
+                                <span class="status-text">Inactive</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature Cards Section -->
+            <div class="feature-section">
+                <div class="section-header">
+                    <h2 class="section-subtitle">Available Features</h2>
+                </div>
+
+                <div class="feature-cards-grid">
+                    <!-- AMM Trading Card -->
+                    <a href="amm.html" class="feature-card amm-card">
+                        <div class="card-header">
+                            <div class="feature-icon">⚡</div>
+                            <h3 class="feature-title">AMM Trading</h3>
+                        </div>
+                        <div class="card-content">
+                            <p class="feature-description">Swap tokens with real-time price calculations and pool analytics</p>
+                            <div class="feature-highlights">
+                                <span class="highlight">Zero-slippage</span>
+                                <span class="highlight">Price analysis</span>
+                                <span class="highlight">Pool data</span>
+                            </div>
+                        </div>
+                        <div class="card-stats">
+                            <div class="stat">
+                                <span class="stat-label">Pool Fee</span>
+                                <span class="stat-val">0.3%</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">TVL</span>
+                                <span class="stat-val" id="ammTVL">$0</span>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- Limit Orders Card -->
+                    <a href="limit-orders.html" class="feature-card limit-card">
+                        <div class="card-header">
+                            <div class="feature-icon">🎯</div>
+                            <h3 class="feature-title">Limit Orders</h3>
+                        </div>
+                        <div class="card-content">
+                            <p class="feature-description">Set price-based orders that execute automatically when conditions are met</p>
+                            <div class="feature-highlights">
+                                <span class="highlight">Auto-execute</span>
+                                <span class="highlight">BUY/SELL</span>
+                                <span class="highlight">Bot managed</span>
+                            </div>
+                        </div>
+                        <div class="card-stats">
+                            <div class="stat">
+                                <span class="stat-label">Active</span>
+                                <span class="stat-val" id="limitActive">0</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Executed</span>
+                                <span class="stat-val" id="limitExecuted">0</span>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- Recurring Orders Card -->
+                    <a href="recurring-orders.html" class="feature-card recurring-card">
+                        <div class="card-header">
+                            <div class="feature-icon">🔄</div>
+                            <h3 class="feature-title">Recurring Orders</h3>
+                        </div>
+                        <div class="card-content">
+                            <p class="feature-description">DCA strategy and trigger-based orders for automated portfolio management</p>
+                            <div class="feature-highlights">
+                                <span class="highlight">DCA mode</span>
+                                <span class="highlight">Trigger-based</span>
+                                <span class="highlight">Auto-resume</span>
+                            </div>
+                        </div>
+                        <div class="card-stats">
+                            <div class="stat">
+                                <span class="stat-label">Active</span>
+                                <span class="stat-val" id="recurringActive">0</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Total Spent</span>
+                                <span class="stat-val" id="recurringSpent">$0</span>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- Grid Orders Card -->
+                    <a href="grid-orders.html" class="feature-card grid-card">
+                        <div class="card-header">
+                            <div class="feature-icon">📈</div>
+                            <h3 class="feature-title">Grid Orders</h3>
+                        </div>
+                        <div class="card-content">
+                            <p class="feature-description">Multi-level grid trading for capturing profits across price ranges</p>
+                            <div class="feature-highlights">
+                                <span class="highlight">Multi-level</span>
+                                <span class="highlight">Price grid</span>
+                                <span class="highlight">Auto-fill</span>
+                            </div>
+                        </div>
+                        <div class="card-stats">
+                            <div class="stat">
+                                <span class="stat-label">Active</span>
+                                <span class="stat-val" id="gridActive">0</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Filled</span>
+                                <span class="stat-val" id="gridFilled">0</span>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- Liquidity Card -->
+                    <a href="liquidity.html" class="feature-card liquidity-card">
+                        <div class="card-header">
+                            <div class="feature-icon">💧</div>
+                            <h3 class="feature-title">Liquidity</h3>
+                        </div>
+                        <div class="card-content">
+                            <p class="feature-description">Provide liquidity to pools and earn trading fees and rewards</p>
+                            <div class="feature-highlights">
+                                <span class="highlight">Earn fees</span>
+                                <span class="highlight">LP tokens</span>
+                                <span class="highlight">Rewards</span>
+                            </div>
+                        </div>
+                        <div class="card-stats">
+                            <div class="stat">
+                                <span class="stat-label">Your LPs</span>
+                                <span class="stat-val" id="yourLPs">0</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Fees Earned</span>
+                                <span class="stat-val" id="lpFees">$0</span>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="recent-activity-section">
+                <div class="section-header">
+                    <h2 class="section-subtitle">Recent Activity</h2>
+                </div>
+
+                <div class="activity-cards">
+                    <!-- Recent Trades -->
+                    <div class="activity-card trades-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Recent Trades</h3>
+                        </div>
+                        <div class="activity-list" id="recentTrades">
+                            <div class="empty-state">
+                                <span class="empty-icon">📊</span>
+                                <p>No recent trades</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Orders -->
+                    <div class="activity-card orders-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Recent Orders</h3>
+                        </div>
+                        <div class="activity-list" id="recentOrders">
+                            <div class="empty-state">
+                                <span class="empty-icon">🎯</span>
+                                <p>No recent orders</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Execution History -->
+                    <div class="activity-card executions-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Bot Executions</h3>
+                        </div>
+                        <div class="activity-list" id="botExecutions">
+                            <div class="empty-state">
+                                <span class="empty-icon">⚙️</span>
+                                <p>No recent executions</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="src/app/main.js" type="module"></script>
+    <script src="src/app/dashboard.js" type="module"></script>
+</body>
+</html>

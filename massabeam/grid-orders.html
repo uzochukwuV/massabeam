@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Orders - Massa DeFi</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "@massalabs/massa-web3": "https://unpkg.com/@massalabs/massa-web3@latest/dist/index.js",
+            "@massalabs/wallet-provider": "https://unpkg.com/@massalabs/wallet-provider@latest/dist/index.js",
+            "@dusalabs/sdk": "https://unpkg.com/@dusalabs/sdk@latest/dist/index.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-container">
+                <div class="header-left">
+                    <a href="index.html" class="brand">
+                        <div class="brand-icon">
+                            <div class="massa-logo"></div>
+                        </div>
+                        <span class="brand-text">Massa DeFi</span>
+                    </a>
+                    <div class="network-status">
+                        <div class="status-indicator" id="networkStatus"></div>
+                        <span class="status-text">Buildnet</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="gas-price">
+                        <span class="gas-label">Gas:</span>
+                        <span class="gas-value" id="gasPrice">1000</span>
+                    </div>
+                    <button class="wallet-btn" id="walletBtn">
+                        <span class="wallet-text">Connect Wallet</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <div class="nav-container">
+                <div class="nav-items">
+                    <a href="index.html" class="nav-item">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                    <a href="amm.html" class="nav-item">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">AMM Trade</span>
+                    </a>
+                    <a href="limit-orders.html" class="nav-item">
+                        <span class="nav-icon">🎯</span>
+                        <span class="nav-text">Limit Orders</span>
+                    </a>
+                    <a href="recurring-orders.html" class="nav-item">
+                        <span class="nav-icon">🔄</span>
+                        <span class="nav-text">Recurring Orders</span>
+                    </a>
+                    <a href="grid-orders.html" class="nav-item active">
+                        <span class="nav-icon">📈</span>
+                        <span class="nav-text">Grid Orders</span>
+                    </a>
+                    <a href="liquidity.html" class="nav-item">
+                        <span class="nav-icon">💧</span>
+                        <span class="nav-text">Liquidity</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div class="section-header">
+                <h1 class="section-title">Grid Orders</h1>
+                <div class="section-actions">
+                    <button class="primary-btn" onclick="openCreateGridModal()">
+                        <span>+ Create Grid</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid-container">
+                <!-- Left Panel: Create Grid Order -->
+                <div class="grid-panel">
+                    <div class="create-grid-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Create Grid Order</h3>
+                            <div class="grid-type-selector">
+                                <button class="grid-type-btn active" data-type="buy">Buy Grid</button>
+                                <button class="grid-type-btn" data-type="sell">Sell Grid</button>
+                            </div>
+                        </div>
+
+                        <form class="grid-form" id="gridForm">
+                            <div class="form-group">
+                                <label class="form-label">Token Pair</label>
+                                <div class="token-pair-selector">
+                                    <select class="token-select-dropdown" id="gridTokenIn">
+                                        <option value="">Select Token In</option>
+                                    </select>
+                                    <span class="pair-arrow">→</span>
+                                    <select class="token-select-dropdown" id="gridTokenOut">
+                                        <option value="">Select Token Out</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Entry Price</label>
+                                <input type="number" id="gridEntryPrice" placeholder="0.0" class="form-input" step="0.0001">
+                                <div class="input-hint">
+                                    Current Price: <span id="gridCurrentPrice">-</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Grid Setup</label>
+                                <div class="grid-preset-buttons">
+                                    <button type="button" class="preset-btn" onclick="setGridPreset('symmetric', 3)">3-Level</button>
+                                    <button type="button" class="preset-btn" onclick="setGridPreset('symmetric', 5)">5-Level</button>
+                                    <button type="button" class="preset-btn" onclick="setGridPreset('symmetric', 10)">10-Level</button>
+                                    <button type="button" class="preset-btn" onclick="setGridPreset('exponential', 5)">Exponential</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Number of Levels</label>
+                                <input type="number" id="gridLevels" placeholder="5" class="form-input" min="1" max="100" value="5">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Price Spacing (%)</label>
+                                <input type="number" id="gridSpacing" placeholder="5" class="form-input" min="0.1" max="100" step="0.1" value="5">
+                                <div class="input-hint">
+                                    Percentage between grid levels
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Total Investment</label>
+                                <input type="number" id="gridTotalAmount" placeholder="0.0" class="form-input">
+                                <div class="input-hint">
+                                    Amount per level: <span id="gridAmountPerLevel">0</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Order Duration</label>
+                                <select class="form-select" id="gridDuration">
+                                    <option value="604800">1 Week</option>
+                                    <option value="2592000">1 Month</option>
+                                    <option value="7776000">3 Months</option>
+                                    <option value="31536000" selected>1 Year</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="submit-btn" onclick="createGridOrder(event)">
+                                <span class="btn-text">Create Grid Order</span>
+                                <div class="btn-glow"></div>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Grid Preview -->
+                    <div class="grid-preview-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Grid Preview</h3>
+                        </div>
+                        <div class="grid-preview" id="gridPreview">
+                            <div class="preview-placeholder">Configure grid to see preview</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Active Grids & Bot Status -->
+                <div class="grid-info-panel">
+                    <!-- Active Grid Orders -->
+                    <div class="active-grids-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Active Grids</h3>
+                            <span class="grid-count" id="activeGridCount">0</span>
+                        </div>
+                        <div class="grids-list" id="activeGridsList">
+                            <div class="empty-state">
+                                <div class="empty-icon">📊</div>
+                                <p>No active grids</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grid Bot Status -->
+                    <div class="grid-bot-status-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Grid Bot Status</h3>
+                            <div class="bot-indicator" id="gridBotIndicator">
+                                <div class="indicator-dot" id="gridIndicatorDot"></div>
+                                <span id="gridBotStatusText">Inactive</span>
+                            </div>
+                        </div>
+                        <div class="bot-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Enabled</span>
+                                <span class="stat-value" id="gridBotEnabled">No</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Cycles Run</span>
+                                <span class="stat-value" id="gridBotCycles">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Levels Filled</span>
+                                <span class="stat-value" id="gridBotFilled">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Max Iterations</span>
+                                <span class="stat-value" id="gridBotMaxIter">0</span>
+                            </div>
+                        </div>
+                        <div class="bot-controls">
+                            <button class="btn-secondary" onclick="startGridBot()">Start Bot</button>
+                            <button class="btn-secondary" onclick="stopGridBot()">Stop Bot</button>
+                        </div>
+                    </div>
+
+                    <!-- Grid Performance -->
+                    <div class="grid-performance-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Performance Metrics</h3>
+                        </div>
+                        <div class="metrics-content">
+                            <div class="metric-item">
+                                <span class="metric-label">Total Grids</span>
+                                <span class="metric-value" id="totalGrids">0</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Active Levels</span>
+                                <span class="metric-value" id="activeGridLevels">0</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Levels Filled</span>
+                                <span class="metric-value" id="filledGridLevels">0</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Total Fees Earned</span>
+                                <span class="metric-value" id="gridFeesEarned">$0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grid Level Status -->
+                    <div class="grid-levels-status-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Selected Grid Levels</h3>
+                        </div>
+                        <div class="levels-table" id="levelsTable">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Level</th>
+                                        <th>Price</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="levelsTableBody">
+                                    <tr>
+                                        <td colspan="4" class="empty">Configure grid to see levels</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="src/app/main.js" type="module"></script>
+    <script src="src/app/grid-orders-page.js" type="module"></script>
+</body>
+</html>

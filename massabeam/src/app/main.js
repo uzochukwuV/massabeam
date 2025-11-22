@@ -21,7 +21,39 @@ import {
   SmartContract,
   JsonRpcProvider,
 } from '@massalabs/massa-web3';
-import {DAI, USDC, WETH, USDT, WBTC, WETH_B} from "@dusalabs/sdk"
+import {DAI, USDC, WETH, USDT, WBTC, WETH_B} from "@dusalabs/sdk";
+
+
+const ContractA = {
+  "contracts": {
+    "massaBeam": "AS12Aj3mwrkf8P6cd9tzSCfyQkQU7fG39DwTyoCVXmq5M82YD8Yw7",
+    "limitOrders": "AS12PTGvcpPGWbHsna5iX5M2TBTpFX2VZ9Ts7LRThHEZ1m9ViLZxQ",
+    "recurringOrders": "AS1eZR6pWPfAGfGeUBUtwB8vVTBWUX9e4KWFL9jo1aLSRRvojeHp",
+    "flashArbitrageBot": "AS1Sf4hqEVuCpMTR6Hjiq1aPEF3q2sRjQaiLqM1drk9pwhhnayRo",
+    "smartSwap": "AS12vrmtb7HpHJH7Uim12CUDPsUqqjsQXod8SWfJQwi3n4jLMNFH2",
+    "arbitrageEngine": "AS12k1cpwBNUmJWyJmGpRXiSVsmehxY8ZaekGyqdUJzVosLnCPkkw"
+  },
+  "deployment": {
+    "timestamp": "2025-11-22T20:17:30.350Z",
+    "network": "buildnet",
+    "account": "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
+    "totalGasUsed": "~12 MAS"
+  },
+  "integration": {
+    "dusaRouter": "AS1XqtvX3rz2RWbnqLfaYVKEjM3VS5pny9yKDdXcmJ5C1vrcLEFd",
+    "dusaQuoter": "AS1Wse7vxWvB1iP1DwNQTQQctwU1fQ1jrq5JgdSPZH132UYrYrXF",
+    "wmasAddress": "AS12FW5Rs5YN2zdpEnqwj4iHUUPt9R4Eqjq2qtpJFNKW3mn33RuLU"
+  },
+  "decimals": {
+    "usdc": 6,
+    "dai": 18,
+    "weth": 18,
+    "wmas": 9,
+    "note": "Contracts use u64 for internal calculations, u256 for token transfers"
+  }
+}
+
+
 export const DEPLOYED_CONTRACTS = {
   // Token Addresses
   TOKENS: {
@@ -31,11 +63,11 @@ export const DEPLOYED_CONTRACTS = {
   },
 
   // Protocol Contracts
-  AMM: "AS123iK1bQATxAVw2WE5vojCLFnU4ESuTanHsGkyUnpn8xqF6Yfnk",
-  DCA: "AS12Z8eKEdKv6mJiBFrh53gWFLY3K5LnKnxuFymCCXEBpk3rMD7Ua",
+  AMM: ContractA.contracts.massaBeam,
+  DCA: ContractA.contracts.flashArbitrageBot,
   ENGINE: "AS1QXNZ6MB9GV3zmtSLgEKFAXs3Sxcp4qnCtupLXku942QgxBn4P",
-  LIMIT_ORDERS: null, // TODO: Deploy limit_orders_autonomous.ts contract
-  RECURRING_ORDERS: null, // TODO: Deploy recurring_orders.ts contract
+  LIMIT_ORDERS: ContractA.contracts.limitOrders, // TODO: Deploy limit_orders_autonomous.ts contract
+  RECURRING_ORDERS: ContractA.contracts.recurringOrders, // TODO: Deploy recurring_orders.ts contract
 
   // Deployment Info
   DEPLOYER: "AU12G4TFGs7EFxAd98sDyW2qni8LMwy6QPoNuDao2DmF3NdCun7ma",
@@ -1205,6 +1237,233 @@ export async function estimateSlippage(tokenIn, tokenOut, amountIn) {
     };
   } catch (error) {
     console.error("Failed to estimate slippage:", error);
+    return null;
+  }
+}
+
+// ============================================================================
+// PRICE CALCULATIONS FOR FRONTEND UI
+// ============================================================================
+
+/**
+ * Get the price of a token in terms of another token
+ * Useful for displaying current prices in the frontend UI
+ *
+ * @param {string} baseToken - Token to price (e.g., USDC)
+ * @param {string} quoteToken - Token to price against (e.g., USDT)
+ * @param {string|number} baseAmount - Amount of base token (with decimals applied, default: 1 unit = 1e8 for u64)
+ * @returns {Promise<Object|null>} Price information or null if pool doesn't exist
+ *
+ * @example
+ * // Get USDC/USDT price
+ * const price = await getTokenPrice('USDC_ADDRESS', 'USDT_ADDRESS');
+ * console.log(`1 USDC = ${price.priceInQuote} USDT`);
+ *
+ * // Get token price from pool reserves
+ * const poolPrice = await getTokenPrice('token1', 'token2', '100000000');
+ * console.log(`Price impact at 1 unit: ${poolPrice.priceImpact}%`);
+ */
+export async function getTokenPrice(baseToken, quoteToken, baseAmount = '100000000') {
+  try {
+    const pool = await AMMContract.getPool(baseToken, quoteToken);
+    if (!pool) {
+      throw new Error(`Pool not found between ${baseToken} and ${quoteToken}`);
+    }
+
+    const poolData = typeof pool === 'string' ? JSON.parse(pool) : pool;
+
+    // Get price for 1 base token (100000000 = 1 unit with 8 decimals)
+    const oneUnit = '100000000';
+    const priceForOne = await AMMContract.getAmountOut(
+      oneUnit,
+      poolData.reserveA,
+      poolData.reserveB,
+      poolData.fee || 3000
+    );
+
+    // Get price for requested amount
+    const priceForAmount = await AMMContract.getAmountOut(
+      baseAmount,
+      poolData.reserveA,
+      poolData.reserveB,
+      poolData.fee || 3000
+    );
+
+    // Calculate price impact (difference between marginal and average price)
+    const marginalPrice = Number(priceForOne); // Price per unit
+    const averagePrice = Number(priceForAmount) / (Number(baseAmount) / Number(oneUnit)); // Average price
+    const priceImpact = ((marginalPrice - averagePrice) / marginalPrice) * 100;
+
+    return {
+      baseToken,
+      quoteToken,
+      baseAmount: baseAmount.toString(),
+      quoteAmount: priceForAmount.toString(),
+      priceInQuote: (Number(priceForAmount) / Number(baseAmount)).toFixed(8),
+      pricePerUnit: (Number(priceForOne) / Number(oneUnit)).toFixed(8),
+      priceImpact: priceImpact.toFixed(4),
+      poolReserveBase: poolData.reserveA.toString(),
+      poolReserveQuote: poolData.reserveB.toString(),
+      poolFee: (Number(poolData.fee) / 100).toFixed(2) + '%',
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Failed to get token price:', error);
+    return null;
+  }
+}
+
+/**
+ * Get prices for multiple token pairs at once (batch query)
+ * Optimized for displaying market data in UI
+ *
+ * @param {Array<{base: string, quote: string}>} tokenPairs - Array of token pair objects
+ * @returns {Promise<Object>} Object with token pair keys and price data
+ *
+ * @example
+ * const pairs = [
+ *   { base: 'USDC_ADDR', quote: 'USDT_ADDR' },
+ *   { base: 'ETH_ADDR', quote: 'USDC_ADDR' },
+ *   { base: 'BTC_ADDR', quote: 'USDC_ADDR' }
+ * ];
+ * const prices = await getTokenPricesBatch(pairs);
+ * console.log(prices['USDC-USDT'].priceInQuote); // Price of USDC in USDT
+ */
+export async function getTokenPricesBatch(tokenPairs) {
+  try {
+    if (!Array.isArray(tokenPairs) || tokenPairs.length === 0) {
+      throw new Error('tokenPairs must be a non-empty array');
+    }
+
+    const pricePromises = tokenPairs.map(pair =>
+      getTokenPrice(pair.base, pair.quote)
+    );
+
+    const priceResults = await Promise.all(pricePromises);
+
+    const pricesMap = {};
+    tokenPairs.forEach((pair, index) => {
+      const key = `${pair.base.substring(0, 8)}-${pair.quote.substring(0, 8)}`;
+      pricesMap[key] = priceResults[index];
+    });
+
+    return pricesMap;
+  } catch (error) {
+    console.error('Failed to get batch token prices:', error);
+    return {};
+  }
+}
+
+/**
+ * Get market data for a token including price, volatility, and trading activity
+ * Comprehensive data for frontend market displays
+ *
+ * @param {string} tokenA - First token in pair
+ * @param {string} tokenB - Second token in pair
+ * @returns {Promise<Object|null>} Market data including prices and pool metrics
+ *
+ * @example
+ * const marketData = await getMarketData('USDC_ADDR', 'USDT_ADDR');
+ * console.log(`Pool liquidity: ${marketData.totalLiquidity}`);
+ * console.log(`24h fee rate: ${marketData.estimatedFeeRate}%`);
+ */
+export async function getMarketData(tokenA, tokenB) {
+  try {
+    const [poolData, priceData, slippageData] = await Promise.all([
+      AMMContract.getPool(tokenA, tokenB),
+      getTokenPrice(tokenA, tokenB),
+      estimateSlippage(tokenA, tokenB, '100000000'), // 1 unit with 8 decimals
+    ]);
+
+    if (!poolData || !priceData) {
+      throw new Error('Failed to fetch market data');
+    }
+
+    const liquidityUSD = (Number(poolData.reserveA) + Number(poolData.reserveB)) / 2;
+    const dailyEstimatedFees = liquidityUSD * (Number(poolData.fee) / 10000) * 365;
+
+    return {
+      baseToken: tokenA,
+      quoteToken: tokenB,
+      price: priceData.priceInQuote,
+      pricePerUnit: priceData.pricePerUnit,
+      priceImpact: priceData.priceImpact,
+      poolReserveA: poolData.reserveA,
+      poolReserveB: poolData.reserveB,
+      totalLiquidity: (Number(poolData.reserveA) + Number(poolData.reserveB)).toString(),
+      poolFee: (Number(poolData.fee) / 100).toFixed(2) + '%',
+      estimatedDailyFees: dailyEstimatedFees.toFixed(2),
+      slippagePercentage: slippageData.slippagePercentage,
+      lastUpdate: poolData.lastUpdateTime,
+      isActive: poolData.isActive,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Failed to get market data:', error);
+    return null;
+  }
+}
+
+/**
+ * Calculate price impact for a given swap size
+ * Helps users understand the cost of their trades
+ *
+ * @param {string} tokenIn - Input token
+ * @param {string} tokenOut - Output token
+ * @param {string|number} amountIn - Input amount (with decimals)
+ * @returns {Promise<Object|null>} Price impact details
+ *
+ * @example
+ * const impact = await calculatePriceImpact('USDC_ADDR', 'USDT_ADDR', '1000000000');
+ * console.log(`Price impact: ${impact.priceImpactPercent}%`);
+ * console.log(`Effective price: 1 USDC = ${impact.effectivePrice} USDT`);
+ */
+export async function calculatePriceImpact(tokenIn, tokenOut, amountIn) {
+  try {
+    const pool = await AMMContract.getPool(tokenIn, tokenOut);
+    if (!pool) {
+      throw new Error('Pool not found');
+    }
+
+    const poolData = typeof pool === 'string' ? JSON.parse(pool) : pool;
+
+    // Get the spot price (price per unit)
+    const oneUnit = '100000000';
+    const spotPriceOutput = await AMMContract.getAmountOut(
+      oneUnit,
+      poolData.reserveA,
+      poolData.reserveB,
+      poolData.fee || 3000
+    );
+    const spotPrice = Number(spotPriceOutput) / Number(oneUnit);
+
+    // Get actual output for the amount
+    const actualOutput = await AMMContract.getAmountOut(
+      amountIn,
+      poolData.reserveA,
+      poolData.reserveB,
+      poolData.fee || 3000
+    );
+    const effectivePrice = Number(actualOutput) / Number(amountIn);
+
+    // Calculate impact
+    const priceImpactPercent = ((spotPrice - effectivePrice) / spotPrice) * 100;
+    const amountLost = (spotPrice * Number(amountIn)) - Number(actualOutput);
+
+    return {
+      amountIn: amountIn.toString(),
+      amountOut: actualOutput.toString(),
+      spotPrice: spotPrice.toFixed(8),
+      effectivePrice: effectivePrice.toFixed(8),
+      priceImpactPercent: priceImpactPercent.toFixed(4),
+      amountLostToPriceImpact: amountLost.toFixed(0),
+      poolReserveIn: poolData.reserveA.toString(),
+      poolReserveOut: poolData.reserveB.toString(),
+      poolFee: (Number(poolData.fee) / 100).toFixed(2) + '%',
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Failed to calculate price impact:', error);
     return null;
   }
 }

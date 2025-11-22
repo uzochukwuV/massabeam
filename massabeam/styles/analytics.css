@@ -1,0 +1,275 @@
+/**
+ * Analytics & Monitoring Styles
+ *
+ * Styles for order eligibility, performance metrics, and expiring orders alerts
+ */
+
+/* ============================================================================
+   EXPIRING ORDERS ALERT
+   ============================================================================ */
+
+.expiring-orders-alert {
+  border-left: 4px solid var(--warning-orange, #ff9800);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+}
+
+.expiring-orders-alert .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.alert-badge {
+  background: var(--warning-orange, #ff9800);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.alert-message {
+  padding: 12px 0;
+  color: var(--text-secondary, #8a8aa0);
+  font-size: 14px;
+}
+
+.alert-message strong {
+  color: var(--warning-orange, #ff9800);
+  font-weight: 600;
+}
+
+.expiring-orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.expiring-order-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s;
+}
+
+.expiring-order-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.order-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.order-type-label {
+  font-size: 12px;
+  color: var(--text-secondary, #8a8aa0);
+}
+
+.order-id {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+}
+
+.time-remaining {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warning-orange, #ff9800);
+}
+
+.time-remaining.urgent {
+  color: var(--error-red, #ff4757);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.view-btn {
+  padding: 6px 16px;
+  background: var(--primary-blue, #0099ff);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-btn:hover {
+  background: var(--primary-blue-dark, #0077cc);
+  transform: translateY(-1px);
+}
+
+/* ============================================================================
+   USER PERFORMANCE METRICS
+   ============================================================================ */
+
+.user-performance {
+  background: linear-gradient(135deg, rgba(0, 153, 255, 0.1) 0%, rgba(0, 217, 126, 0.1) 100%);
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.perf-metric {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s;
+}
+
+.perf-metric:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.metric-label {
+  font-size: 12px;
+  color: var(--text-secondary, #8a8aa0);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  margin-bottom: 4px;
+}
+
+.metric-detail {
+  font-size: 12px;
+  color: var(--text-secondary, #8a8aa0);
+}
+
+.success-text {
+  color: var(--success-green, #00d97e);
+}
+
+.muted-text {
+  color: var(--text-muted, #5a5a6f);
+}
+
+/* ============================================================================
+   ORDER ELIGIBILITY BADGE
+   ============================================================================ */
+
+.order-eligibility-container {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.eligibility-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.eligibility-badge.eligible {
+  background: rgba(0, 217, 126, 0.15);
+  border: 1px solid rgba(0, 217, 126, 0.3);
+}
+
+.eligibility-badge.not-eligible {
+  background: rgba(255, 71, 87, 0.15);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.badge-icon {
+  font-size: 16px;
+}
+
+.eligibility-badge.eligible .badge-icon {
+  color: var(--success-green, #00d97e);
+}
+
+.eligibility-badge.not-eligible .badge-icon {
+  color: var(--error-red, #ff4757);
+}
+
+.badge-text {
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+}
+
+.badge-reason {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary, #8a8aa0);
+  font-style: italic;
+}
+
+/* ============================================================================
+   CARD FOOTER
+   ============================================================================ */
+
+.card-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: center;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .performance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-value {
+    font-size: 24px;
+  }
+
+  .expiring-order-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .view-btn {
+    width: 100%;
+  }
+}
+
+/* ============================================================================
+   DARK MODE ADJUSTMENTS
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .expiring-orders-alert {
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.15) 0%, rgba(255, 152, 0, 0.08) 100%);
+  }
+
+  .user-performance {
+    background: linear-gradient(135deg, rgba(0, 153, 255, 0.15) 0%, rgba(0, 217, 126, 0.15) 100%);
+  }
+}

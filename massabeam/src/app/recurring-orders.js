@@ -237,6 +237,264 @@ export const RecurringOrdersContract = {
       throw error;
     }
   },
+
+  /**
+   * Pause order
+   */
+  async pauseOrder(orderId) {
+    try {
+      const args = new Args().addU64(BigInt(orderId));
+      await callContract(RECURRING_ORDERS_ADDRESS(), 'pauseRecurringOrder', args.serialize());
+      showSuccess('Order ' + orderId + ' paused successfully!');
+      return true;
+    } catch (error) {
+      showError('Failed to pause order: ' + error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Resume order
+   */
+  async resumeOrder(orderId) {
+    try {
+      const args = new Args().addU64(BigInt(orderId));
+      await callContract(RECURRING_ORDERS_ADDRESS(), 'resumeRecurringOrder', args.serialize());
+      showSuccess('Order ' + orderId + ' resumed successfully!');
+      return true;
+    } catch (error) {
+      showError('Failed to resume order: ' + error.message);
+      throw error;
+    }
+  },
+
+  // ============================================================================
+  // NEW READ FUNCTIONS - Analytics & Monitoring
+  // ============================================================================
+
+  /**
+   * Get all recurring orders for a user
+   *
+   * @param {string} userAddress - User wallet address
+   * @returns {Promise<number[]>} Array of order IDs
+   */
+  async getUserRecurringOrders(userAddress) {
+    try {
+      const args = new Args().addString(userAddress);
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'getUserRecurringOrders', args.serialize());
+
+      if (!result || result.length === 0) return [];
+
+      const resultArgs = new Args(result);
+      const count = Number(resultArgs.nextU64().unwrap());
+      const orderIds = [];
+      for (let i = 0; i < count; i++) {
+        orderIds.push(Number(resultArgs.nextU64().unwrap()));
+      }
+      return orderIds;
+    } catch (error) {
+      console.error("Get user recurring orders error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get all active recurring orders
+   *
+   * @returns {Promise<number[]>} Array of active order IDs
+   */
+  async getActiveRecurringOrders() {
+    try {
+      const args = new Args();
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'getActiveRecurringOrders', args.serialize());
+
+      if (!result || result.length === 0) return [];
+
+      const resultArgs = new Args(result);
+      const count = Number(resultArgs.nextU64().unwrap());
+      const orderIds = [];
+      for (let i = 0; i < count; i++) {
+        orderIds.push(Number(resultArgs.nextU64().unwrap()));
+      }
+      return orderIds;
+    } catch (error) {
+      console.error("Get active recurring orders error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get recurring orders by status
+   *
+   * @param {number} status - Order status (0=Active, 1=Completed, 2=Paused, 3=Cancelled)
+   * @returns {Promise<number[]>} Array of order IDs with specified status
+   */
+  async getRecurringOrdersByStatus(status) {
+    try {
+      const args = new Args().addU8(status);
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'getRecurringOrdersByStatus', args.serialize());
+
+      if (!result || result.length === 0) return [];
+
+      const resultArgs = new Args(result);
+      const count = Number(resultArgs.nextU64().unwrap());
+      const orderIds = [];
+      for (let i = 0; i < count; i++) {
+        orderIds.push(Number(resultArgs.nextU64().unwrap()));
+      }
+      return orderIds;
+    } catch (error) {
+      console.error("Get recurring orders by status error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get recurring orders by type
+   *
+   * @param {number} orderType - Order type (0=BuyOnIncrease, 1=SellOnDecrease, 2=Grid, 3=DCA)
+   * @returns {Promise<number[]>} Array of order IDs with specified type
+   */
+  async getRecurringOrdersByType(orderType) {
+    try {
+      const args = new Args().addU8(orderType);
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'getRecurringOrdersByType', args.serialize());
+
+      if (!result || result.length === 0) return [];
+
+      const resultArgs = new Args(result);
+      const count = Number(resultArgs.nextU64().unwrap());
+      const orderIds = [];
+      for (let i = 0; i < count; i++) {
+        orderIds.push(Number(resultArgs.nextU64().unwrap()));
+      }
+      return orderIds;
+    } catch (error) {
+      console.error("Get recurring orders by type error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Check if recurring order is eligible for execution
+   *
+   * @param {number} orderId - Order ID
+   * @returns {Promise<{eligible: boolean, reason: string}>} Eligibility status with reason
+   */
+  async isRecurringOrderEligible(orderId) {
+    try {
+      const args = new Args().addU64(BigInt(orderId));
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'isRecurringOrderEligible', args.serialize());
+
+      const resultArgs = new Args(result);
+      const eligible = resultArgs.nextBool().unwrap();
+      const reason = resultArgs.nextString().unwrap();
+
+      return { eligible, reason };
+    } catch (error) {
+      console.error("Check recurring order eligibility error:", error);
+      return { eligible: false, reason: 'Error checking eligibility' };
+    }
+  },
+
+  /**
+   * Get recurring order details (alias for getOrderDetails)
+   *
+   * @param {number} orderId - Order ID
+   * @returns {Promise<Object|null>} Order details
+   */
+  async getRecurringOrderDetails(orderId) {
+    return this.getOrderDetails(orderId);
+  },
+
+  /**
+   * Get recurring orders expiring within a time window
+   *
+   * @param {number} timeWindow - Time window in seconds (e.g., 3600 = 1 hour)
+   * @returns {Promise<number[]>} Array of order IDs expiring soon
+   */
+  async getExpiringOrders(timeWindow) {
+    try {
+      const args = new Args().addU64(BigInt(timeWindow));
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'getExpiringOrders', args.serialize());
+
+      if (!result || result.length === 0) return [];
+
+      const resultArgs = new Args(result);
+      const count = Number(resultArgs.nextU64().unwrap());
+      const orderIds = [];
+      for (let i = 0; i < count; i++) {
+        orderIds.push(Number(resultArgs.nextU64().unwrap()));
+      }
+      return orderIds;
+    } catch (error) {
+      console.error("Get expiring orders error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get user performance summary
+   *
+   * @param {string} userAddress - User wallet address
+   * @returns {Promise<Object>} User performance statistics
+   */
+  async getUserPerformanceSummary(userAddress) {
+    try {
+      const args = new Args().addString(userAddress);
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'getUserPerformanceSummary', args.serialize());
+
+      const resultArgs = new Args(result);
+      return {
+        totalOrders: Number(resultArgs.nextU64().unwrap()),
+        activeOrders: Number(resultArgs.nextU64().unwrap()),
+        totalExecutions: Number(resultArgs.nextU64().unwrap()),
+        successRate: Number(resultArgs.nextU64().unwrap()), // In basis points
+      };
+    } catch (error) {
+      console.error("Get user performance summary error:", error);
+      return {
+        totalOrders: 0,
+        activeOrders: 0,
+        totalExecutions: 0,
+        successRate: 0,
+      };
+    }
+  },
+
+  /**
+   * Get platform statistics
+   *
+   * @returns {Promise<Object>} Platform-wide statistics
+   */
+  async getPlatformStatistics() {
+    try {
+      const args = new Args();
+      const result = await readContract(RECURRING_ORDERS_ADDRESS(), 'getPlatformStatistics', args.serialize());
+
+      const resultArgs = new Args(result);
+      return {
+        totalOrders: Number(resultArgs.nextU64().unwrap()),
+        activeOrders: Number(resultArgs.nextU64().unwrap()),
+        completedOrders: Number(resultArgs.nextU64().unwrap()),
+        pausedOrders: Number(resultArgs.nextU64().unwrap()),
+        cancelledOrders: Number(resultArgs.nextU64().unwrap()),
+        totalExecutions: Number(resultArgs.nextU64().unwrap()),
+        botEnabled: resultArgs.nextBool().unwrap(),
+      };
+    } catch (error) {
+      console.error("Get platform statistics error:", error);
+      return {
+        totalOrders: 0,
+        activeOrders: 0,
+        completedOrders: 0,
+        pausedOrders: 0,
+        cancelledOrders: 0,
+        totalExecutions: 0,
+        botEnabled: false,
+      };
+    }
+  },
 };
 
 export default RecurringOrdersContract;
